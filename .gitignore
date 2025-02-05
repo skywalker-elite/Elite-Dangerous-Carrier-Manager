@@ -1,0 +1,7 @@
+
+__pycache__/*
+build
+build/*
+dist
+dist/*
+build_local.spec
