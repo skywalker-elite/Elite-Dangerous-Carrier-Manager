@@ -1,8 +1,15 @@
 # Elite Dangerous Carrier Manager (EDCM)
-![Jumps tab](ss_jump.png)
-![Finance tab](ss_finance.png)
-![Trade post](ss_trade_post.png)
 EDCM is a third-party tool that helps you keep track of all your carriers in Elite Dangerous. The tool also provides some auxiliary functions to help with your daily trading and financial management.
+
+
+![Jumps tab](ss_jump.png)
+Jumps and location
+
+![Finance tab](ss_finance.png)
+Credit balance at a glance
+
+![Trade post](ss_trade_post.png)
+Easy trade posting
 ## Supported Game Versions
 The tool is designed to work with the **Live** version of the game. 
 ## Supported Platforms
