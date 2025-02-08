@@ -22,9 +22,9 @@ class CarrierView:
         self.tab_controler.add(self.tab_finance, text='Finance')
 
         # Make the grid expand when the window is resized
-        self.tab_jumps.rowconfigure(1, pad=1, weight=1)
+        self.tab_jumps.rowconfigure(0, pad=1, weight=1)
         self.tab_jumps.columnconfigure(0, pad=1, weight=1)
-        self.tab_finance.rowconfigure(1, pad=1, weight=1)
+        self.tab_finance.rowconfigure(0, pad=1, weight=1)
         self.tab_finance.columnconfigure(0, pad=1, weight=1)
 
         self.tab_controler.pack(expand=True, fill='both')
@@ -48,6 +48,7 @@ class CarrierView:
         
         self.bottom_bar = ttk.Frame(self.tab_jumps)
         self.bottom_bar.grid(row=1, column=0, columnspan=3, sticky='ew')
+        self.tab_jumps.grid_rowconfigure(1, weight=0)
         # Buttons
         # Post trade
         self.button_post_trade = ttk.Button(self.bottom_bar, text='Post Trade')
