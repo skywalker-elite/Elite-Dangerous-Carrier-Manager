@@ -73,7 +73,7 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
         jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False).reset_index(drop=True)
-        df_trade_orders = pd.DataFrame(trade_orders).sort_values('timestamp', ascending=False).reset_index(drop=True)
+        df_trade_orders = pd.DataFrame(trade_orders).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
         # print(df_trade_orders.head())
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
@@ -94,11 +94,17 @@ class CarrierModel:
             fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             carriers[carrierID]['jumps'] = fc_jumps
 
+            if 'SpawnLocation' not in carriers[carrierID].keys():
+                carriers[carrierID]['SpawnLocation'] = 'Unknown'
+            
             # TODO: need to map by commodity
-            fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
-            if len(fc_trade_orders) > 0:
-                fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
-                print(fc_last_order)
+            if df_trade_orders is not None:
+                fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
+                if len(fc_trade_orders) > 0:
+                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
+                    print(fc_last_order)
+                else:
+                    fc_last_order = None
             else:
                 fc_last_order = None
             carriers[carrierID]['last_trade'] = fc_last_order
