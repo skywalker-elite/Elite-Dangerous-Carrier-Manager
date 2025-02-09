@@ -61,9 +61,9 @@ class CarrierModel:
             if stat['CarrierID'] not in carriers.keys():
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
+                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]],
                                                           'ReserveBalance': stat['Finance']['ReserveBalance'], 
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
-                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]],
                                                           }
         
         for carrier_buy in carrier_buys:
@@ -73,7 +73,7 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
         jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False).reset_index(drop=True)
-        df_trade_orders = pd.DataFrame(trade_orders).sort_values('timestamp', ascending=False).reset_index(drop=True)
+        df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
         # print(df_trade_orders.head())
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
@@ -94,11 +94,17 @@ class CarrierModel:
             fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             carriers[carrierID]['jumps'] = fc_jumps
 
+            if 'SpawnLocation' not in carriers[carrierID].keys():
+                carriers[carrierID]['SpawnLocation'] = 'Unknown'
+            
             # TODO: need to map by commodity
-            fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
-            if len(fc_trade_orders) > 0:
-                fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
-                print(fc_last_order)
+            if df_trade_orders is not None:
+                fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
+                if len(fc_trade_orders) > 0:
+                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
+                    print(fc_last_order)
+                else:
+                    fc_last_order = None
             else:
                 fc_last_order = None
             carriers[carrierID]['last_trade'] = fc_last_order
@@ -161,9 +167,10 @@ class CarrierModel:
         return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids()]
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()])
-        df.insert(5, 5, df.iloc[:,1].astype(int) + df.iloc[:, 4].astype(int))
-        df = pd.concat([df, pd.DataFrame(['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]).T], axis=0)
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Reserve Balance', 'Available Balance'])
+        df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
+        df = pd.concat([df, pd.DataFrame([['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]], columns=df.columns)], axis=0, ignore_index=True)
+        df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
         df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{xi:,}' for xi in x])
         return df.values.tolist()
     
