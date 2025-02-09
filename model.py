@@ -61,9 +61,9 @@ class CarrierModel:
             if stat['CarrierID'] not in carriers.keys():
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
+                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]],
                                                           'ReserveBalance': stat['Finance']['ReserveBalance'], 
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
-                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]],
                                                           }
         
         for carrier_buy in carrier_buys:
@@ -167,9 +167,10 @@ class CarrierModel:
         return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids()]
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()])
-        df.insert(5, 5, df.iloc[:,1].astype(int) + df.iloc[:, 4].astype(int))
-        df = pd.concat([df, pd.DataFrame(['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]).T], axis=0)
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Reserve Balance', 'Available Balance'])
+        df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
+        df = pd.concat([df, pd.DataFrame([['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]], columns=df.columns)], axis=0, ignore_index=True)
+        df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
         df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{xi:,}' for xi in x])
         return df.values.tolist()
     
