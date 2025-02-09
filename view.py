@@ -67,7 +67,7 @@ class CarrierView:
 
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance)
-        self.sheet_finance.grid(row=1, column=0, columnspan=3, sticky='nswe')
+        self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_finance.change_theme('dark', redraw=False)
 
         # Set column headers
