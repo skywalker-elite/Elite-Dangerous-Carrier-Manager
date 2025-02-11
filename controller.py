@@ -10,8 +10,8 @@ from station_parser import getStations
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
-    def __init__(self, root):
-        self.model = CarrierModel()
+    def __init__(self, root, model):
+        self.model = model
         # self.model.read_journals()  # Load data into the model
         self.view = CarrierView(root)
         # self.update_table()

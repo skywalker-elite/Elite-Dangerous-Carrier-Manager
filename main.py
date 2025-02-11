@@ -1,9 +1,3 @@
-# Close the splash screen
-try:
-    import pyi_splash
-    pyi_splash.close()
-except ModuleNotFoundError:
-    pass
 # for bundled resorces to work
 import sys, os
 def resource_path(relative_path):
@@ -13,6 +7,7 @@ def resource_path(relative_path):
 import tkinter as tk
 import sv_ttk
 from controller import CarrierController
+from model import CarrierModel
 import pywinstyles, sys
 from os import path
 from config import WINDOW_SIZE
@@ -31,6 +26,14 @@ def apply_theme_to_titlebar(root):
         root.wm_attributes("-alpha", 1)
 
 def main():
+    # Update and close the splash screen
+    try:
+        import pyi_splash
+        pyi_splash.update_text('Reading journals...')
+        model = CarrierModel()
+        pyi_splash.close()
+    except ModuleNotFoundError:
+        model = CarrierModel()
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()
@@ -40,7 +43,7 @@ def main():
     photo = tk.PhotoImage(file = resource_path(os.path.join('images','EDCM.png')))
     root.wm_iconphoto(False, photo)
     root.update()
-    app = CarrierController(root)
+    app = CarrierController(root, model=model)
     root.mainloop()
 
 if __name__ == "__main__":
