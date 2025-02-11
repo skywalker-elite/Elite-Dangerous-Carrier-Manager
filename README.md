@@ -1,5 +1,5 @@
 # Elite Dangerous Carrier Manager (EDCM)
-![Banner](images_readme/EDCM%20Banner.png)
+![Banner](images_readme/EDCM_Banner.png)
 EDCM is a third-party tool that helps you keep track of all your carriers in Elite Dangerous. The tool also provides some auxiliary functions to help with your daily trading and financial management.
 
 
