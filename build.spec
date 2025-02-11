@@ -14,6 +14,14 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
+splash = Splash('images\\EDCM_Splash.png',
+                binaries=a.binaries,
+                datas=a.datas,
+                text_pos=(150, 470),
+                text_size=12,
+                text_color='black')
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

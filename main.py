@@ -1,4 +1,9 @@
-
+# Close the splash screen
+try:
+    import pyi_splash
+    pyi_splash.close()
+except ModuleNotFoundError:
+    pass
 # for bundled resorces to work
 import sys, os
 def resource_path(relative_path):
