@@ -4,18 +4,19 @@ import re
 import json
 from numpy import datetime64, nan
 from datetime import datetime, timezone, timedelta
-from config import journal_path, PADLOCK, CD, JUMPLOCK, ladder_systems
+from config import JOURNAL_PATH, PADLOCK, CD, JUMPLOCK, ladder_systems
 
 class CarrierModel:
-    def __init__(self):
+    def __init__(self, journal_path=JOURNAL_PATH):
         self.carriers = {}
         self.carriers_updated = {}
         self.active_timer = False
         self.manual_timers = []
+        self.journal_path = journal_path
         self.read_journals()
 
-    def read_journals(self, journal_path=journal_path):
-        files = listdir(journal_path)
+    def read_journals(self):
+        files = listdir(self.journal_path)
         r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
         journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=True)
         # jumps = []
@@ -27,7 +28,7 @@ class CarrierModel:
         carrier_buys = []
         carrier_owners = {}
         for journal in journals:
-            with open(path.join(journal_path, journal), 'r', encoding='utf-8') as f:
+            with open(path.join(self.journal_path, journal), 'r', encoding='utf-8') as f:
                 items = []
                 for i in f.readlines():
                     try:
