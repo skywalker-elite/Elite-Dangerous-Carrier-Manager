@@ -77,7 +77,7 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
-        jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False).reset_index(drop=True)
+        jumps = pd.DataFrame(jump_requests + jump_cancels)
         df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
         # print(df_trade_orders.head())
         for carrierID in carriers.keys():
@@ -95,8 +95,14 @@ class CarrierModel:
                     cancelled.append(False)
             fc_jumps['cancelled'] = cancelled
             fc_jumps = fc_jumps[fc_jumps['cancelled'] == False].drop(['event', 'cancelled'], axis=1)
-            fc_jumps['DepartureTime'] = fc_jumps['DepartureTime'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+            fc_jumps_no_departure_time = fc_jumps[fc_jumps['DepartureTime'].isna()]
+            assert len(fc_jumps_no_departure_time) == 0 or (fc_jumps_no_departure_time['timestamp'] < datetime(year=2022, month=12, day=1, tzinfo=timezone.utc)).all(), 'Unexpected missing jump time'
+            fc_jumps_no_departure_time['DepartureTime'] = fc_jumps_no_departure_time['timestamp'] + timedelta(minutes=15)
+            fc_jumps_with_departure_time = fc_jumps[fc_jumps['DepartureTime'].notna()]
+            fc_jumps_with_departure_time['DepartureTime'] = fc_jumps_with_departure_time['DepartureTime'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+            fc_jumps = pd.concat([fc_jumps_with_departure_time, fc_jumps_no_departure_time])
+            fc_jumps = fc_jumps.sort_values('timestamp', ascending=False)
             carriers[carrierID]['jumps'] = fc_jumps
 
             if 'SpawnLocation' not in carriers[carrierID].keys():
@@ -317,3 +323,10 @@ def formatForSort(s:str) -> str:
 def getHammerCountdown(dt:datetime64) -> str:
     unix_time = dt.astype('datetime64[s]').astype('int')
     return f'<t:{unix_time}:R>'
+
+if __name__ == '__main__':
+    model = CarrierModel()
+    now = datetime.now(timezone.utc)
+    model.update_carriers(now)
+    print(pd.DataFrame(model.get_data(now)))
+    print(pd.DataFrame(model.get_data_finance()))
