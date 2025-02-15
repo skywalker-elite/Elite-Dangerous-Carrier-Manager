@@ -28,7 +28,12 @@ class CarrierModel:
         carrier_owners = {}
         for journal in journals:
             with open(path.join(journal_path, journal), 'r', encoding='utf-8') as f:
-                items = [json.loads(i) for i in f.readlines()]
+                items = []
+                for i in f.readlines():
+                    try:
+                        items.append(json.loads(i))
+                    except json.decoder.JSONDecodeError: # ignore ill-formated entries
+                        continue
                 fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
                 if len(fid_temp) > 0:
                     assert all(i == fid_temp[0] for i in fid_temp)
