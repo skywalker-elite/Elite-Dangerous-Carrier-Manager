@@ -3,13 +3,11 @@ name: To Exe
 on:
   push:
     branches: 
-      - main
-      - develop
-      - debug
       - CI-test
   pull_request:
     branches:    
       - develop
+      - main
 
 jobs:
   pyinstaller-build:
