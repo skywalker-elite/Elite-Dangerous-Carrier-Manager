@@ -40,7 +40,7 @@ class CarrierModel:
                     fid = fid_temp[0]
                     # print(fid)
                 # jumps.extend([i for i in items if i['event'] == 'CarrierJump'])
-                for item in items:
+                for item in reversed(items): # Parse from new to old
                     if item['event'] == 'LoadGame':
                         load_games.append(item)
                     if item['event'] == 'CarrierJumpRequest':
