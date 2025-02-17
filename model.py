@@ -28,14 +28,20 @@ class CarrierModel:
         carrier_owners = {}
         for journal in journals:
             with open(path.join(journal_path, journal), 'r', encoding='utf-8') as f:
-                items = [json.loads(i) for i in f.readlines()]
+                items = []
+                for i in f.readlines():
+                    try:
+                        items.append(json.loads(i))
+                    except json.decoder.JSONDecodeError: # ignore ill-formated entries
+                        continue
                 fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
                 if len(fid_temp) > 0:
-                    assert all(i == fid_temp[0] for i in fid_temp)
-                    fid = fid_temp[0]
-                    # print(fid)
+                    if all(i == fid_temp[0] for i in fid_temp):
+                        fid = fid_temp[0]
+                    else:
+                        fid = None
                 # jumps.extend([i for i in items if i['event'] == 'CarrierJump'])
-                for item in items:
+                for item in reversed(items): # Parse from new to old
                     if item['event'] == 'LoadGame':
                         load_games.append(item)
                     if item['event'] == 'CarrierJumpRequest':
@@ -44,7 +50,7 @@ class CarrierModel:
                         jump_cancels.append(item)
                     if item['event'] == 'CarrierStats':
                         stats.append(item)
-                        if item['CarrierID'] not in carrier_owners.keys():
+                        if item['CarrierID'] not in carrier_owners.keys() and fid is not None:
                             carrier_owners[item['CarrierID']] = fid
                     if item['event'] == 'CarrierTradeOrder':
                         trade_orders.append(item)
@@ -61,7 +67,7 @@ class CarrierModel:
             if stat['CarrierID'] not in carriers.keys():
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
-                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]],
+                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() else None,
                                                           'ReserveBalance': stat['Finance']['ReserveBalance'], 
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
@@ -72,7 +78,7 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
-        jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False).reset_index(drop=True)
+        jumps = pd.DataFrame(jump_requests + jump_cancels)
         df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
         # print(df_trade_orders.head())
         for carrierID in carriers.keys():
@@ -90,8 +96,14 @@ class CarrierModel:
                     cancelled.append(False)
             fc_jumps['cancelled'] = cancelled
             fc_jumps = fc_jumps[fc_jumps['cancelled'] == False].drop(['event', 'cancelled'], axis=1)
-            fc_jumps['DepartureTime'] = fc_jumps['DepartureTime'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+            fc_jumps_no_departure_time = fc_jumps[fc_jumps['DepartureTime'].isna()]
+            assert len(fc_jumps_no_departure_time) == 0 or (fc_jumps_no_departure_time['timestamp'] < datetime(year=2022, month=12, day=1, tzinfo=timezone.utc)).all(), 'Unexpected missing jump time'
+            fc_jumps_no_departure_time['DepartureTime'] = fc_jumps_no_departure_time['timestamp'] + timedelta(minutes=15)
+            fc_jumps_with_departure_time = fc_jumps[fc_jumps['DepartureTime'].notna()]
+            fc_jumps_with_departure_time['DepartureTime'] = fc_jumps_with_departure_time['DepartureTime'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+            fc_jumps = pd.concat([fc_jumps_with_departure_time, fc_jumps_no_departure_time])
+            fc_jumps = fc_jumps.sort_values('timestamp', ascending=False)
             carriers[carrierID]['jumps'] = fc_jumps
 
             if 'SpawnLocation' not in carriers[carrierID].keys():
@@ -102,7 +114,7 @@ class CarrierModel:
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
                     fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
-                    print(fc_last_order)
+                    # print(fc_last_order)
                 else:
                     fc_last_order = None
             else:
@@ -168,10 +180,14 @@ class CarrierModel:
     
     def get_data_finance(self):
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Reserve Balance', 'Available Balance'])
+        # handles unknown cmdr balance
+        idx_no_cmdr = df[df['CMDR Balance'].isna()].index
+        df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
         df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
         df = pd.concat([df, pd.DataFrame([['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
-        df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{xi:,}' for xi in x])
+        df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{int(xi):,}' for xi in x])
+        df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         return df.values.tolist()
     
     def generate_info_finance(self, carrierID):
@@ -312,3 +328,10 @@ def formatForSort(s:str) -> str:
 def getHammerCountdown(dt:datetime64) -> str:
     unix_time = dt.astype('datetime64[s]').astype('int')
     return f'<t:{unix_time}:R>'
+
+if __name__ == '__main__':
+    model = CarrierModel()
+    now = datetime.now(timezone.utc)
+    model.update_carriers(now)
+    print(pd.DataFrame(model.get_data(now)))
+    print(pd.DataFrame(model.get_data_finance()))
