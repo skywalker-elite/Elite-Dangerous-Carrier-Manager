@@ -36,8 +36,10 @@ class CarrierModel:
                         continue
                 fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
                 if len(fid_temp) > 0:
-                    assert all(i == fid_temp[0] for i in fid_temp)
-                    fid = fid_temp[0]
+                    if all(i == fid_temp[0] for i in fid_temp):
+                        fid = fid_temp[0]
+                    else:
+                        fid = None
                     # print(fid)
                 # jumps.extend([i for i in items if i['event'] == 'CarrierJump'])
                 for item in reversed(items): # Parse from new to old
@@ -49,7 +51,7 @@ class CarrierModel:
                         jump_cancels.append(item)
                     if item['event'] == 'CarrierStats':
                         stats.append(item)
-                        if item['CarrierID'] not in carrier_owners.keys():
+                        if item['CarrierID'] not in carrier_owners.keys() and fid is not None:
                             carrier_owners[item['CarrierID']] = fid
                     if item['event'] == 'CarrierTradeOrder':
                         trade_orders.append(item)
@@ -66,7 +68,7 @@ class CarrierModel:
             if stat['CarrierID'] not in carriers.keys():
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
-                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]],
+                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() else None,
                                                           'ReserveBalance': stat['Finance']['ReserveBalance'], 
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
@@ -113,7 +115,7 @@ class CarrierModel:
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
                     fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
-                    print(fc_last_order)
+                    # print(fc_last_order)
                 else:
                     fc_last_order = None
             else:
@@ -179,10 +181,14 @@ class CarrierModel:
     
     def get_data_finance(self):
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Reserve Balance', 'Available Balance'])
+        # handles unknown cmdr balance
+        idx_no_cmdr = df[df['CMDR Balance'].isna()].index
+        df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
         df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
         df = pd.concat([df, pd.DataFrame([['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
         df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{xi:,}' for xi in x])
+        df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         return df.values.tolist()
     
     def generate_info_finance(self, carrierID):
