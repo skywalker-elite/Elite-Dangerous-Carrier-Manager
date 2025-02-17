@@ -2,9 +2,8 @@ import threading
 import time
 import pyperclip
 import re
-# from winotify import Notification
+# from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
-from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, ladder_systems
@@ -12,16 +11,11 @@ from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, la
 class CarrierController:
     def __init__(self, root, model):
         self.model = model
-        # self.model.read_journals()  # Load data into the model
         self.view = CarrierView(root)
-        # self.update_table()
-        # self.update_time()
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
-        
-        # self.old_carriers = {}
         self.last_update = time.time()
 
         # Start the carrier updating thread
@@ -29,39 +23,14 @@ class CarrierController:
 
         # Start the update loop
         self.redraw()
-        # root.after(REDRAW_INTERVAL, self.update_table)
-        # root.after(REDRAW_INTERVAL, self.update_time)
-
-    # def is_changed(self):
-    #     if self.carriers.keys() != self.old_carriers.keys():
-    #         return True
-    #     for carrierID in sorted(self.carriers.keys()):
-    #         data, old_data = self.carriers[carrierID], self.old_carriers[carrierID]
-    #         if not data['jumps'].equals(old_data['jumps']):
-    #             return True
-    #         for key in data.keys():
-    #             if key == 'jumps':
-    #                 continue
-    #             elif data[key] != old_data[key]:
-    #                 return True
-    #     return False
 
     def update_table(self, now):
         self.model.update_carriers(now)
         self.view.update_table(self.model.get_data(now))
         self.view.update_table_finance(self.model.get_data_finance())
-        # self.view.root.after(REDRAW_INTERVAL, self.update_table)
-        # self.timer_active = updateCarriers(self.carriers)
-        # if self.timer_active or self.is_changed():
-        #     data = [generateInfo(self.carriers[carrierID]) for carrierID in sorted(self.carriers.keys())]
-        #     self.view.update_table(data)
-        #     self.old_carriers = self.carriers.copy()
-
-        # self.view.root.after(REDRAW_INTERVAL, self.update_table)
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
-        # self.view.root.after(REDRAW_INTERVAL, self.update_time)
     
     def update_carriers_thread(self):
         while True:
@@ -78,7 +47,6 @@ class CarrierController:
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             
-            # print(hammer_countdown)
             pyperclip.copy(hammer_countdown)
             self.view.show_message_box_info('Success!', f'Hammertime for {carrier_name} ({carrier_callsign}) Copied!')
         else:
@@ -91,12 +59,6 @@ class CarrierController:
             carrier_name = self.model.get_name(carrierID)
             system = self.model.get_current_or_destination_system(carrierID)
             # carrier_callsign = self.model.get_callsign(carrierID)
-            # print(self.view.sheet.get_data(selected_row))
-            # row = self.view.sheet.get_data(selected_row)
-            # carrier_name = row[0]
-
-            # system = row[5] if row[5] != '' else row[2]
-            # print(getStations(sys_name=system))
 
             if system == 'HIP 58832':
                 last_order = self.model.get_formated_last_order(carrierID=carrierID)
@@ -111,16 +73,11 @@ class CarrierController:
                     post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
                     pyperclip.copy(post_string)
                     self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
-                    # else:
-                    #     print(trade_type, commodity)
             else:
                 stations, pad_sizes = getStations(sys_name=system)
                 if len(stations) > 0:
                     last_order = self.model.get_formated_last_order(carrierID=carrierID)
                     if last_order is not None:
-                        # trade_type = 'loading'
-                        # commodity = 'tritium'
-                        # amount = 5
                         trade_type, commodity, amount = last_order
 
                         self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
@@ -193,10 +150,8 @@ class CarrierController:
     def check_manual_timer(self): # TODO: UI to show timers
         now = datetime.now(timezone.utc)
         in2min = (datetime.now(timezone.utc) + REMIND)
-        # data = self.model.get_data(now)
         for timer in self.model.manual_timers:
             m, s = divmod(REMIND.total_seconds(), 60)
-            # print('I checked', d[0], now, in2min, d[9])
             if timer == now.strftime('%H:%M:%S'):
                 self.view.show_message_box_info('Plot now!', f'Plot now')
                 self.model.manual_timers.remove(timer)
