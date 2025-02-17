@@ -28,7 +28,7 @@ def apply_theme_to_titlebar(root):
 def main():
     # Update and close the splash screen
     try:
-        import pyi_splash
+        import pyi_splash # type: ignore
         pyi_splash.update_text('Reading journals...')
         model = CarrierModel()
         pyi_splash.close()
