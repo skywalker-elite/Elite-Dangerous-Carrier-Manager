@@ -18,7 +18,6 @@ class CarrierModel:
         files = listdir(journal_path)
         r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
         journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=True)
-        # jumps = []
         load_games = []
         jump_requests = []
         jump_cancels = []
@@ -40,7 +39,6 @@ class CarrierModel:
                         fid = fid_temp[0]
                     else:
                         fid = None
-                # jumps.extend([i for i in items if i['event'] == 'CarrierJump'])
                 for item in reversed(items): # Parse from new to old
                     if item['event'] == 'LoadGame':
                         load_games.append(item)
@@ -78,9 +76,8 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
-        jumps = pd.DataFrame(jump_requests + jump_cancels)
+        jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False)
         df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
-        # print(df_trade_orders.head())
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
             cancelled = []
@@ -114,7 +111,6 @@ class CarrierModel:
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
                     fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
-                    # print(fc_last_order)
                 else:
                     fc_last_order = None
             else:
@@ -124,7 +120,6 @@ class CarrierModel:
         self.carriers = carriers.copy()
 
     def update_carriers(self, now):
-        # now = datetime.now(timezone.utc)
         carriers = self.carriers.copy()
         for carrierID in carriers.keys():
             data = carriers[carrierID]
@@ -272,7 +267,6 @@ def generateInfo(data, now):
     location_system, location_body = getLocation(data['current_system'], data['current_body'], data['current_body_id'])
     if data['status'] == 'jumping':
         destination_system, destination_body = getLocation(data['destination_system'], data['destination_body'], data['destination_body_id'])
-        # now = datetime.now(timezone.utc)
         time_diff = data['latest_depart'] - now
         h, m, s = getHMS(time_diff.total_seconds())
         return (
@@ -286,7 +280,6 @@ def generateInfo(data, now):
             f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
             )
     elif data['status'] == 'cool_down':
-        # now = datetime.now(timezone.utc)
         time_diff = CD - (now - data['latest_depart'])
         h, m, s = getHMS(time_diff.total_seconds())
         return (

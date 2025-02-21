@@ -11,7 +11,6 @@ class CarrierView:
 
         # Clock
         self.clock_utc = ttk.Label(self.root, width=8)
-        # self.clock_utc.grid(row=0, column=0, sticky='e')
         self.clock_utc.pack(side='top', anchor='ne')
 
         self.tab_controler = ttk.Notebook(root)
@@ -28,7 +27,6 @@ class CarrierView:
         self.tab_finance.columnconfigure(0, pad=1, weight=1)
 
         self.tab_controler.pack(expand=True, fill='both')
-        # self.tab_controler.grid(row=1, column=0, sticky='nsew')
 
         # Initialize the tksheet.Sheet widget
         self.sheet = Sheet(self.tab_jumps)
