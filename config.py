@@ -14,7 +14,7 @@ REDRAW_INTERVAL = 250
 REMIND_INTERVAL = 1000
 
 user_path = environ.get('USERPROFILE')
-journal_path = path.join(user_path, 'Saved Games', 'Frontier Developments', 'Elite Dangerous')
+JOURNAL_PATH = path.join(user_path, 'Saved Games', 'Frontier Developments', 'Elite Dangerous')
 
 ladder_systems = {
     'Gali': 'N16',
