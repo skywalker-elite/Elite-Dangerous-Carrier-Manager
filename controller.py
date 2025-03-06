@@ -4,12 +4,13 @@ import pyperclip
 import re
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
+from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
-    def __init__(self, root, model):
+    def __init__(self, root, model:CarrierModel):
         self.model = model
         self.view = CarrierView(root)
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
