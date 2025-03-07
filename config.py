@@ -9,7 +9,7 @@ PADLOCK = timedelta(minutes=3, seconds=20)
 JUMPLOCK = timedelta(minutes=10)
 REMIND = timedelta(minutes=2)
 
-UPDATE_INTERVAL = 25
+UPDATE_INTERVAL = 500
 REDRAW_INTERVAL = 250
 REMIND_INTERVAL = 1000
 
