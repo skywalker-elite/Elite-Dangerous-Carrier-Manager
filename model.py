@@ -4,57 +4,126 @@ import re
 import json
 from numpy import datetime64, nan
 from datetime import datetime, timezone, timedelta
-from config import journal_path, PADLOCK, CD, JUMPLOCK, ladder_systems
+from config import JOURNAL_PATH, PADLOCK, CD, JUMPLOCK, ladder_systems
+
+class JournalReader:
+    def __init__(self, journal_path:str=JOURNAL_PATH):
+        self.journal_path = journal_path
+        self.journal_processed = []
+        self.journal_latest = {}
+        self.journal_latest_unknwon_fid = {}
+        self._load_games = []
+        self._jump_requests = []
+        self._jump_cancels = []
+        self._stats = []
+        self._trade_orders = []
+        self._carrier_buys = []
+        self._carrier_owners = {}
+        self.items = []
+
+    def read_journals(self):
+        latest_journal_info = {}
+        for key, value in zip(self.journal_latest.keys(), self.journal_latest.values()):
+            latest_journal_info[value['filename']] = {'fid': key, 'line_pos': value['line_pos'], 'is_active': value['is_active']}
+        files = listdir(self.journal_path)
+        r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
+        journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
+        for journal in journals:
+            if journal not in self.journal_processed:
+                self._read_journal(journal)
+            elif journal in latest_journal_info.keys():
+                if latest_journal_info[journal]['is_active']:
+                    self._read_journal(journal, latest_journal_info[journal]['line_pos'], latest_journal_info[journal]['fid'])
+            elif journal in self.journal_latest_unknwon_fid.keys():
+                self._read_journal(journal, self.journal_latest_unknwon_fid[journal]['line_pos'])
+        self.items = self._get_parsed_items()
+    
+    def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
+        print(journal)
+        items = []
+        with open(path.join(self.journal_path, journal), 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            line_pos_new = len(lines)
+            lines = lines[line_pos:]
+            if line_pos is not None:
+                print(*lines, sep='\n')
+            for i in lines:
+                try:
+                    items.append(json.loads(i))
+                except json.decoder.JSONDecodeError as e: # ignore ill-formated entries
+                    print(f'{journal} {e}')
+                    continue
+        
+        parsed_fid, is_active = self._parse_items(items)
+        if fid_last is None:
+            fid = parsed_fid
+        elif parsed_fid is not None and parsed_fid != fid_last:
+            fid = None
+        else:
+            fid = fid_last
+        if is_active:
+            if fid is None:
+                match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal)
+                if datetime.now() - datetime.strptime(match.group(0), '%Y-%m-%dT%H%M%S') < timedelta(hours=1): # allows one hour for fid to show up
+                    self.journal_latest_unknwon_fid[journal] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+                else:
+                    self.journal_latest_unknwon_fid.pop(journal, None)
+            else:
+                self.journal_latest_unknwon_fid.pop(journal, None)
+                self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+        else:
+            self.journal_latest_unknwon_fid.pop(journal, None)
+            if fid is not None:
+                self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+        if journal not in self.journal_processed:
+            self.journal_processed.append(journal)
+
+
+    def _parse_items(self, items:list) -> tuple[str, bool]:
+        fid = None
+        fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
+        if len(fid_temp) > 0:
+            if all(i == fid_temp[0] for i in fid_temp):
+                fid = fid_temp[0]
+        for item in items:
+            if item['event'] == 'LoadGame':
+                self._load_games.append(item)
+            if item['event'] == 'CarrierJumpRequest':
+                self._jump_requests.append(item)
+            if item['event'] == 'CarrierJumpCancelled':
+                self._jump_cancels.append(item)
+            if item['event'] == 'CarrierStats':
+                self._stats.append(item)
+                if fid is not None:
+                    self._carrier_owners[item['CarrierID']] = fid
+            if item['event'] == 'CarrierTradeOrder':
+                self._trade_orders.append(item)
+            if item['event'] == 'CarrierBuy':
+                self._carrier_buys.append(item)
+        is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
+        return fid, is_active
+    
+    def _get_parsed_items(self):
+        return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
+                for i in [self._load_games, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys]] + [self._carrier_owners]
+    
+    def get_items(self) -> list:
+        return self.items.copy()
 
 class CarrierModel:
-    def __init__(self):
+    def __init__(self, journal_path=JOURNAL_PATH):
+        self.journal_reader = JournalReader(journal_path)
         self.carriers = {}
         self.carriers_updated = {}
         self.active_timer = False
         self.manual_timers = []
+        self.journal_path = journal_path
         self.read_journals()
 
-    def read_journals(self, journal_path=journal_path):
-        files = listdir(journal_path)
-        r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
-        journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=True)
-        load_games = []
-        jump_requests = []
-        jump_cancels = []
-        stats = []
-        trade_orders = []
-        carrier_buys = []
-        carrier_owners = {}
-        for journal in journals:
-            with open(path.join(journal_path, journal), 'r', encoding='utf-8') as f:
-                items = []
-                for i in f.readlines():
-                    try:
-                        items.append(json.loads(i))
-                    except json.decoder.JSONDecodeError: # ignore ill-formated entries
-                        continue
-                fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
-                if len(fid_temp) > 0:
-                    if all(i == fid_temp[0] for i in fid_temp):
-                        fid = fid_temp[0]
-                    else:
-                        fid = None
-                for item in reversed(items): # Parse from new to old
-                    if item['event'] == 'LoadGame':
-                        load_games.append(item)
-                    if item['event'] == 'CarrierJumpRequest':
-                        jump_requests.append(item)
-                    if item['event'] == 'CarrierJumpCancelled':
-                        jump_cancels.append(item)
-                    if item['event'] == 'CarrierStats':
-                        stats.append(item)
-                        if item['CarrierID'] not in carrier_owners.keys() and fid is not None:
-                            carrier_owners[item['CarrierID']] = fid
-                    if item['event'] == 'CarrierTradeOrder':
-                        trade_orders.append(item)
-                    if item['event'] == 'CarrierBuy':
-                        carrier_buys.append(item)
-                    
+    def read_journals(self):
+        self.journal_reader.read_journals()
+        load_games, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, carrier_owners = self.journal_reader.get_items()
+
         cmdr_balances = {}
         for load_game in load_games:
             if load_game['FID'] not in cmdr_balances.keys():
