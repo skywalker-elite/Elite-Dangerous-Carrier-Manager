@@ -46,6 +46,13 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
 - This tool relys your local journal files
   - If you have moved, deleted or otherwise modified your journal files it may result in inaccurate information or unexpected bahavior
   - If you play on multiple machines, you will need to find a way to sync up your journal files
+- Trade overview might contain "ghost" orders for both buy and sell
+  - This is due to the way the game journal logs trade orders, EDCM is not aware of whether a buy order has been filled
+  - For sell orders, this will help you eliminate the ghost sell orders in the carrier management menu in-game, which also contains ghost sell orders (shown as exporting)
+  - To elimate ghost sell orders, follow the steps below:
+    1. Set a buy order for the commodity with ghost sell
+    2. Cancel the buy order
+  - You can follow the similar steps for buy orders, but those only affects EDCM, not the in-game carrier management menu
 - Information updates every 30 seconds (countdowns and in-game clock updates at real-time)
 - The post trade function
   - Currently only supports PTN CCO post format
