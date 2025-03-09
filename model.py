@@ -2,8 +2,8 @@ import pandas as pd
 from os import listdir, path
 import re
 import json
-from numpy import datetime64, nan
 from datetime import datetime, timezone, timedelta
+from utility import getHMS, getHammerCountdown, getResourcePath
 from config import JOURNAL_PATH, PADLOCK, CD, JUMPLOCK, ladder_systems
 
 class JournalReader:
@@ -118,6 +118,13 @@ class CarrierModel:
         self.active_timer = False
         self.manual_timers = []
         self.journal_path = journal_path
+        self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
+        self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
+        self.df_commodities = self.df_commodities.set_index('symbol')
+        self.df_commodities_rare = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'rare_commodity.csv')))
+        self.df_commodities_rare['symbol'] = self.df_commodities_rare['symbol'].str.lower()
+        self.df_commodities_rare = self.df_commodities_rare.set_index('symbol')
+        self.df_commodities_all = pd.concat([self.df_commodities, self.df_commodities_rare])
         self.read_journals()
 
     def read_journals(self):
@@ -174,7 +181,6 @@ class CarrierModel:
             if 'SpawnLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpawnLocation'] = 'Unknown'
             
-        # TODO: need to map by commodity
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
             for carrierID in carriers.keys():
@@ -192,7 +198,7 @@ class CarrierModel:
                 else:
                     fc_last_order = None
                     fc_active_trades = {}
-                carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
+                carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
                 carriers[carrierID]['last_trade'] = fc_last_order
         else:
             for carrierID in carriers.keys():
@@ -315,15 +321,17 @@ class CarrierModel:
         last_trade = self.get_carriers()[carrierID]['last_trade']
         if last_trade is None or last_trade['CancelTrade'] == True:
             return None
+        elif last_trade['Commodity'] not in self.df_commodities_all.index:
+            return None
         else:
             if last_trade.notna()['PurchaseOrder']:
-                commodity = last_trade['Commodity_Localised'] if last_trade.notna()['Commodity_Localised'] else last_trade['Commodity'].capitalize() #TODO: this only works if client is using English
+                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['Name']
                 amount = round(last_trade['PurchaseOrder'] / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
                 return ('loading', commodity, amount)
             elif last_trade.notna()['SaleOrder']:
-                commodity = last_trade['Commodity_Localised'] if last_trade.notna()['Commodity_Localised'] else last_trade['Commodity'].capitalize() #TODO: this only works if client is using English
+                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['Name']
                 amount = round(last_trade['SaleOrder'] / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
@@ -339,7 +347,8 @@ class CarrierModel:
             return pd.DataFrame({}, columns=['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'])
         else:
             active_trades['Carrier Name'] = carrier_name
-            active_trades['Commodity'] = active_trades['Commodity_Localised'].fillna(active_trades['Commodity'].str.capitalize())
+            active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
+            active_trades = active_trades[active_trades['Commodity'].notna()]
             active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
             active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).apply(lambda x: f'{int(x):,}')
             active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
@@ -408,24 +417,6 @@ def generateInfo(data, now):
             f"",
             f"",
             )
-
-def getHMS(seconds):
-    m, s = divmod(round(seconds), 60)
-    h, m = divmod(m, 60)
-    return h, m, s
-
-def formatForSort(s:str) -> str:
-    out = ''
-    for si in s:
-        if si.isdigit():
-            out += chr(ord(si) + 49)
-        else:
-            out += si
-    return out
-
-def getHammerCountdown(dt:datetime64) -> str:
-    unix_time = dt.astype('datetime64[s]').astype('int')
-    return f'<t:{unix_time}:R>'
 
 if __name__ == '__main__':
     model = CarrierModel()
