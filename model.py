@@ -146,7 +146,6 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
         jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False)
-        df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
             cancelled = []
@@ -175,17 +174,34 @@ class CarrierModel:
             if 'SpawnLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpawnLocation'] = 'Unknown'
             
-            # TODO: need to map by commodity
-            if df_trade_orders is not None:
+        # TODO: need to map by commodity
+        if len(trade_orders) != 0:
+            df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
+            for carrierID in carriers.keys():
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
-                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
+                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[-1][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']].copy()
+                    fc_active_trades = {}
+                    for i in range(len(fc_trade_orders)):
+                        order = fc_trade_orders.iloc[i]
+                        commodity = order['Commodity']
+                        if order['CancelTrade'] == True:
+                            fc_active_trades.pop(commodity, None)
+                        else:
+                            fc_active_trades[commodity] = order
                 else:
                     fc_last_order = None
-            else:
-                fc_last_order = None
-            carriers[carrierID]['last_trade'] = fc_last_order
-
+                    fc_active_trades = {}
+                carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
+                carriers[carrierID]['last_trade'] = fc_last_order
+        else:
+            for carrierID in carriers.keys():
+                carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
+                carriers[carrierID]['last_trade'] = None
+        
+        for carrierID in carriers.keys():
+            print(carriers[carrierID]['Name'], '\n', carriers[carrierID]['active_trades'])
+        
         self.carriers = carriers.copy()
 
     def update_carriers(self, now):
