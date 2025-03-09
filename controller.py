@@ -28,6 +28,7 @@ class CarrierController:
         self.model.update_carriers(now)
         self.view.update_table(self.model.get_data(now))
         self.view.update_table_finance(self.model.get_data_finance())
+        self.view.update_table_trade(self.model.get_data_trade())
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
