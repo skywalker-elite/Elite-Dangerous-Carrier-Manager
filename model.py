@@ -325,13 +325,13 @@ class CarrierModel:
             return None
         else:
             if last_trade.notna()['PurchaseOrder']:
-                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['Name']
+                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['name']
                 amount = round(last_trade['PurchaseOrder'] / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
                 return ('loading', commodity, amount)
             elif last_trade.notna()['SaleOrder']:
-                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['Name']
+                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['name']
                 amount = round(last_trade['SaleOrder'] / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
