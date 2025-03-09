@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
+from utility import checkTimerFormat
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
@@ -28,6 +29,7 @@ class CarrierController:
         self.model.update_carriers(now)
         self.view.update_table(self.model.get_data(now))
         self.view.update_table_finance(self.model.get_data_finance())
+        self.view.update_table_trade(self.model.get_data_trade())
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
@@ -172,14 +174,3 @@ class CarrierController:
                 return None
         else:
             return None
-        
-def checkTimerFormat(timer:str) -> bool:
-    r = r'\d\d:\d\d:\d\d'
-    if re.fullmatch(r, timer) is None:
-        return False
-    else:
-        try:
-            datetime.strptime(timer, '%H:%M:%S')
-        except ValueError:
-            return False
-    return True

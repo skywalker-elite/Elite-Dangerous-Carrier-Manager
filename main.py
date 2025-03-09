@@ -1,16 +1,11 @@
-# for bundled resorces to work
-import sys, os
-def resource_path(relative_path):
-    """ Get absolute path to resource, works for dev and for PyInstaller """
-    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(base_path, relative_path)
+import os
 from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
 from controller import CarrierController
 from model import CarrierModel
 import pywinstyles, sys
-from os import path
+from utility import getResourcePath
 from config import WINDOW_SIZE, JOURNAL_PATH
 
 def apply_theme_to_titlebar(root):
@@ -50,7 +45,7 @@ def main():
     root.update()
     root.title("Elite Dangerous Carrier Manager")
     root.geometry(WINDOW_SIZE)
-    photo = tk.PhotoImage(file = resource_path(os.path.join('images','EDCM.png')))
+    photo = tk.PhotoImage(file = getResourcePath(os.path.join('images','EDCM.png')))
     root.wm_iconphoto(False, photo)
     root.update()
     app = CarrierController(root, model=model)
