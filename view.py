@@ -79,6 +79,11 @@ class CarrierView:
         self.sheet_trade['C'].align('right')
         self.sheet_trade['E'].align('right')
         
+        # Enable column resizing to match window resizing
+        self.sheet_trade.enable_bindings('all')
+        self.sheet_trade.column_width_resize_enabled = False
+        self.sheet_trade.row_height_resize_enabled = False
+
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance)
         self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
