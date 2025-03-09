@@ -5,6 +5,7 @@ WINDOW_SIZE = "1000x400"
 WINDOW_SIZE_TIMER = "300x100"
 
 CD = timedelta(minutes=4, seconds=50)
+CD_cancel = timedelta(minutes=1)
 PADLOCK = timedelta(minutes=3, seconds=20)
 JUMPLOCK = timedelta(minutes=10)
 REMIND = timedelta(minutes=2)
