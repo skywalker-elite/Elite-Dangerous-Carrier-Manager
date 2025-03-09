@@ -45,8 +45,8 @@ class JournalReader:
             lines = f.readlines()
             line_pos_new = len(lines)
             lines = lines[line_pos:]
-            if line_pos is not None:
-                print(*lines, sep='\n')
+            # if line_pos is not None:
+            #     print(*lines, sep='\n')
             for i in lines:
                 try:
                     items.append(json.loads(i))
