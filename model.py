@@ -4,7 +4,7 @@ import re
 import json
 from datetime import datetime, timezone, timedelta
 from utility import getHMS, getHammerCountdown, getResourcePath
-from config import JOURNAL_PATH, PADLOCK, CD, JUMPLOCK, ladder_systems
+from config import JOURNAL_PATH, PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
 
 class JournalReader:
     def __init__(self, journal_path:str=JOURNAL_PATH):
@@ -155,6 +155,9 @@ class CarrierModel:
         jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False)
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
+            fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+            last_cancel = fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled'].iloc[0] if len(fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled']) > 0 else None
+            carriers[carrierID]['last_cancel'] = last_cancel
             cancelled = []
             flag = False
             for item in range(len(fc_jumps)):
@@ -168,7 +171,6 @@ class CarrierModel:
                     cancelled.append(False)
             fc_jumps['cancelled'] = cancelled
             fc_jumps = fc_jumps[fc_jumps['cancelled'] == False].drop(['event', 'cancelled'], axis=1)
-            fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             fc_jumps_no_departure_time = fc_jumps[fc_jumps['DepartureTime'].isna()]
             assert len(fc_jumps_no_departure_time) == 0 or (fc_jumps_no_departure_time['timestamp'] < datetime(year=2022, month=12, day=1, tzinfo=timezone.utc)).all(), 'Unexpected missing jump time'
             fc_jumps_no_departure_time['DepartureTime'] = fc_jumps_no_departure_time['timestamp'] + timedelta(minutes=15)
@@ -229,6 +231,12 @@ class CarrierModel:
                 pre_body_id = data['jumps'].iloc[1]['BodyID'] if len(data['jumps']) > 1 else 'Unknown'
                 pre_system = data['jumps'].iloc[1]['SystemName'] if len(data['jumps']) > 1 else data['SpawnLocation']
                 time_diff = now - data['latest_depart']
+            
+            if data['last_cancel'] is not None:
+                time_diff_cancel = now - data['last_cancel']['timestamp']
+            else:
+                time_diff_cancel = None
+
             if time_diff is not None and time_diff < timedelta(0):
                 self.active_timer = True
                 data['status'] = 'jumping'
@@ -241,6 +249,15 @@ class CarrierModel:
             elif time_diff is not None and time_diff < CD:
                 self.active_timer = True
                 data['status'] = 'cool_down'
+                data['current_system'] = latest_system
+                data['current_body'] = latest_body
+                data['current_body_id'] = latest_body_id
+                data['destination_system'] = None
+                data['destination_body'] = None
+                data['destination_body_id'] = None
+            elif time_diff_cancel is not None and time_diff_cancel < CD_cancel:
+                self.active_timer = True
+                data['status'] = 'cool_down_cancel'
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
@@ -395,6 +412,19 @@ def generateInfo(data, now):
             )
     elif data['status'] == 'cool_down':
         time_diff = CD - (now - data['latest_depart'])
+        h, m, s = getHMS(time_diff.total_seconds())
+        return (
+            f"{data['Name']}", 
+            f"{data['Callsign']}", 
+            f"{location_system}", 
+            f"{location_body}", 
+            f"Cooling Down",
+            f"", 
+            f"",
+            f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
+            )
+    elif data['status'] == 'cool_down_cancel':
+        time_diff = CD_cancel - (now - data['last_cancel']['timestamp'])
         h, m, s = getHMS(time_diff.total_seconds())
         return (
             f"{data['Name']}", 
