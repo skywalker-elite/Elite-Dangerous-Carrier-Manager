@@ -39,7 +39,7 @@ class JournalReader:
         self.items = self._get_parsed_items()
     
     def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
-        print(journal)
+        # print(journal)
         items = []
         with open(path.join(self.journal_path, journal), 'r', encoding='utf-8') as f:
             lines = f.readlines()
@@ -199,8 +199,8 @@ class CarrierModel:
                 carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
                 carriers[carrierID]['last_trade'] = None
         
-        for carrierID in carriers.keys():
-            print(carriers[carrierID]['Name'], '\n', carriers[carrierID]['active_trades'])
+        # for carrierID in carriers.keys():
+        #     print(self.get_name(carrierID), '\n', carriers[carrierID]['active_trades'])
         
         self.carriers = carriers.copy()
 
@@ -328,6 +328,26 @@ class CarrierModel:
                 if amount % 1 == 0:
                     amount = int(amount)
                 return ('unloading', commodity, amount)
+            
+    def get_data_trade(self):
+        return pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True).values.tolist()
+    
+    def generate_info_trade(self, carrierID):
+        carrier_name = self.get_name(carrierID)
+        active_trades = self.get_active_trades(carrierID)
+        if len(active_trades) == 0:
+            return pd.DataFrame({}, columns=['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'])
+        else:
+            active_trades['Carrier Name'] = carrier_name
+            active_trades['Commodity'] = active_trades['Commodity_Localised'].fillna(active_trades['Commodity'].str.capitalize())
+            active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
+            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).apply(lambda x: f'{int(x):,}')
+            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
+            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            return active_trades[['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)']]
+    
+    def get_active_trades(self, carrierID) -> pd.DataFrame:
+        return self.get_carriers()[carrierID]['active_trades'].copy()
 
 def getLocation(system, body, body_id):
     if body is None or type(body) is float:
@@ -413,3 +433,4 @@ if __name__ == '__main__':
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now)))
     print(pd.DataFrame(model.get_data_finance()))
+    print(pd.DataFrame(model.get_data_trade()))
