@@ -6,6 +6,9 @@ EDCM is a third-party tool that helps you keep track of all your carriers in Eli
 ![Jumps tab](images_readme/ss_jump.png)
 Jumps and location
 
+![Trade tab](images_readme/ss_trade.png)
+Trade overview
+
 ![Finance tab](images_readme/ss_finance.png)
 Credit balance at a glance
 
@@ -21,6 +24,9 @@ Currently only Windows 11 is supported. Windows 7/8/10 *should* work fine but ha
 - Real-time jump countdowns and jump status (i.e. jump locked, pad locked, cooldown)
 - Credit balance overview of all carriers and their respective CMDRs
 - Trade overview of all carriers
+### Trade Overview
+- Shows all buy and sell orders for all carriers
+- Shows the ammount, commodity, price, and when you set it of each trade order
 ### Trading Assist
 - Generate jump countdowns timers in hammertime format
 - Generate trade post command/snippet
@@ -53,17 +59,16 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
     1. Set a buy order for the commodity with ghost sell
     2. Cancel the buy order
   - You can follow the similar steps for buy orders, but those only affects EDCM, not the in-game carrier management menu
-- Information updates every 30 seconds (countdowns and in-game clock updates at real-time)
 - The post trade function
   - Currently only supports PTN CCO post format
   - It uses <a href=https://www.edsm.net>EDSM</a> to retrieve the list of stations in system. It may result in an error if it can't reach it
   - It only sees the last order set, so if you first set a buy order of 22k wine and then set a buy order of 2k trit, the tool will generate the buy order for 2k trit, not the 22k of wine
 - Balance updates
-  - Carrier balances are updated on log-in and everytime you open up your carrier management menu
+  - Carrier balances are updated everytime you open up your carrier management menu
   - CMDR balances only updates on log-in
 ## Known Issues
 - Launching it takes a good while and may appear unresponsive or not show anything while it's loading, just give it some time, I promise it'll show up, *usually*. 
-- Performance it **far** from optimized, it may consume a bit more CPU and ram than you expected but shouldn't be *too* bad
+- It may consume a bit more CPU and ram than you expected but shouldn't be *too* bad
 ## Acknowledgements
 Thank you <a href=https://github.com/aussig>aussig</a> for the <a href=https://github.com/aussig/BGS-Tally/tree/develop/data>lists of commodities</a>, related files are in the `3rdParty\aussig.BGS-Tally` folder with the corresponding license file. 
 ## Disclaimers
