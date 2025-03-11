@@ -36,7 +36,7 @@ def main():
     else:
         journal_path = getJournalPath()
     assert journal_path is not None, f'No default journal path for platform {sys.platform}, please specify one with --path'
-    assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist'
+    assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --path if the default is incorrect'
 
     # Update and close the splash screen
     try:
