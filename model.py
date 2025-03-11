@@ -28,6 +28,7 @@ class JournalReader:
         files = listdir(self.journal_path)
         r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
         journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
+        assert len(journals) > 0, f'No journal files found in {self.journal_path}'
         for journal in journals:
             if journal not in self.journal_processed:
                 self._read_journal(journal)
@@ -37,6 +38,7 @@ class JournalReader:
             elif journal in self.journal_latest_unknwon_fid.keys():
                 self._read_journal(journal, self.journal_latest_unknwon_fid[journal]['line_pos'])
         self.items = self._get_parsed_items()
+        assert len(self.items[3]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
     
     def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
         # print(journal)
