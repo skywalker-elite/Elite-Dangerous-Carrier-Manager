@@ -16,13 +16,17 @@ class CarrierView:
         self.tab_controler = ttk.Notebook(root)
         self.tab_jumps = ttk.Frame(self.tab_controler)
         self.tab_finance = ttk.Frame(self.tab_controler)
+        self.tab_trade = ttk.Frame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
+        self.tab_controler.add(self.tab_trade, text='Trade')
         self.tab_controler.add(self.tab_finance, text='Finance')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
         self.tab_jumps.columnconfigure(0, pad=1, weight=1)
+        self.tab_trade.rowconfigure(0, pad=1, weight=1)
+        self.tab_trade.columnconfigure(0, pad=1, weight=1)
         self.tab_finance.rowconfigure(0, pad=1, weight=1)
         self.tab_finance.columnconfigure(0, pad=1, weight=1)
 
@@ -63,6 +67,23 @@ class CarrierView:
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
 
+        # Trade tab
+        self.sheet_trade = Sheet(self.tab_trade)
+        self.sheet_trade.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_trade.change_theme('dark', redraw=False)
+
+        # Set column headers
+        self.sheet_trade.headers([
+            'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
+        ])
+        self.sheet_trade['C'].align('right')
+        self.sheet_trade['E'].align('right')
+        
+        # Enable column resizing to match window resizing
+        self.sheet_trade.enable_bindings('all')
+        self.sheet_trade.column_width_resize_enabled = False
+        self.sheet_trade.row_height_resize_enabled = False
+
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance)
         self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
@@ -90,6 +111,10 @@ class CarrierView:
     def update_table_finance(self, data):
         self.sheet_finance.set_sheet_data(data, reset_col_positions=False)
         self.sheet_finance.set_all_cell_sizes_to_text()
+
+    def update_table_trade(self, data):
+        self.sheet_trade.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_trade.set_all_cell_sizes_to_text()
 
     def show_message_box_info(self, title:str, message:str):
         self.root.attributes('-topmost', True)

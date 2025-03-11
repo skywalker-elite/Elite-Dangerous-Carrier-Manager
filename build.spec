@@ -5,7 +5,7 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[('c:\\hostedtoolcache\\windows\\python\\3.12.7\\x64\\lib\\site-packages\\sv_ttk', 'sv_ttk')],
-    datas=[('images', 'images')],
+    datas=[('images', 'images'), ('3rdParty', '3rdParty')],
     hiddenimports=['sv_ttk'],
     hookspath=[],
     hooksconfig={},
