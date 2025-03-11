@@ -2,59 +2,135 @@ import pandas as pd
 from os import listdir, path
 import re
 import json
-from numpy import datetime64, nan
 from datetime import datetime, timezone, timedelta
-from config import journal_path, PADLOCK, CD, JUMPLOCK, ladder_systems
+from utility import getHMS, getHammerCountdown, getResourcePath
+from config import JOURNAL_PATH, PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
+
+class JournalReader:
+    def __init__(self, journal_path:str=JOURNAL_PATH):
+        self.journal_path = journal_path
+        self.journal_processed = []
+        self.journal_latest = {}
+        self.journal_latest_unknwon_fid = {}
+        self._load_games = []
+        self._jump_requests = []
+        self._jump_cancels = []
+        self._stats = []
+        self._trade_orders = []
+        self._carrier_buys = []
+        self._carrier_owners = {}
+        self.items = []
+
+    def read_journals(self):
+        latest_journal_info = {}
+        for key, value in zip(self.journal_latest.keys(), self.journal_latest.values()):
+            latest_journal_info[value['filename']] = {'fid': key, 'line_pos': value['line_pos'], 'is_active': value['is_active']}
+        files = listdir(self.journal_path)
+        r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
+        journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
+        for journal in journals:
+            if journal not in self.journal_processed:
+                self._read_journal(journal)
+            elif journal in latest_journal_info.keys():
+                if latest_journal_info[journal]['is_active']:
+                    self._read_journal(journal, latest_journal_info[journal]['line_pos'], latest_journal_info[journal]['fid'])
+            elif journal in self.journal_latest_unknwon_fid.keys():
+                self._read_journal(journal, self.journal_latest_unknwon_fid[journal]['line_pos'])
+        self.items = self._get_parsed_items()
+    
+    def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
+        # print(journal)
+        items = []
+        with open(path.join(self.journal_path, journal), 'r', encoding='utf-8') as f:
+            lines = f.readlines()
+            line_pos_new = len(lines)
+            lines = lines[line_pos:]
+            # if line_pos is not None:
+            #     print(*lines, sep='\n')
+            for i in lines:
+                try:
+                    items.append(json.loads(i))
+                except json.decoder.JSONDecodeError as e: # ignore ill-formated entries
+                    print(f'{journal} {e}')
+                    continue
+        
+        parsed_fid, is_active = self._parse_items(items)
+        if fid_last is None:
+            fid = parsed_fid
+        elif parsed_fid is not None and parsed_fid != fid_last:
+            fid = None
+        else:
+            fid = fid_last
+        if is_active:
+            if fid is None:
+                match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal)
+                if datetime.now() - datetime.strptime(match.group(0), '%Y-%m-%dT%H%M%S') < timedelta(hours=1): # allows one hour for fid to show up
+                    self.journal_latest_unknwon_fid[journal] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+                else:
+                    self.journal_latest_unknwon_fid.pop(journal, None)
+            else:
+                self.journal_latest_unknwon_fid.pop(journal, None)
+                self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+        else:
+            self.journal_latest_unknwon_fid.pop(journal, None)
+            if fid is not None:
+                self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+        if journal not in self.journal_processed:
+            self.journal_processed.append(journal)
+
+
+    def _parse_items(self, items:list) -> tuple[str, bool]:
+        fid = None
+        fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
+        if len(fid_temp) > 0:
+            if all(i == fid_temp[0] for i in fid_temp):
+                fid = fid_temp[0]
+        for item in items:
+            if item['event'] == 'LoadGame':
+                self._load_games.append(item)
+            if item['event'] == 'CarrierJumpRequest':
+                self._jump_requests.append(item)
+            if item['event'] == 'CarrierJumpCancelled':
+                self._jump_cancels.append(item)
+            if item['event'] == 'CarrierStats':
+                self._stats.append(item)
+                if fid is not None:
+                    self._carrier_owners[item['CarrierID']] = fid
+            if item['event'] == 'CarrierTradeOrder':
+                self._trade_orders.append(item)
+            if item['event'] == 'CarrierBuy':
+                self._carrier_buys.append(item)
+        is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
+        return fid, is_active
+    
+    def _get_parsed_items(self):
+        return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
+                for i in [self._load_games, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys]] + [self._carrier_owners]
+    
+    def get_items(self) -> list:
+        return self.items.copy()
 
 class CarrierModel:
-    def __init__(self):
+    def __init__(self, journal_path=JOURNAL_PATH):
+        self.journal_reader = JournalReader(journal_path)
         self.carriers = {}
         self.carriers_updated = {}
         self.active_timer = False
         self.manual_timers = []
+        self.journal_path = journal_path
+        self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
+        self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
+        self.df_commodities = self.df_commodities.set_index('symbol')
+        self.df_commodities_rare = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'rare_commodity.csv')))
+        self.df_commodities_rare['symbol'] = self.df_commodities_rare['symbol'].str.lower()
+        self.df_commodities_rare = self.df_commodities_rare.set_index('symbol')
+        self.df_commodities_all = pd.concat([self.df_commodities, self.df_commodities_rare])
         self.read_journals()
 
-    def read_journals(self, journal_path=journal_path):
-        files = listdir(journal_path)
-        r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
-        journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=True)
-        load_games = []
-        jump_requests = []
-        jump_cancels = []
-        stats = []
-        trade_orders = []
-        carrier_buys = []
-        carrier_owners = {}
-        for journal in journals:
-            with open(path.join(journal_path, journal), 'r', encoding='utf-8') as f:
-                items = []
-                for i in f.readlines():
-                    try:
-                        items.append(json.loads(i))
-                    except json.decoder.JSONDecodeError: # ignore ill-formated entries
-                        continue
-                fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
-                if len(fid_temp) > 0:
-                    if all(i == fid_temp[0] for i in fid_temp):
-                        fid = fid_temp[0]
-                    else:
-                        fid = None
-                for item in reversed(items): # Parse from new to old
-                    if item['event'] == 'LoadGame':
-                        load_games.append(item)
-                    if item['event'] == 'CarrierJumpRequest':
-                        jump_requests.append(item)
-                    if item['event'] == 'CarrierJumpCancelled':
-                        jump_cancels.append(item)
-                    if item['event'] == 'CarrierStats':
-                        stats.append(item)
-                        if item['CarrierID'] not in carrier_owners.keys() and fid is not None:
-                            carrier_owners[item['CarrierID']] = fid
-                    if item['event'] == 'CarrierTradeOrder':
-                        trade_orders.append(item)
-                    if item['event'] == 'CarrierBuy':
-                        carrier_buys.append(item)
-                    
+    def read_journals(self):
+        self.journal_reader.read_journals()
+        load_games, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, carrier_owners = self.journal_reader.get_items()
+
         cmdr_balances = {}
         for load_game in load_games:
             if load_game['FID'] not in cmdr_balances.keys():
@@ -77,9 +153,11 @@ class CarrierModel:
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
         jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False)
-        df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']).sort_values('timestamp', ascending=False).reset_index(drop=True) if len(trade_orders) != 0 else None
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
+            fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+            last_cancel = fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled'].iloc[0] if len(fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled']) > 0 else None
+            carriers[carrierID]['last_cancel'] = last_cancel
             cancelled = []
             flag = False
             for item in range(len(fc_jumps)):
@@ -93,7 +171,6 @@ class CarrierModel:
                     cancelled.append(False)
             fc_jumps['cancelled'] = cancelled
             fc_jumps = fc_jumps[fc_jumps['cancelled'] == False].drop(['event', 'cancelled'], axis=1)
-            fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             fc_jumps_no_departure_time = fc_jumps[fc_jumps['DepartureTime'].isna()]
             assert len(fc_jumps_no_departure_time) == 0 or (fc_jumps_no_departure_time['timestamp'] < datetime(year=2022, month=12, day=1, tzinfo=timezone.utc)).all(), 'Unexpected missing jump time'
             fc_jumps_no_departure_time['DepartureTime'] = fc_jumps_no_departure_time['timestamp'] + timedelta(minutes=15)
@@ -106,17 +183,33 @@ class CarrierModel:
             if 'SpawnLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpawnLocation'] = 'Unknown'
             
-            # TODO: need to map by commodity
-            if df_trade_orders is not None:
+        if len(trade_orders) != 0:
+            df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
+            for carrierID in carriers.keys():
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
-                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[0][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder']].copy()
+                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[-1][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']].copy()
+                    fc_active_trades = {}
+                    for i in range(len(fc_trade_orders)):
+                        order = fc_trade_orders.iloc[i]
+                        commodity = order['Commodity']
+                        if order['CancelTrade'] == True:
+                            fc_active_trades.pop(commodity, None)
+                        else:
+                            fc_active_trades[commodity] = order
                 else:
                     fc_last_order = None
-            else:
-                fc_last_order = None
-            carriers[carrierID]['last_trade'] = fc_last_order
-
+                    fc_active_trades = {}
+                carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
+                carriers[carrierID]['last_trade'] = fc_last_order
+        else:
+            for carrierID in carriers.keys():
+                carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
+                carriers[carrierID]['last_trade'] = None
+        
+        # for carrierID in carriers.keys():
+        #     print(self.get_name(carrierID), '\n', carriers[carrierID]['active_trades'])
+        
         self.carriers = carriers.copy()
 
     def update_carriers(self, now):
@@ -138,6 +231,12 @@ class CarrierModel:
                 pre_body_id = data['jumps'].iloc[1]['BodyID'] if len(data['jumps']) > 1 else 'Unknown'
                 pre_system = data['jumps'].iloc[1]['SystemName'] if len(data['jumps']) > 1 else data['SpawnLocation']
                 time_diff = now - data['latest_depart']
+            
+            if data['last_cancel'] is not None:
+                time_diff_cancel = now - data['last_cancel']['timestamp']
+            else:
+                time_diff_cancel = None
+
             if time_diff is not None and time_diff < timedelta(0):
                 self.active_timer = True
                 data['status'] = 'jumping'
@@ -150,6 +249,15 @@ class CarrierModel:
             elif time_diff is not None and time_diff < CD:
                 self.active_timer = True
                 data['status'] = 'cool_down'
+                data['current_system'] = latest_system
+                data['current_body'] = latest_body
+                data['current_body_id'] = latest_body_id
+                data['destination_system'] = None
+                data['destination_body'] = None
+                data['destination_body_id'] = None
+            elif time_diff_cancel is not None and time_diff_cancel < CD_cancel:
+                self.active_timer = True
+                data['status'] = 'cool_down_cancel'
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
@@ -230,19 +338,42 @@ class CarrierModel:
         last_trade = self.get_carriers()[carrierID]['last_trade']
         if last_trade is None or last_trade['CancelTrade'] == True:
             return None
+        elif last_trade['Commodity'] not in self.df_commodities_all.index:
+            return None
         else:
             if last_trade.notna()['PurchaseOrder']:
-                commodity = last_trade['Commodity_Localised'] if last_trade.notna()['Commodity_Localised'] else last_trade['Commodity'].capitalize() #TODO: this only works if client is using English
+                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['name']
                 amount = round(last_trade['PurchaseOrder'] / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
                 return ('loading', commodity, amount)
             elif last_trade.notna()['SaleOrder']:
-                commodity = last_trade['Commodity_Localised'] if last_trade.notna()['Commodity_Localised'] else last_trade['Commodity'].capitalize() #TODO: this only works if client is using English
+                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['name']
                 amount = round(last_trade['SaleOrder'] / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
                 return ('unloading', commodity, amount)
+            
+    def get_data_trade(self):
+        return pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True).values.tolist()
+    
+    def generate_info_trade(self, carrierID):
+        carrier_name = self.get_name(carrierID)
+        active_trades = self.get_active_trades(carrierID)
+        if len(active_trades) == 0:
+            return pd.DataFrame({}, columns=['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'])
+        else:
+            active_trades['Carrier Name'] = carrier_name
+            active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
+            active_trades = active_trades[active_trades['Commodity'].notna()]
+            active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
+            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).apply(lambda x: f'{int(x):,}')
+            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
+            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            return active_trades[['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)']]
+    
+    def get_active_trades(self, carrierID) -> pd.DataFrame:
+        return self.get_carriers()[carrierID]['active_trades'].copy()
 
 def getLocation(system, body, body_id):
     if body is None or type(body) is float:
@@ -292,6 +423,19 @@ def generateInfo(data, now):
             f"",
             f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
             )
+    elif data['status'] == 'cool_down_cancel':
+        time_diff = CD_cancel - (now - data['last_cancel']['timestamp'])
+        h, m, s = getHMS(time_diff.total_seconds())
+        return (
+            f"{data['Name']}", 
+            f"{data['Callsign']}", 
+            f"{location_system}", 
+            f"{location_body}", 
+            f"Cooling Down",
+            f"", 
+            f"",
+            f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
+            )
     else:
         return (
             f"{data['Name']}", 
@@ -304,27 +448,10 @@ def generateInfo(data, now):
             f"",
             )
 
-def getHMS(seconds):
-    m, s = divmod(round(seconds), 60)
-    h, m = divmod(m, 60)
-    return h, m, s
-
-def formatForSort(s:str) -> str:
-    out = ''
-    for si in s:
-        if si.isdigit():
-            out += chr(ord(si) + 49)
-        else:
-            out += si
-    return out
-
-def getHammerCountdown(dt:datetime64) -> str:
-    unix_time = dt.astype('datetime64[s]').astype('int')
-    return f'<t:{unix_time}:R>'
-
 if __name__ == '__main__':
     model = CarrierModel()
     now = datetime.now(timezone.utc)
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now)))
     print(pd.DataFrame(model.get_data_finance()))
+    print(pd.DataFrame(model.get_data_trade()))

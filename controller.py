@@ -4,40 +4,39 @@ import pyperclip
 import re
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
+from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
+from utility import checkTimerFormat
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
-    def __init__(self, root, model):
+    def __init__(self, root, model:CarrierModel):
         self.model = model
         self.view = CarrierView(root)
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
-        self.last_update = time.time()
 
-        # Start the carrier updating thread
-        threading.Thread(target=self.update_carriers_thread, daemon=True).start()
+        # Start the carrier update loop
+        self.update_journals()
 
-        # Start the update loop
+        # Start the UI update loop
         self.redraw()
 
     def update_table(self, now):
         self.model.update_carriers(now)
         self.view.update_table(self.model.get_data(now))
         self.view.update_table_finance(self.model.get_data_finance())
+        self.view.update_table_trade(self.model.get_data_trade())
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
     
-    def update_carriers_thread(self):
-        while True:
-            if time.time() - self.last_update >= UPDATE_INTERVAL:
-                self.model.read_journals()  # Re-read journals and update model's data
-                self.last_update = time.time()
-            time.sleep(0.5)
+    def update_journals(self):
+        self.model.read_journals()  # Re-read journals and update model's data
+        self.view.root.after(UPDATE_INTERVAL, self.update_journals)
     
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
@@ -175,14 +174,3 @@ class CarrierController:
                 return None
         else:
             return None
-        
-def checkTimerFormat(timer:str) -> bool:
-    r = r'\d\d:\d\d:\d\d'
-    if re.fullmatch(r, timer) is None:
-        return False
-    else:
-        try:
-            datetime.strptime(timer, '%H:%M:%S')
-        except ValueError:
-            return False
-    return True
