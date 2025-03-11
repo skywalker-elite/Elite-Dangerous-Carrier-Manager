@@ -4,10 +4,10 @@ import re
 import json
 from datetime import datetime, timezone, timedelta
 from utility import getHMS, getHammerCountdown, getResourcePath
-from config import JOURNAL_PATH, PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
+from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
 
 class JournalReader:
-    def __init__(self, journal_path:str=JOURNAL_PATH):
+    def __init__(self, journal_path:str):
         self.journal_path = journal_path
         self.journal_processed = []
         self.journal_latest = {}
@@ -111,7 +111,7 @@ class JournalReader:
         return self.items.copy()
 
 class CarrierModel:
-    def __init__(self, journal_path=JOURNAL_PATH):
+    def __init__(self, journal_path:str):
         self.journal_reader = JournalReader(journal_path)
         self.carriers = {}
         self.carriers_updated = {}
