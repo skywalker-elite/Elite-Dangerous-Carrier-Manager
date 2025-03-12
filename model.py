@@ -45,7 +45,7 @@ class JournalReader:
             lines = f.readlines()
             line_pos_new = len(lines)
             lines = lines[line_pos:]
-            # if line_pos is not None:
+            # if line_pos is not None and len(lines) > 0:
             #     print(*lines, sep='\n')
             for i in lines:
                 try:
@@ -54,7 +54,7 @@ class JournalReader:
                     print(f'{journal} {e}')
                     continue
         
-        parsed_fid, is_active = self._parse_items(items)
+        parsed_fid, is_active = self._parse_items(items, fid_last)
         if fid_last is None:
             fid = parsed_fid
         elif parsed_fid is not None and parsed_fid != fid_last:
@@ -79,7 +79,7 @@ class JournalReader:
             self.journal_processed.append(journal)
 
 
-    def _parse_items(self, items:list) -> tuple[str, bool]:
+    def _parse_items(self, items:list, fid_journal:str|None) -> tuple[str, bool]:
         fid = None
         fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
         if len(fid_temp) > 0:
@@ -96,10 +96,16 @@ class JournalReader:
                 self._stats.append(item)
                 if fid is not None:
                     self._carrier_owners[item['CarrierID']] = fid
+                elif fid_journal is not None:
+                    self._carrier_owners[item['CarrierID']] = fid_journal
             if item['event'] == 'CarrierTradeOrder':
                 self._trade_orders.append(item)
             if item['event'] == 'CarrierBuy':
                 self._carrier_buys.append(item)
+                if fid is not None:
+                    self._carrier_owners[item['CarrierID']] = fid
+                elif fid_journal is not None:
+                    self._carrier_owners[item['CarrierID']] = fid_journal
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid, is_active
     
@@ -149,6 +155,11 @@ class CarrierModel:
         for carrier_buy in carrier_buys:
             if carrier_buy['CarrierID'] not in carriers.keys():
                 carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
+                carriers[carrier_buy['CarrierID']]['Finance'] = {'CarrierBalance': None, 
+                                                          'CmdrBalance': cmdr_balances[carrier_owners[carrier_buy['CarrierID']]] if carrier_buy['CarrierID'] in carrier_owners.keys() else None,
+                                                          'ReserveBalance': None, 
+                                                          'AvailableBalance': None,
+                                                          }
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
 
@@ -286,11 +297,15 @@ class CarrierModel:
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
+        # handles unknown carrier balance
+        idx_no_carrier_finance = df[df['Carrier Balance'].isna()].index
+        df.loc[idx_no_carrier_finance, ['Carrier Balance', 'Reserve Balance', 'Available Balance']] = 0
         df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
         df = pd.concat([df, pd.DataFrame([['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
         df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{int(xi):,}' for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
+        df.loc[idx_no_carrier_finance, ['Carrier Balance', 'Reserve Balance', 'Available Balance']] = 'Unknown'
         return df.values.tolist()
     
     def generate_info_finance(self, carrierID):
