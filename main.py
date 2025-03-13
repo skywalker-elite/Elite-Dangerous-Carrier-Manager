@@ -41,9 +41,12 @@ def main():
     # Update and close the splash screen
     try:
         import pyi_splash # type: ignore
-        pyi_splash.update_text('Reading journals...')
-        model = CarrierModel(journal_path)
-        pyi_splash.close()
+        if sys.platform == 'darwin':
+            model = CarrierModel(journal_path)
+        else:
+            pyi_splash.update_text('Reading journals...')
+            model = CarrierModel(journal_path)
+            pyi_splash.close()
     except ModuleNotFoundError:
         model = CarrierModel(journal_path)
     root = tk.Tk()
