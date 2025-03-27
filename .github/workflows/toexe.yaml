@@ -30,4 +30,4 @@ jobs:
           python_ver: '3.12.7'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM'
+          upload_exe_with_name: 'EDCM-linux'
