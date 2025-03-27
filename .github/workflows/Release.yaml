@@ -6,8 +6,79 @@ on:
       - 'v*'
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      repository-projects: write
+      id-token: write
+      attestations: write
+    outputs:
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+      - name: Check tag version
+        uses: nowsprinting/check-version-format-action@v3
+        id: version
+        with:
+          prefix: 'v'
+
+      - name: Version tag only step
+        run: |
+          echo "Found valid version format in tag!"
+          echo "Full version: ${{ steps.version.outputs.full }}"
+          echo "Major version: ${{ steps.version.outputs.major }}"
+          echo "Major with pre-release: ${{ steps.version.outputs.major_prerelease }}"
+        if: steps.version.outputs.is_valid == 'true'
+      
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          draft: false
+          prerelease: ${{ steps.version.outputs.is_stable == 'false' }}
+
+  pyinstaller-build-linux:
+    runs-on: ubuntu-latest
+    needs: create-release
+    permissions:
+      contents: write
+      pull-requests: write
+      repository-projects: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Create Executable
+        id: create_executable
+        uses: skywalkerctu/pyinstaller-action@v1.2.1
+        with:
+          python_ver: '3.12.7'
+          spec: 'build.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'EDCM-linux'
+      - name: Generate artifact attestation
+        id: attestation
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
+      - name: Upload Linux Executable
+        id: upload-linux-executable
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ steps.create_executable.outputs.executable_path }}/EDCM-Linux
+          asset_name: EDCM-linux
+          asset_content_type: application/octet-stream
+
   pyinstaller-build:
     runs-on: windows-latest
+    needs: create-release
     permissions:
       contents: write
       pull-requests: write
@@ -28,47 +99,49 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
-      - name: Check tag version
-        uses: nowsprinting/check-version-format-action@v3
-        id: version
-        with:
-          prefix: 'v'
-
-      - name: Version tag only step
-        run: |
-          echo "Found valid version format in tag!"
-          echo "Full version: ${{ steps.version.outputs.full }}"
-          echo "Major version: ${{ steps.version.outputs.major }}"
-          echo "Major with pre-release: ${{ steps.version.outputs.major_prerelease }}"
-        if: steps.version.outputs.is_valid == 'true'
-
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # This token is provided by Actions, you do not need to create your own token
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: false
-          prerelease: ${{ steps.version.outputs.is_stable == 'false'}}
-      - name: Upload Release Asset
-        id: upload-release-attestation
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
-          asset_path: ${{ steps.attestation.outputs.bundle-path }}
-          asset_name: attestation.jsonl
-          asset_content_type: application/jsonl
-      - name: Upload Release Asset
+      - name: Upload Windows Executable
         id: upload-release-asset 
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }} # This pulls from the CREATE RELEASE step above, referencing it's ID to get its outputs object, which include a `upload_url`. See this blog post for more info: https://jasonet.co/posts/new-features-of-github-actions/#passing-data-to-future-steps 
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
           asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
           asset_name: EDCM.exe
           asset_content_type: application/vnd.microsoft.portable-executable
+
+  combine-attestations:
+    runs-on: ubuntu-latest
+    needs: [create-release, pyinstaller-build-linux, pyinstaller-build]
+    permissions:
+      contents: write
+      pull-requests: write
+      repository-projects: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Download Linux Executable Attestation
+        uses: actions/download-artifact@v3
+        with:
+          name: attestation-linux
+          path: ./attestations/linux
+
+      - name: Download Windows Executable Attestation
+        uses: actions/download-artifact@v3
+        with:
+          name: attestation-windows
+          path: ./attestations/windows
+
+      - name: Combine Attestations
+        run: |
+          jq -s '.[0] * .[1]' ./attestations/linux/attestation.json ./attestations/windows/attestation.json > combined-attestation.json
+
+      - name: Upload Combined Attestation
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ./combined-attestation.json
+          asset_name: attestation.json
+          asset_content_type: application/json
