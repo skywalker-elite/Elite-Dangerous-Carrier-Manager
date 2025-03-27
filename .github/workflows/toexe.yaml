@@ -20,3 +20,14 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM'
+  
+  pyinstaller-build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create Executable
+        uses: skywalkerctu/pyinstaller-action@v1.2.1
+        with:
+          python_ver: '3.12.7'
+          spec: 'build.spec'
+          requirements: 'requirements.txt'
+          upload_exe_with_name: 'EDCM'
