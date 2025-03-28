@@ -75,6 +75,11 @@ jobs:
           asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
           asset_name: EDCM-Linux
           asset_content_type: application/octet-stream
+      - name: Upload Linux Attestation as Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: attestation-linux
+          path: ${{ steps.attestation.outputs.bundle-path }}
 
   pyinstaller-build:
     runs-on: windows-latest
@@ -109,6 +114,11 @@ jobs:
           asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
           asset_name: EDCM.exe
           asset_content_type: application/vnd.microsoft.portable-executable
+      - name: Upload Windows Attestation as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: attestation-windows
+          path: ${{ steps.attestation.outputs.bundle-path }}
 
   combine-attestations:
     runs-on: ubuntu-latest
