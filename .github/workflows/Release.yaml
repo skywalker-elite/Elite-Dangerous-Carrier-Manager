@@ -59,7 +59,7 @@ jobs:
           python_ver: '3.12.7'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM-linux'
+          upload_exe_with_name: 'EDCM-Linux'
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
