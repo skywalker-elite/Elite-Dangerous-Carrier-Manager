@@ -1,5 +1,5 @@
 import sys, os
-import datetime
+from datetime import datetime
 import re
 from numpy import datetime64
 
