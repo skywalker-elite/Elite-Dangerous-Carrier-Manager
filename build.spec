@@ -4,7 +4,6 @@ import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[('c:\\hostedtoolcache\\windows\\python\\3.12.7\\x64\\lib\\site-packages\\sv_ttk', 'sv_ttk')],
     datas=[('images', 'images'), ('3rdParty', '3rdParty')],
     hiddenimports=['sv_ttk'],
     hookspath=[],
@@ -15,7 +14,7 @@ a = Analysis(
     optimize=0,
 )
 
-splash = Splash('images\\EDCM_Splash.png',
+splash = Splash('images/EDCM_Splash.png',
                 binaries=a.binaries,
                 datas=a.datas,
                 text_pos=(150, 470),
@@ -45,5 +44,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['images\\EDCM.ico'],
+    icon=['images/EDCM.ico'],
 )
