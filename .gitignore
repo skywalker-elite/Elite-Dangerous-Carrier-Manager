@@ -5,3 +5,4 @@ build/*
 dist
 dist/*
 build_local.spec
+.vscode/*
