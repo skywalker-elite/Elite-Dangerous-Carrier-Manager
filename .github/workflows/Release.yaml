@@ -59,7 +59,7 @@ jobs:
           python_ver: '3.12.7'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM-Linux'
+          upload_exe_with_name: 'EDCM'
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
@@ -72,7 +72,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.create_executable.outputs.executable_path }}/EDCM-Linux
+          asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
           asset_name: EDCM-linux
           asset_content_type: application/octet-stream
 
