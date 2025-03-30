@@ -1,7 +1,17 @@
 import sys, os
-import datetime
+from datetime import datetime
 import re
 from numpy import datetime64
+
+def getJournalPath() -> str:
+    if sys.platform == 'win32':
+        user_path = os.environ.get('USERPROFILE')
+        return os.path.join(user_path, 'Saved Games', 'Frontier Developments', 'Elite Dangerous')
+    elif sys.platform == 'linux':
+        user_path = os.path.expanduser('~')
+        return os.path.join(user_path, '.local', 'share', 'Steam', 'steamapps', 'compatdata', '359320', 'pfx', 'drive_c', 'users', 'steamuser', 'Saved Games', 'Frontier Developments', 'Elite Dangerous')
+    else:
+        return None
 
 # for bundled resorces to work
 def getResourcePath(relative_path):
