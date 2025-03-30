@@ -4,15 +4,16 @@ import re
 import json
 from datetime import datetime, timezone, timedelta
 from utility import getHMS, getHammerCountdown, getResourcePath
-from config import JOURNAL_PATH, PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
+from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
 
 class JournalReader:
-    def __init__(self, journal_path:str=JOURNAL_PATH):
+    def __init__(self, journal_path:str):
         self.journal_path = journal_path
         self.journal_processed = []
         self.journal_latest = {}
         self.journal_latest_unknwon_fid = {}
         self._load_games = []
+        self._carrier_locations = []
         self._jump_requests = []
         self._jump_cancels = []
         self._stats = []
@@ -28,6 +29,7 @@ class JournalReader:
         files = listdir(self.journal_path)
         r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
         journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
+        assert len(journals) > 0, f'No journal files found in {self.journal_path}'
         for journal in journals:
             if journal not in self.journal_processed:
                 self._read_journal(journal)
@@ -37,6 +39,7 @@ class JournalReader:
             elif journal in self.journal_latest_unknwon_fid.keys():
                 self._read_journal(journal, self.journal_latest_unknwon_fid[journal]['line_pos'])
         self.items = self._get_parsed_items()
+        assert len(self.items[3]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
     
     def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
         # print(journal)
@@ -88,6 +91,8 @@ class JournalReader:
         for item in items:
             if item['event'] == 'LoadGame':
                 self._load_games.append(item)
+            if item['event'] == 'CarrierLocation':
+                self._carrier_locations.append(item)
             if item['event'] == 'CarrierJumpRequest':
                 self._jump_requests.append(item)
             if item['event'] == 'CarrierJumpCancelled':
@@ -105,13 +110,13 @@ class JournalReader:
     
     def _get_parsed_items(self):
         return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys]] + [self._carrier_owners]
+                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys]] + [self._carrier_owners]
     
     def get_items(self) -> list:
         return self.items.copy()
 
 class CarrierModel:
-    def __init__(self, journal_path=JOURNAL_PATH):
+    def __init__(self, journal_path:str):
         self.journal_reader = JournalReader(journal_path)
         self.carriers = {}
         self.carriers_updated = {}
@@ -129,7 +134,7 @@ class CarrierModel:
 
     def read_journals(self):
         self.journal_reader.read_journals()
-        load_games, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, carrier_owners = self.journal_reader.get_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, carrier_owners = self.journal_reader.get_items()
 
         cmdr_balances = {}
         for load_game in load_games:
@@ -151,6 +156,10 @@ class CarrierModel:
                 carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
+
+        for carrier_location in carrier_locations:
+            if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
+                carriers[carrier_location['CarrierID']]['CarrierLocation'] = {'SystemName': carrier_location['StarSystem'], 'Body': None, 'BodyID': carrier_location['BodyID'], 'timestamp': datetime.strptime(carrier_location['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
 
         jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False)
         for carrierID in carriers.keys():
@@ -182,6 +191,9 @@ class CarrierModel:
 
             if 'SpawnLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpawnLocation'] = 'Unknown'
+
+            if 'CarrierLocation' not in carriers[carrierID].keys():
+                carriers[carrierID]['CarrierLocation'] = {'SystemName': 'Unknown', 'Body': None, 'BodyID': None, 'timestamp': None}
             
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
@@ -220,7 +232,12 @@ class CarrierModel:
                 data['latest_depart'] = None
                 latest_body = None
                 latest_body_id = None
-                latest_system = data['SpawnLocation']
+                if data['CarrierLocation']['timestamp'] is not None:
+                    latest_system = data['CarrierLocation']['SystemName']
+                    latest_body = data['CarrierLocation']['Body']
+                    latest_body_id = data['CarrierLocation']['BodyId']
+                else:
+                    latest_system = data['SpawnLocation']
                 time_diff = None
             else:
                 data['latest_depart'] = data['jumps'].iloc[0]['DepartureTime']
@@ -267,6 +284,10 @@ class CarrierModel:
             else:
                 self.active_timer = False
                 data['status'] = 'idle'
+                if data['CarrierLocation']['timestamp'] is not None and (data['latest_depart'] is None or data['CarrierLocation']['timestamp'] > data['latest_depart']) and data['CarrierLocation']['SystemName'] != latest_system:
+                    latest_system = data['CarrierLocation']['SystemName']
+                    latest_body = data['CarrierLocation']['Body']
+                    latest_body_id = data['CarrierLocation']['BodyID']
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
@@ -377,7 +398,10 @@ class CarrierModel:
 
 def getLocation(system, body, body_id):
     if body is None or type(body) is float:
-        result_system, result_body = system, 'Unknown'
+        if body_id == 0:
+            result_system, result_body = system, 'Star'
+        else:
+            result_system, result_body = system, 'Unknown'
     elif system == body:
         if body_id == 0:
             result_system, result_body = body, 'Star'
