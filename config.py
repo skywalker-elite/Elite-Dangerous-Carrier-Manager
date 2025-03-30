@@ -1,4 +1,3 @@
-from os import environ, path
 from datetime import timedelta
 
 WINDOW_SIZE = "1000x400"
@@ -13,9 +12,6 @@ REMIND = timedelta(minutes=2)
 UPDATE_INTERVAL = 500
 REDRAW_INTERVAL = 250
 REMIND_INTERVAL = 1000
-
-user_path = environ.get('USERPROFILE')
-JOURNAL_PATH = path.join(user_path, 'Saved Games', 'Frontier Developments', 'Elite Dangerous')
 
 ladder_systems = {
     'Gali': 'N16',
