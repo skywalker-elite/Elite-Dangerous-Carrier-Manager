@@ -235,7 +235,7 @@ class CarrierModel:
                 if data['CarrierLocation']['timestamp'] is not None:
                     latest_system = data['CarrierLocation']['SystemName']
                     latest_body = data['CarrierLocation']['Body']
-                    latest_body_id = data['CarrierLocation']['BodyId']
+                    latest_body_id = data['CarrierLocation']['BodyID']
                 else:
                     latest_system = data['SpawnLocation']
                 time_diff = None
