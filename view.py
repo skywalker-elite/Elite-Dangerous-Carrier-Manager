@@ -111,7 +111,7 @@ class CarrierView:
 
         # Set column headers
         self.sheet_services.headers([
-            'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bar', 'Redemption', 'BlackMarket'
+            'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
         ])
         self.sheet_services['B:L'].align('right')
 
