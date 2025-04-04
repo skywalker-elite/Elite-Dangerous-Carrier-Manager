@@ -327,6 +327,7 @@ class CarrierModel:
 
     def get_data_services(self):
         df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
+        df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids()]
         return df[['Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket']].values.tolist()
     
@@ -337,9 +338,9 @@ class CarrierModel:
             if df.iloc[i]['Activated'] == False:
                 status.append('Off')
             elif df.iloc[i]['Enabled'] == False:
-                status.append('Suspended')
+                status.append('Paused')
             else:
-                status.append('Online')
+                status.append('Active')
         df['Status'] = status
         return df['Status'].T
     
