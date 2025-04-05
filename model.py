@@ -156,7 +156,7 @@ class CarrierModel:
             if carrier_buy['CarrierID'] not in carriers.keys():
                 carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
-            carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
+            carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
         for carrier_location in carrier_locations:
             if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
