@@ -19,6 +19,7 @@ class JournalReader:
         self._stats = []
         self._trade_orders = []
         self._carrier_buys = []
+        self._trit_deposits = []
         self._carrier_owners = {}
         self.items = []
 
@@ -101,6 +102,8 @@ class JournalReader:
                 self._stats.append(item)
                 if fid is not None:
                     self._carrier_owners[item['CarrierID']] = fid
+            if item['event'] == 'CarrierDepositFuel':
+                self._trit_deposits.append(item)
             if item['event'] == 'CarrierTradeOrder':
                 self._trade_orders.append(item)
             if item['event'] == 'CarrierBuy':
@@ -110,7 +113,7 @@ class JournalReader:
     
     def _get_parsed_items(self):
         return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys]] + [self._carrier_owners]
+                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits]] + [self._carrier_owners]
     
     def get_items(self) -> list:
         return self.items.copy()
@@ -134,7 +137,7 @@ class CarrierModel:
 
     def read_journals(self):
         self.journal_reader.read_journals()
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, carrier_owners = self.journal_reader.get_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, carrier_owners = self.journal_reader.get_items()
 
         cmdr_balances = {}
         for load_game in load_games:
@@ -151,12 +154,20 @@ class CarrierModel:
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
+                carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
         
         for carrier_buy in carrier_buys:
             if carrier_buy['CarrierID'] not in carriers.keys():
                 carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+
+        for trit_deposit in trit_deposits:
+            if trit_deposit['CarrierID'] in carriers.keys():
+                if datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > carriers[trit_deposit['CarrierID']]['StatTime'] and 'DepotTime' not in carriers[trit_deposit['CarrierID']]['Fuel'].keys():
+                    carriers[trit_deposit['CarrierID']]['Fuel']['FuelLevel'] = trit_deposit['Total']
+                    carriers[trit_deposit['CarrierID']]['Fuel']['JumpRange'] = None
+                    carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
         for carrier_location in carrier_locations:
             if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
