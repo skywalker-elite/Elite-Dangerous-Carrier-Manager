@@ -150,6 +150,7 @@ class CarrierModel:
                                                           'ReserveBalance': stat['Finance']['ReserveBalance'], 
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
+                carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
         
         for carrier_buy in carrier_buys:
             if carrier_buy['CarrierID'] not in carriers.keys():
@@ -418,15 +419,17 @@ def getLocation(system, body, body_id):
     return result_system, result_body
 
 
-def generateInfo(data, now):
-    location_system, location_body = getLocation(data['current_system'], data['current_body'], data['current_body_id'])
-    if data['status'] == 'jumping':
-        destination_system, destination_body = getLocation(data['destination_system'], data['destination_body'], data['destination_body_id'])
-        time_diff = data['latest_depart'] - now
+def generateInfo(carrier, now):
+    location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
+    fuel_level = carrier['Fuel']['FuelLevel']
+    if carrier['status'] == 'jumping':
+        destination_system, destination_body = getLocation(carrier['destination_system'], carrier['destination_body'], carrier['destination_body_id'])
+        time_diff = carrier['latest_depart'] - now
         h, m, s = getHMS(time_diff.total_seconds())
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
@@ -434,12 +437,13 @@ def generateInfo(data, now):
             f"{destination_body}", 
             f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
             )
-    elif data['status'] == 'cool_down':
-        time_diff = CD - (now - data['latest_depart'])
+    elif carrier['status'] == 'cool_down':
+        time_diff = CD - (now - carrier['latest_depart'])
         h, m, s = getHMS(time_diff.total_seconds())
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Cooling Down",
@@ -447,12 +451,13 @@ def generateInfo(data, now):
             f"",
             f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
             )
-    elif data['status'] == 'cool_down_cancel':
-        time_diff = CD_cancel - (now - data['last_cancel']['timestamp'])
+    elif carrier['status'] == 'cool_down_cancel':
+        time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
         h, m, s = getHMS(time_diff.total_seconds())
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Cooling Down",
@@ -462,8 +467,9 @@ def generateInfo(data, now):
             )
     else:
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Idle",
