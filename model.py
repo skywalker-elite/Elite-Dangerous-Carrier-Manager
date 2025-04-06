@@ -19,6 +19,7 @@ class JournalReader:
         self._stats = []
         self._trade_orders = []
         self._carrier_buys = []
+        self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
         self.items = []
@@ -40,7 +41,7 @@ class JournalReader:
             elif journal in self.journal_latest_unknwon_fid.keys():
                 self._read_journal(journal, self.journal_latest_unknwon_fid[journal]['line_pos'])
         self.items = self._get_parsed_items()
-        assert len(self.items[3]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
+        assert len(self.items[4]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
     
     def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
         # print(journal)
@@ -102,6 +103,8 @@ class JournalReader:
                 self._stats.append(item)
                 if fid is not None:
                     self._carrier_owners[item['CarrierID']] = fid
+            if item['event'] == 'CarrierDepositFuel':
+                self._trit_deposits.append(item)
             if item['event'] == 'CarrierTradeOrder':
                 self._trade_orders.append(item)
             if item['event'] == 'CarrierBuy':
@@ -114,7 +117,7 @@ class JournalReader:
     
     def _get_parsed_items(self):
         return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._docking_perms]] + [self._carrier_owners]
+                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
     
     def get_items(self) -> list:
         return self.items.copy()
@@ -138,7 +141,7 @@ class CarrierModel:
 
     def read_journals(self):
         self.journal_reader.read_journals()
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, docking_perms, carrier_owners = self.journal_reader.get_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, carrier_owners = self.journal_reader.get_items()
 
         cmdr_balances = {}
         for load_game in load_games:
@@ -155,6 +158,7 @@ class CarrierModel:
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
+                carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
                 carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
                                                              'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
                 df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
@@ -167,6 +171,13 @@ class CarrierModel:
                 carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+
+        for trit_deposit in trit_deposits:
+            if trit_deposit['CarrierID'] in carriers.keys():
+                if datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > carriers[trit_deposit['CarrierID']]['StatTime'] and 'DepotTime' not in carriers[trit_deposit['CarrierID']]['Fuel'].keys():
+                    carriers[trit_deposit['CarrierID']]['Fuel']['FuelLevel'] = trit_deposit['Total']
+                    carriers[trit_deposit['CarrierID']]['Fuel']['JumpRange'] = None
+                    carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
         for docking_perm in docking_perms:
             if 'DockingPerm' not in carriers[docking_perm['CarrierID']].keys():
@@ -517,15 +528,17 @@ def getLocation(system, body, body_id):
     return result_system, result_body
 
 
-def generateInfo(data, now):
-    location_system, location_body = getLocation(data['current_system'], data['current_body'], data['current_body_id'])
-    if data['status'] == 'jumping':
-        destination_system, destination_body = getLocation(data['destination_system'], data['destination_body'], data['destination_body_id'])
-        time_diff = data['latest_depart'] - now
+def generateInfo(carrier, now):
+    location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
+    fuel_level = carrier['Fuel']['FuelLevel']
+    if carrier['status'] == 'jumping':
+        destination_system, destination_body = getLocation(carrier['destination_system'], carrier['destination_body'], carrier['destination_body_id'])
+        time_diff = carrier['latest_depart'] - now
         h, m, s = getHMS(time_diff.total_seconds())
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
@@ -533,12 +546,13 @@ def generateInfo(data, now):
             f"{destination_body}", 
             f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
             )
-    elif data['status'] == 'cool_down':
-        time_diff = CD - (now - data['latest_depart'])
+    elif carrier['status'] == 'cool_down':
+        time_diff = CD - (now - carrier['latest_depart'])
         h, m, s = getHMS(time_diff.total_seconds())
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Cooling Down",
@@ -546,12 +560,13 @@ def generateInfo(data, now):
             f"",
             f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
             )
-    elif data['status'] == 'cool_down_cancel':
-        time_diff = CD_cancel - (now - data['last_cancel']['timestamp'])
+    elif carrier['status'] == 'cool_down_cancel':
+        time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
         h, m, s = getHMS(time_diff.total_seconds())
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Cooling Down",
@@ -561,8 +576,9 @@ def generateInfo(data, now):
             )
     else:
         return (
-            f"{data['Name']}", 
-            f"{data['Callsign']}", 
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
             f"{location_system}", 
             f"{location_body}", 
             f"Idle",
