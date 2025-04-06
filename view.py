@@ -17,10 +17,12 @@ class CarrierView:
         self.tab_jumps = ttk.Frame(self.tab_controler)
         self.tab_finance = ttk.Frame(self.tab_controler)
         self.tab_trade = ttk.Frame(self.tab_controler)
+        self.tab_services = ttk.Frame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
         self.tab_controler.add(self.tab_trade, text='Trade')
         self.tab_controler.add(self.tab_finance, text='Finance')
+        self.tab_controler.add(self.tab_services, text='Services')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
@@ -29,6 +31,8 @@ class CarrierView:
         self.tab_trade.columnconfigure(0, pad=1, weight=1)
         self.tab_finance.rowconfigure(0, pad=1, weight=1)
         self.tab_finance.columnconfigure(0, pad=1, weight=1)
+        self.tab_services.rowconfigure(0, pad=1, weight=1)
+        self.tab_services.columnconfigure(0, pad=1, weight=1)
 
         self.tab_controler.pack(expand=True, fill='both')
 
@@ -100,6 +104,22 @@ class CarrierView:
         self.sheet_finance.column_width_resize_enabled = False
         self.sheet_finance.row_height_resize_enabled = False
 
+        # services tab
+        self.sheet_services = Sheet(self.tab_services)
+        self.sheet_services.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_services.change_theme('dark', redraw=False)
+
+        # Set column headers
+        self.sheet_services.headers([
+            'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
+        ])
+        self.sheet_services['B:L'].align('right')
+
+        # Enable column resizing to match window resizing
+        self.sheet_services.enable_bindings('all')
+        self.sheet_services.column_width_resize_enabled = False
+        self.sheet_services.row_height_resize_enabled = False
+
 
     def update_table(self, data):
         self.sheet.set_sheet_data(data, reset_col_positions=False)
@@ -115,6 +135,10 @@ class CarrierView:
     def update_table_trade(self, data):
         self.sheet_trade.set_sheet_data(data, reset_col_positions=False)
         self.sheet_trade.set_all_cell_sizes_to_text()
+
+    def update_table_services(self, data):
+        self.sheet_services.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_services.set_all_cell_sizes_to_text()
 
     def show_message_box_info(self, title:str, message:str):
         self.root.attributes('-topmost', True)

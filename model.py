@@ -3,7 +3,7 @@ from os import listdir, path
 import re
 import json
 from datetime import datetime, timezone, timedelta
-from utility import getHMS, getHammerCountdown, getResourcePath
+from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
 
 class JournalReader:
@@ -155,6 +155,10 @@ class CarrierModel:
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
+                df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
+                df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
+                carriers[stat['CarrierID']]['Services'] = df_services.copy()
         
         for carrier_buy in carrier_buys:
             if carrier_buy['CarrierID'] not in carriers.keys():
@@ -332,6 +336,28 @@ class CarrierModel:
     def get_finance(self, carrierID):
         return self.get_carriers()[carrierID]['Finance']
 
+    def get_data_services(self):
+        df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
+        df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids()]
+        return df[['Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket']].values.tolist()
+    
+    def generate_info_services(self, carrierID) -> pd.Series:
+        df = self.get_services(carrierID=carrierID)
+        status = []
+        for i in range(len(df)):
+            if df.iloc[i]['Activated'] == False:
+                status.append('Off')
+            elif df.iloc[i]['Enabled'] == False:
+                status.append('Paused')
+            else:
+                status.append('Active')
+        df['Status'] = status
+        return df['Status'].T
+    
+    def get_services(self, carrierID):
+        return self.get_carriers()[carrierID]['Services']
+    
     def get_name(self, carrierID) -> str:
         return self.get_carriers()[carrierID]['Name']
     
@@ -490,9 +516,10 @@ def generateInfo(carrier, now):
             )
 
 if __name__ == '__main__':
-    model = CarrierModel()
+    model = CarrierModel(getJournalPath())
     now = datetime.now(timezone.utc)
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now)))
     print(pd.DataFrame(model.get_data_finance()))
     print(pd.DataFrame(model.get_data_trade()))
+    print(pd.DataFrame(model.get_data_services()))
