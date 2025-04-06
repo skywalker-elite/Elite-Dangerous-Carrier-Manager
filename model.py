@@ -166,7 +166,7 @@ class CarrierModel:
             if carrier_buy['CarrierID'] not in carriers.keys():
                 carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
-            carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ')
+            carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
         for docking_perm in docking_perms:
             if 'DockingPerm' not in carriers[docking_perm['CarrierID']].keys():
@@ -206,6 +206,9 @@ class CarrierModel:
 
             if 'SpawnLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpawnLocation'] = 'Unknown'
+
+            if 'TimeBought' not in carriers[carrierID].keys():
+                carriers[carrierID]['TimeBought'] = None
 
             if 'CarrierLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['CarrierLocation'] = {'SystemName': 'Unknown', 'Body': None, 'BodyID': None, 'timestamp': None}
@@ -377,7 +380,8 @@ class CarrierModel:
         df['ShipPacks'] = [self.generate_info_space_usage(carrierID)[3] for carrierID in self.sorted_ids()]
         df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids()]
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace']].values.tolist()
+        df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids()]
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
         docking_perm = self.get_docking_perm(carrierID=carrierID)
@@ -407,6 +411,13 @@ class CarrierModel:
     
     def get_space_usage(self, carrierID):
         return self.get_carriers()[carrierID]['SpaceUsage']
+    
+    def generate_info_time_bought(self, carrierID):
+        time_bought = self.get_time_bought(carrierID=carrierID)
+        return time_bought.astimezone().strftime('%x %X') if time_bought is not None else 'Unknown'
+    
+    def get_time_bought(self, carrierID) -> datetime|None:
+        return self.get_carriers()[carrierID]['TimeBought']
     
     def get_name(self, carrierID) -> str:
         return self.get_carriers()[carrierID]['Name']
