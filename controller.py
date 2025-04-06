@@ -31,6 +31,7 @@ class CarrierController:
         self.view.update_table_finance(self.model.get_data_finance())
         self.view.update_table_trade(self.model.get_data_trade())
         self.view.update_table_services(self.model.get_data_services())
+        self.view.update_table_misc(self.model.get_data_misc())
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
