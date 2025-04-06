@@ -21,6 +21,7 @@ class JournalReader:
         self._carrier_buys = []
         self._trit_deposits = []
         self._carrier_owners = {}
+        self._docking_perms = []
         self.items = []
 
     def read_journals(self):
@@ -108,12 +109,15 @@ class JournalReader:
                 self._trade_orders.append(item)
             if item['event'] == 'CarrierBuy':
                 self._carrier_buys.append(item)
+            if item['event'] == 'CarrierDockingPermission':
+                self._docking_perms.append(item)
+                
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid, is_active
     
     def _get_parsed_items(self):
         return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits]] + [self._carrier_owners]
+                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
     
     def get_items(self) -> list:
         return self.items.copy()
@@ -137,7 +141,7 @@ class CarrierModel:
 
     def read_journals(self):
         self.journal_reader.read_journals()
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, carrier_owners = self.journal_reader.get_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, carrier_owners = self.journal_reader.get_items()
 
         cmdr_balances = {}
         for load_game in load_games:
@@ -155,6 +159,8 @@ class CarrierModel:
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
+                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
                 df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
@@ -173,6 +179,10 @@ class CarrierModel:
                     carriers[trit_deposit['CarrierID']]['Fuel']['JumpRange'] = None
                     carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
+        for docking_perm in docking_perms:
+            if 'DockingPerm' not in carriers[docking_perm['CarrierID']].keys():
+                carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
+        
         for carrier_location in carrier_locations:
             if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
                 carriers[carrier_location['CarrierID']]['CarrierLocation'] = {'SystemName': carrier_location['StarSystem'], 'Body': None, 'BodyID': carrier_location['BodyID'], 'timestamp': datetime.strptime(carrier_location['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
@@ -208,8 +218,20 @@ class CarrierModel:
             if 'SpawnLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpawnLocation'] = 'Unknown'
 
+            if 'TimeBought' not in carriers[carrierID].keys():
+                carriers[carrierID]['TimeBought'] = None
+
             if 'CarrierLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['CarrierLocation'] = {'SystemName': 'Unknown', 'Body': None, 'BodyID': None, 'timestamp': None}
+            
+            if 'DockingPerm' not in carriers[carrierID].keys():
+                if carriers[carrierID]['CarrierLocation']['timestamp'] is not None:
+                    carriers[carrierID]['DockingPerm'] = {'DockingAccess': 'all', 'AllowNotorious': 'false'}
+                else:
+                    carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
+            
+            if 'SpaceUsage' not in carriers[carrierID].keys():
+                carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
             
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
@@ -357,6 +379,56 @@ class CarrierModel:
     
     def get_services(self, carrierID):
         return self.get_carriers()[carrierID]['Services']
+    
+    def get_data_misc(self):
+        df = pd.DataFrame()
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids()]
+        df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids()]
+        df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids()]
+        df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids()]
+        df['Cargo'] = [self.generate_info_space_usage(carrierID)[1] for carrierID in self.sorted_ids()]
+        df['BuyOrder'] = [self.generate_info_space_usage(carrierID)[2] for carrierID in self.sorted_ids()]
+        df['ShipPacks'] = [self.generate_info_space_usage(carrierID)[3] for carrierID in self.sorted_ids()]
+        df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids()]
+        df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids()]
+        df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids()]
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought']].values.tolist()
+    
+    def generate_info_docking_perm(self, carrierID):
+        docking_perm = self.get_docking_perm(carrierID=carrierID)
+        match docking_perm['DockingAccess']:
+            case 'all':
+                docking = 'All'
+            case 'friends':
+                docking = 'Friends'
+            case 'squadron':
+                docking = 'Squadron'
+            case 'squadronfriends':
+                docking = 'Squadron&Friends'
+            case 'none':
+                docking = 'None'
+            case _:
+                docking = 'Unknown'
+        notorious = 'Yes' if docking_perm['AllowNotorious'] else 'No' if docking_perm['AllowNotorious'] is not None else 'Unknown'
+        return (docking, notorious)
+    
+    def get_docking_perm(self, carrierID):
+        return self.get_carriers()[carrierID]['DockingPerm']
+    
+    def generate_info_space_usage(self, carrierID):
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        return (f"{int(space_usage['Services'])}t", f"{int(space_usage['Cargo'])}t", f"{int(space_usage['BuyOrder'])}t", f"{int(space_usage['ShipPacks'])}t", f"{int(space_usage['ModulePacks'])}t", 
+                f"{int(space_usage['FreeSpace'])}t") if space_usage['Services'] is not None else ('Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')
+    
+    def get_space_usage(self, carrierID):
+        return self.get_carriers()[carrierID]['SpaceUsage']
+    
+    def generate_info_time_bought(self, carrierID):
+        time_bought = self.get_time_bought(carrierID=carrierID)
+        return time_bought.astimezone().strftime('%x %X') if time_bought is not None else 'Unknown'
+    
+    def get_time_bought(self, carrierID) -> datetime|None:
+        return self.get_carriers()[carrierID]['TimeBought']
     
     def get_name(self, carrierID) -> str:
         return self.get_carriers()[carrierID]['Name']
@@ -523,3 +595,4 @@ if __name__ == '__main__':
     print(pd.DataFrame(model.get_data_finance()))
     print(pd.DataFrame(model.get_data_trade()))
     print(pd.DataFrame(model.get_data_services()))
+    print(pd.DataFrame(model.get_data_misc()))
