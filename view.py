@@ -43,7 +43,7 @@ class CarrierView:
 
         # Set column headers
         self.sheet.headers([
-            'Carrier Name', 'Carrier ID', 'Current System', 'Body',
+            'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
             'Status', 'Destination System', 'Body', 'Timer'
         ])
 
