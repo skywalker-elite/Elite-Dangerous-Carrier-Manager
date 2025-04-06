@@ -131,9 +131,9 @@ class CarrierView:
 
         # Set column headers
         self.sheet_misc.headers([
-            'Carrier Name', 'Docking Permission', 'Allow Notorious'
+            'Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace'
         ])
-        self.sheet_misc['B:C'].align('right')
+        self.sheet_misc['B:I'].align('right')
 
         # Enable column resizing to match window resizing
         self.sheet_misc.enable_bindings('all')

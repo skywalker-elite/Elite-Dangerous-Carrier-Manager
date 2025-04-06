@@ -155,6 +155,8 @@ class CarrierModel:
                                                           'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
+                carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
+                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
                 df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
@@ -213,6 +215,9 @@ class CarrierModel:
                     carriers[carrierID]['DockingPerm'] = {'DockingAccess': 'all', 'AllowNotorious': 'false'}
                 else:
                     carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
+            
+            if 'SpaceUsage' not in carriers[carrierID].keys():
+                carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
             
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
@@ -366,7 +371,13 @@ class CarrierModel:
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids()]
         df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids()]
         df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious']].values.tolist()
+        df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids()]
+        df['Cargo'] = [self.generate_info_space_usage(carrierID)[1] for carrierID in self.sorted_ids()]
+        df['BuyOrder'] = [self.generate_info_space_usage(carrierID)[2] for carrierID in self.sorted_ids()]
+        df['ShipPacks'] = [self.generate_info_space_usage(carrierID)[3] for carrierID in self.sorted_ids()]
+        df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids()]
+        df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids()]
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
         docking_perm = self.get_docking_perm(carrierID=carrierID)
@@ -388,6 +399,14 @@ class CarrierModel:
     
     def get_docking_perm(self, carrierID):
         return self.get_carriers()[carrierID]['DockingPerm']
+    
+    def generate_info_space_usage(self, carrierID):
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        return (f"{int(space_usage['Services'])}t", f"{int(space_usage['Cargo'])}t", f"{int(space_usage['BuyOrder'])}t", f"{int(space_usage['ShipPacks'])}t", f"{int(space_usage['ModulePacks'])}t", 
+                f"{int(space_usage['FreeSpace'])}t") if space_usage['Services'] is not None else ('Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')
+    
+    def get_space_usage(self, carrierID):
+        return self.get_carriers()[carrierID]['SpaceUsage']
     
     def get_name(self, carrierID) -> str:
         return self.get_carriers()[carrierID]['Name']
