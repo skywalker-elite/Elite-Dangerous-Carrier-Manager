@@ -3,8 +3,9 @@ from os import listdir, path
 import re
 import json
 from datetime import datetime, timezone, timedelta
+from humanize import naturaltime
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
-from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems
+from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW
 
 class JournalReader:
     def __init__(self, journal_path:str):
@@ -137,6 +138,9 @@ class CarrierModel:
         self.df_commodities_rare['symbol'] = self.df_commodities_rare['symbol'].str.lower()
         self.df_commodities_rare = self.df_commodities_rare.set_index('symbol')
         self.df_commodities_all = pd.concat([self.df_commodities, self.df_commodities_rare])
+        self.df_upkeeps = pd.DataFrame(
+            {'Service': {0: 'Refuel', 1: 'Repair', 2: 'Rearm', 3: 'Shipyard', 4: 'Outfitting', 5: 'Exploration', 6: 'VistaGenomics', 7: 'PioneerSupplies', 8: 'Bartender', 9: 'VoucherRedemption', 10: 'BlackMarket'}, 'Active': {0: 1500000, 1: 1500000, 2: 1500000, 3: 6500000, 4: 5000000, 5: 1850000, 6: 1500000, 7: 5000000, 8: 1750000, 9: 1850000, 10: 2000000}, 'Paused': {0: 750000, 1: 750000, 2: 750000, 3: 1800000, 4: 1500000, 5: 700000, 6: 700000, 7: 1500000, 8: 1250000, 9: 850000, 10: 1250000}, 'Off': {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}}
+            ).set_index('Service')
         self.read_journals()
 
     def read_journals(self):
@@ -154,8 +158,6 @@ class CarrierModel:
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
                                                           'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() else None,
-                                                          'ReserveBalance': stat['Finance']['ReserveBalance'], 
-                                                          'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
@@ -345,23 +347,42 @@ class CarrierModel:
         return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids()]
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Reserve Balance', 'Available Balance'])
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
         df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
-        df = pd.concat([df, pd.DataFrame([['Total', df.iloc[:,1].astype(int).sum(), df.iloc[:,2].astype(int).sum(), df.iloc[:,3].astype(int).sum(), df.iloc[:,4].astype(int).sum(), df.iloc[:,5].astype(int).sum()]], columns=df.columns)], axis=0, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([['Total']+[df.iloc[:,i].astype(int).sum() for i in range(1, 6)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
-        df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{int(xi):,}' for xi in x])
+        df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         return df.values.tolist()
     
     def generate_info_finance(self, carrierID):
-        return (self.get_name(carrierID=carrierID), *[n for n in self.get_finance(carrierID).values()])
+        finance = [n for n in self.get_finance(carrierID).values()]
+        upkeep = self.calculate_upkeep(carrierID=carrierID)
+        jump_cost = self.calculate_average_jump_costs(carrierID=carrierID)
+        afloat_time = self.calculate_afloat_time(carrierID=carrierID, carrier_balance=finance[0], upkeep=upkeep, jump_cost=jump_cost)
+        return (self.get_name(carrierID=carrierID), *finance, upkeep, jump_cost, afloat_time)
     
     def get_finance(self, carrierID):
         return self.get_carriers()[carrierID]['Finance']
 
+    def calculate_afloat_time(self, carrierID, carrier_balance:int, upkeep:int, jump_cost:int) -> str:
+        return naturaltime(self.get_carriers()[carrierID]['StatTime'] + timedelta(weeks=carrier_balance / (upkeep+jump_cost)))
+    
+    def calculate_upkeep(self, carrierID) -> int:
+        df = self.generate_info_services(carrierID=carrierID)
+        result = 5000000
+        for i in df.index:
+            result += self.df_upkeeps.loc[i, df.loc[i]]
+        return result
+    
+    def calculate_average_jump_costs(self, carrierID) -> int:
+        df = self.get_carriers()[carrierID]['jumps']
+        df = df[datetime.now().astimezone() - df['timestamp'] < timedelta(weeks=AVG_JUMP_CAL_WINDOW)]
+        return int(round(len(df) / AVG_JUMP_CAL_WINDOW, 2) * 100000)
+    
     def get_data_services(self):
         df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
         df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
@@ -396,7 +417,8 @@ class CarrierModel:
         df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids()]
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought']].values.tolist()
+        df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids()]
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
         docking_perm = self.get_docking_perm(carrierID=carrierID)
@@ -426,6 +448,12 @@ class CarrierModel:
     
     def get_space_usage(self, carrierID):
         return self.get_carriers()[carrierID]['SpaceUsage']
+    
+    def generate_info_stat_time(self, carrierID) -> str:
+        return naturaltime(self.get_stat_time(carrierID=carrierID))
+    
+    def get_stat_time(self, carrierID) -> datetime:
+        return self.get_carriers()[carrierID]['StatTime']
     
     def generate_info_time_bought(self, carrierID):
         time_bought = self.get_time_bought(carrierID=carrierID)
@@ -608,6 +636,8 @@ if __name__ == '__main__':
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now)))
     print(pd.DataFrame(model.get_data_finance()))
-    print(pd.DataFrame(model.get_data_trade()))
+    print(pd.DataFrame(model.get_data_trade()[0]))
     print(pd.DataFrame(model.get_data_services()))
     print(pd.DataFrame(model.get_data_misc()))
+    print(model.calculate_upkeep(model.sorted_ids()[0]))
+    # print(model.df_upkeeps)
