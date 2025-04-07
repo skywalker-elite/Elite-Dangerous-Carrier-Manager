@@ -413,7 +413,8 @@ class CarrierModel:
         df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids()]
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought']].values.tolist()
+        df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids()]
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
         docking_perm = self.get_docking_perm(carrierID=carrierID)
@@ -443,6 +444,12 @@ class CarrierModel:
     
     def get_space_usage(self, carrierID):
         return self.get_carriers()[carrierID]['SpaceUsage']
+    
+    def generate_info_stat_time(self, carrierID) -> str:
+        return naturaltime(self.get_stat_time(carrierID=carrierID))
+    
+    def get_stat_time(self, carrierID) -> datetime:
+        return self.get_carriers()[carrierID]['StatTime']
     
     def generate_info_time_bought(self, carrierID):
         time_bought = self.get_time_bought(carrierID=carrierID)
