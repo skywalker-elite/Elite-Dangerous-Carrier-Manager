@@ -165,6 +165,7 @@ class CarrierModel:
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
                 carriers[stat['CarrierID']]['Services'] = df_services.copy()
+                carriers[stat['CarrierID']]['PendingDecom'] = stat['PendingDecommission']
         
         for carrier_buy in carrier_buys:
             if carrier_buy['CarrierID'] not in carriers.keys():
@@ -232,6 +233,9 @@ class CarrierModel:
             
             if 'SpaceUsage' not in carriers[carrierID].keys():
                 carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
+
+            if 'PendingDecom' not in carriers[carrierID].keys():
+                carriers[carrierID]['PendingDecom'] = False
             
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
@@ -430,6 +434,13 @@ class CarrierModel:
     def get_time_bought(self, carrierID) -> datetime|None:
         return self.get_carriers()[carrierID]['TimeBought']
     
+    def get_carriers_pending_decom(self) -> list[int]|None:
+        decomming = [i for i, carrierID in enumerate(self.sorted_ids()) if self.get_carriers()[carrierID]['PendingDecom'] == True]
+        return decomming if len(decomming) > 0 else None
+    
+    def get_pending_decom(self, carrierID) -> bool:
+        return self.get_carriers()[carrierID]['PendingDecom']
+    
     def get_name(self, carrierID) -> str:
         return self.get_carriers()[carrierID]['Name']
     
@@ -485,14 +496,17 @@ class CarrierModel:
                     amount = int(amount)
                 return ('unloading', commodity, amount)
             
-    def get_data_trade(self):
-        return pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True).values.tolist()
+    def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
+        df = pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True)
+        trades = df.drop('Pending Decom', axis=1, errors='ignore')
+        pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
+        return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
     
     def generate_info_trade(self, carrierID):
         carrier_name = self.get_name(carrierID)
         active_trades = self.get_active_trades(carrierID)
         if len(active_trades) == 0:
-            return pd.DataFrame({}, columns=['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'])
+            return pd.DataFrame({}, columns=['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
         else:
             active_trades['Carrier Name'] = carrier_name
             active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
@@ -501,7 +515,8 @@ class CarrierModel:
             active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).apply(lambda x: f'{int(x):,}')
             active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
             active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
-            return active_trades[['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)']]
+            active_trades['Pending Decom'] = self.get_pending_decom(carrierID=carrierID)
+            return active_trades[['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom']]
     
     def get_active_trades(self, carrierID) -> pd.DataFrame:
         return self.get_carriers()[carrierID]['active_trades'].copy()
