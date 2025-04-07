@@ -99,9 +99,9 @@ class CarrierView:
 
         # Set column headers
         self.sheet_finance.headers([
-            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Reserve Balance', 'Available Balance', 'Weekly Upkeep', 'Funded Till'
+            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Reserve Balance', 'Available Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ])
-        self.sheet_finance['B:I'].align('right')
+        self.sheet_finance['B:J'].align('right')
 
         # Enable column resizing to match window resizing
         self.sheet_finance.enable_bindings('all')

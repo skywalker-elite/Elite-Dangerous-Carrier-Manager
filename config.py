@@ -13,6 +13,8 @@ UPDATE_INTERVAL = 500
 REDRAW_INTERVAL = 250
 REMIND_INTERVAL = 1000
 
+AVG_JUMP_CAL_WINDOW = 8
+
 ladder_systems = {
     'Gali': 'N16',
     'Wregoe TO-C b56-0': 'N15B',
