@@ -8,7 +8,7 @@ from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
 from utility import checkTimerFormat
-from config import UPDATE_INTERVAL, REDRAW_INTERVAL, REMIND_INTERVAL, REMIND, ladder_systems
+from config import UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
     def __init__(self, root, model:CarrierModel):
@@ -23,15 +23,19 @@ class CarrierController:
         self.update_journals()
 
         # Start the UI update loop
-        self.redraw()
+        self.redraw_fast()
+        self.redraw_slow()
 
-    def update_table(self, now):
+    def update_tables_fast(self, now):
         self.model.update_carriers(now)
         self.view.update_table_jumps(self.model.get_data(now), self.model.get_carriers_pending_decom())
-        self.view.update_table_finance(self.model.get_data_finance(), self.model.get_carriers_pending_decom())
+    
+    def update_tables_slow(self, now):
+        pending_decom = self.model.get_carriers_pending_decom()
+        self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
         self.view.update_table_trade(*self.model.get_data_trade())
-        self.view.update_table_services(self.model.get_data_services(), self.model.get_carriers_pending_decom()) #TODO: reduce update rate for performance
-        self.view.update_table_misc(self.model.get_data_misc(), self.model.get_carriers_pending_decom()) #TODO: reduce update rate for performance
+        self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance
+        self.view.update_table_misc(self.model.get_data_misc(), pending_decom) #TODO: reduce update rate for performance
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
@@ -161,11 +165,16 @@ class CarrierController:
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     
-    def redraw(self):
+    def redraw_fast(self):
         now = datetime.now(timezone.utc)
-        self.update_table(now)
+        self.update_tables_fast(now)
         self.update_time(now)
-        self.view.root.after(REDRAW_INTERVAL, self.redraw)
+        self.view.root.after(REDRAW_INTERVAL_FAST, self.redraw_fast)
+    
+    def redraw_slow(self):
+        now = datetime.now(timezone.utc)
+        self.update_tables_slow(now)
+        self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def get_selected_row(self):
         selected = self.view.sheet_jumps.selected
