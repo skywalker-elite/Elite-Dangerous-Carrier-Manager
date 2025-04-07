@@ -158,8 +158,6 @@ class CarrierModel:
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
                                                           'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() else None,
-                                                          'ReserveBalance': stat['Finance']['ReserveBalance'], 
-                                                          'AvailableBalance': stat['Finance']['AvailableBalance'],
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
@@ -349,12 +347,12 @@ class CarrierModel:
         return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids()]
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Reserve Balance', 'Available Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
         df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
-        df = pd.concat([df, pd.DataFrame([['Total']+[df.iloc[:,i].astype(int).sum() for i in range(1, 8)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([['Total']+[df.iloc[:,i].astype(int).sum() for i in range(1, 6)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
         df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'

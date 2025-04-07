@@ -99,7 +99,7 @@ class CarrierView:
 
         # Set column headers
         self.sheet_finance.headers([
-            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Reserve Balance', 'Available Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ])
         self.sheet_finance['B:J'].align('right')
 
