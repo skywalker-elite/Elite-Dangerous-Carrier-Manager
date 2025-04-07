@@ -27,7 +27,7 @@ class CarrierController:
 
     def update_table(self, now):
         self.model.update_carriers(now)
-        self.view.update_table(self.model.get_data(now), self.model.get_carriers_pending_decom())
+        self.view.update_table_jumps(self.model.get_data(now), self.model.get_carriers_pending_decom())
         self.view.update_table_finance(self.model.get_data_finance(), self.model.get_carriers_pending_decom())
         self.view.update_table_trade(*self.model.get_data_trade())
         self.view.update_table_services(self.model.get_data_services(), self.model.get_carriers_pending_decom()) #TODO: reduce update rate for performance
@@ -168,7 +168,7 @@ class CarrierController:
         self.view.root.after(REDRAW_INTERVAL, self.redraw)
 
     def get_selected_row(self):
-        selected = self.view.sheet.selected
+        selected = self.view.sheet_jumps.selected
         if selected:
             if selected.box.from_r == selected.box.upto_r - 1:
                 return selected.box.from_r
