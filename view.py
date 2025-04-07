@@ -143,6 +143,7 @@ class CarrierView:
 
     def update_table(self, data, rows_pending_decomm:list[int]|None=None):
         self.sheet.set_sheet_data(data, reset_col_positions=False)
+        self.sheet.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             self.sheet.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
         self.sheet.set_all_cell_sizes_to_text()
@@ -152,24 +153,28 @@ class CarrierView:
     
     def update_table_finance(self, data, rows_pending_decomm:list[int]|None=None):
         self.sheet_finance.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_finance.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             self.sheet_finance.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
         self.sheet_finance.set_all_cell_sizes_to_text()
 
     def update_table_trade(self, data, rows_pending_decomm:list[int]|None=None):
         self.sheet_trade.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_trade.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             self.sheet_trade.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
         self.sheet_trade.set_all_cell_sizes_to_text()
 
     def update_table_services(self, data, rows_pending_decomm:list[int]|None=None):
         self.sheet_services.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_services.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             self.sheet_services.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
         self.sheet_services.set_all_cell_sizes_to_text()
     
     def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
         self.sheet_misc.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_misc.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             self.sheet_misc.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
         self.sheet_misc.set_all_cell_sizes_to_text()
