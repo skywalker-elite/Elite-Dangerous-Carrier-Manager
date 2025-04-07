@@ -41,20 +41,20 @@ class CarrierView:
         self.tab_controler.pack(expand=True, fill='both')
 
         # Initialize the tksheet.Sheet widget
-        self.sheet = Sheet(self.tab_jumps)
-        self.sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet.change_theme('dark', redraw=False)
+        self.sheet_jumps = Sheet(self.tab_jumps)
+        self.sheet_jumps.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_jumps.change_theme('dark', redraw=False)
 
         # Set column headers
-        self.sheet.headers([
+        self.sheet_jumps.headers([
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
             'Status', 'Destination System', 'Body', 'Timer'
         ])
 
         # Enable column resizing to match window resizing
-        self.sheet.enable_bindings('all')
-        self.sheet.column_width_resize_enabled = False
-        self.sheet.row_height_resize_enabled = False
+        self.sheet_jumps.enable_bindings('all')
+        self.sheet_jumps.column_width_resize_enabled = False
+        self.sheet_jumps.row_height_resize_enabled = False
         
         self.bottom_bar = ttk.Frame(self.tab_jumps)
         self.bottom_bar.grid(row=1, column=0, columnspan=3, sticky='ew')
@@ -140,44 +140,30 @@ class CarrierView:
         self.sheet_misc.column_width_resize_enabled = False
         self.sheet_misc.row_height_resize_enabled = False
 
-
-    def update_table(self, data, rows_pending_decomm:list[int]|None=None):
-        self.sheet.set_sheet_data(data, reset_col_positions=False)
-        self.sheet.dehighlight_all(redraw=False)
+    def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
+        table.set_sheet_data(data, reset_col_positions=False)
+        table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
-            self.sheet.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        self.sheet.set_all_cell_sizes_to_text()
+            table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
+        table.set_all_cell_sizes_to_text()
+    
+    def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_jumps, data, rows_pending_decomm)
     
     def update_time(self, time:str):
         self.clock_utc.configure(text=time)
     
     def update_table_finance(self, data, rows_pending_decomm:list[int]|None=None):
-        self.sheet_finance.set_sheet_data(data, reset_col_positions=False)
-        self.sheet_finance.dehighlight_all(redraw=False)
-        if rows_pending_decomm is not None:
-            self.sheet_finance.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        self.sheet_finance.set_all_cell_sizes_to_text()
+        self.update_table(self.sheet_finance, data, rows_pending_decomm)
 
     def update_table_trade(self, data, rows_pending_decomm:list[int]|None=None):
-        self.sheet_trade.set_sheet_data(data, reset_col_positions=False)
-        self.sheet_trade.dehighlight_all(redraw=False)
-        if rows_pending_decomm is not None:
-            self.sheet_trade.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        self.sheet_trade.set_all_cell_sizes_to_text()
+        self.update_table(self.sheet_trade, data, rows_pending_decomm)
 
     def update_table_services(self, data, rows_pending_decomm:list[int]|None=None):
-        self.sheet_services.set_sheet_data(data, reset_col_positions=False)
-        self.sheet_services.dehighlight_all(redraw=False)
-        if rows_pending_decomm is not None:
-            self.sheet_services.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        self.sheet_services.set_all_cell_sizes_to_text()
+        self.update_table(self.sheet_services, data, rows_pending_decomm)
     
     def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
-        self.sheet_misc.set_sheet_data(data, reset_col_positions=False)
-        self.sheet_misc.dehighlight_all(redraw=False)
-        if rows_pending_decomm is not None:
-            self.sheet_misc.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        self.sheet_misc.set_all_cell_sizes_to_text()
+        self.update_table(self.sheet_misc, data, rows_pending_decomm)
 
     def show_message_box_info(self, title:str, message:str):
         self.root.attributes('-topmost', True)
