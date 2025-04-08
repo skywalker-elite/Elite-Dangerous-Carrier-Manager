@@ -92,6 +92,15 @@ class CarrierView:
         self.sheet_trade.column_width_resize_enabled = False
         self.sheet_trade.row_height_resize_enabled = False
 
+        self.bottom_bar_trade = ttk.Frame(self.tab_trade)
+        self.bottom_bar_trade.grid(row=1, column=0, columnspan=3, sticky='ew')
+        self.tab_trade.grid_rowconfigure(1, weight=0)
+        # Buttons
+        # Post trade
+        self.button_post_trade_trade = ttk.Button(self.bottom_bar_trade, text='Post Trade')
+        # self.button_post_trade.grid(row=0, column=0, sticky='sw')
+        self.button_post_trade_trade.pack(side='left')
+
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance)
         self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')

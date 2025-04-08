@@ -498,6 +498,15 @@ class CarrierModel:
     def get_current_or_destination_body(self, carrierID) -> str:
         return self.get_destination_body(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body(carrierID=carrierID)
     
+    def get_current_body_id(self, carrierID) -> int:
+        return self.get_carriers()[carrierID]['current_body_id']
+    
+    def get_destination_body_id(self, carrierID) -> int|None:
+        return self.get_carriers()[carrierID]['destination_body_id']
+    
+    def get_current_or_destination_body_id(self, carrierID) -> int:
+        return self.get_destination_body_id(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body_id(carrierID=carrierID)
+    
     def sorted_ids(self):
         return sorted(self.get_carriers().keys(), key=lambda x: self.carriers[x]['TimeBought'] if 'TimeBought' in self.carriers[x].keys() else datetime(year=2020, month=6, day=9), reverse=False) # Assumes carrier bought at release if no buy event found
     
@@ -526,7 +535,8 @@ class CarrierModel:
             
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
         df = pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True)
-        trades = df.drop('Pending Decom', axis=1, errors='ignore')
+        self.trad_carrierIDs = df['CarrierID']
+        trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
     
@@ -534,8 +544,9 @@ class CarrierModel:
         carrier_name = self.get_name(carrierID)
         active_trades = self.get_active_trades(carrierID)
         if len(active_trades) == 0:
-            return pd.DataFrame({}, columns=['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
+            return pd.DataFrame({}, columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
         else:
+            active_trades['CarrierID'] = carrierID
             active_trades['Carrier Name'] = carrier_name
             active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
             active_trades = active_trades[active_trades['Commodity'].notna()]
@@ -544,7 +555,7 @@ class CarrierModel:
             active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
             active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
             active_trades['Pending Decom'] = self.get_pending_decom(carrierID=carrierID)
-            return active_trades[['Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom']]
+            return active_trades[['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom']]
     
     def get_active_trades(self, carrierID) -> pd.DataFrame:
         return self.get_carriers()[carrierID]['active_trades'].copy()
