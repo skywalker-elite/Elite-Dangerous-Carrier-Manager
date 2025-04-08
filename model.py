@@ -561,7 +561,9 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['active_trades'].copy()
 
 def getLocation(system, body, body_id):
-    if body is None or type(body) is float:
+    if system == 'HIP 58832':
+        result_system, result_body = system, {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, 'Unknown') # Yes, the body_id of Planet 6 is 16, don't ask me why
+    elif body is None or type(body) is float:
         if body_id == 0:
             result_system, result_body = system, 'Star'
         else:
