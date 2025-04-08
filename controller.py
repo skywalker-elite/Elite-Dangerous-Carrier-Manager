@@ -18,6 +18,7 @@ class CarrierController:
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
+        self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
 
         # Start the carrier update loop
         self.update_journals()
@@ -69,15 +70,18 @@ class CarrierController:
                 last_order = self.model.get_formated_last_order(carrierID=carrierID)
                 if last_order is not None:
                     trade_type, commodity, amount = last_order
-                    #if trade_type == 'unloading' and commodity == 'Wine': # nvm this shouldn't even be a question
-                    callsign = self.model.get_callsign(carrierID=carrierID)
-                    body = self.model.get_current_or_destination_body(carrierID=carrierID)
-                    if body != 'Star':
-                        if body in ['1', '2', '3', '4', '5', '6']:
-                            body = f'Planet {body}'
-                    post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
-                    pyperclip.copy(post_string)
-                    self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
+                    if trade_type == 'unloading' and commodity == 'Wine':
+                        callsign = self.model.get_callsign(carrierID=carrierID)
+                        body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
+                        body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
+                        if body is not None:
+                            post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
+                            pyperclip.copy(post_string)
+                            self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
+                        else:
+                            self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {body=}')
+                    else:
+                        self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
             else:
                 stations, pad_sizes = getStations(sys_name=system)
                 if len(stations) > 0:
@@ -93,6 +97,43 @@ class CarrierController:
                     self.view.show_message_box_warning('No station', 'There are no stations in this system')
         else:
             self.view.show_message_box_warning('Warning', 'please select one carrier and one carrier only!')
+    
+    def button_click_post_trade_trade(self): #TODO: remove this and use the same as button_click_post_trade   
+        selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
+        if selected_row is not None:
+            carrierID = self.model.trad_carrierIDs[selected_row]
+            carrier_name = self.model.get_name(carrierID)
+            system = self.model.get_current_or_destination_system(carrierID)
+            trade_type, amount, commodity = self.view.sheet_trade.data[selected_row][1:4]
+            trade_type = trade_type.lower()
+            amount = float(amount.replace(',',''))
+            amount = round(amount / 500) * 500 / 1000
+            if amount % 1 == 0:
+                amount = int(amount)
+
+            if system == 'HIP 58832':
+                if trade_type == 'unloading' and commodity == 'Wine':
+                    callsign = self.model.get_callsign(carrierID=carrierID)
+                    body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
+                    body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
+                    if body is not None:
+                        post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
+                        pyperclip.copy(post_string)
+                        self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
+                    else:
+                        self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {body=}')
+                else:
+                    self.view.show_message_box_warning('What are you doing?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
+            else:
+                stations, pad_sizes = getStations(sys_name=system)
+                if len(stations) > 0:
+                    self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
+                    self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
+                else:
+                    self.view.show_message_box_warning('No station', 'There are no stations in this system')
+        else:
+            self.view.show_message_box_warning('Warning', 'please select one trade and one trade only!')
+
     
     def button_click_post(self, carrier_name:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
@@ -176,8 +217,10 @@ class CarrierController:
         self.update_tables_slow(now)
         self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
-    def get_selected_row(self):
-        selected = self.view.sheet_jumps.selected
+    def get_selected_row(self, sheet=None):
+        if sheet is None:
+            sheet = self.view.sheet_jumps
+        selected = sheet.selected
         if selected:
             if selected.box.from_r == selected.box.upto_r - 1:
                 return selected.box.from_r
