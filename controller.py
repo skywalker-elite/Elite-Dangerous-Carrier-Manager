@@ -52,9 +52,11 @@ class CarrierController:
             carrier_name = self.model.get_name(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
-            
-            pyperclip.copy(hammer_countdown)
-            self.view.show_message_box_info('Success!', f'Hammertime for {carrier_name} ({carrier_callsign}) Copied!')
+            if hammer_countdown is not None:
+                pyperclip.copy(hammer_countdown)
+                self.view.show_message_box_info('Success!', f'Hammertime for {carrier_name} ({carrier_callsign}) copied!')
+            else:
+                self.view.show_message_box_warning('Error', f'No jump data found for {carrier_name} ({carrier_callsign})')
         else:
             self.view.show_message_box_warning('Warning', 'please select one carrier and one carrier only!')
 
@@ -64,18 +66,17 @@ class CarrierController:
             carrierID = self.model.sorted_ids()[selected_row]
             carrier_name = self.model.get_name(carrierID)
             system = self.model.get_current_or_destination_system(carrierID)
-            # carrier_callsign = self.model.get_callsign(carrierID)
+            carrier_callsign = self.model.get_callsign(carrierID)
 
             if system == 'HIP 58832':
                 last_order = self.model.get_formated_last_order(carrierID=carrierID)
                 if last_order is not None:
                     trade_type, commodity, amount = last_order
                     if trade_type == 'unloading' and commodity == 'Wine':
-                        callsign = self.model.get_callsign(carrierID=carrierID)
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
                         if body is not None:
-                            post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
+                            post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body} market_type: Open'
                             pyperclip.copy(post_string)
                             self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
                         else:
@@ -92,9 +93,9 @@ class CarrierController:
                         self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
                         self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
                     else:
-                        self.view.show_message_box_warning('No trade order', 'There is no trade order set')
+                        self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
                 else:
-                    self.view.show_message_box_warning('No station', 'There are no stations in this system')
+                    self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
         else:
             self.view.show_message_box_warning('Warning', 'please select one carrier and one carrier only!')
     

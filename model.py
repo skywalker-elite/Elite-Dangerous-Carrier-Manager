@@ -177,7 +177,7 @@ class CarrierModel:
 
         for trit_deposit in trit_deposits:
             if trit_deposit['CarrierID'] in carriers.keys():
-                if datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > carriers[trit_deposit['CarrierID']]['StatTime'] and 'DepotTime' not in carriers[trit_deposit['CarrierID']]['Fuel'].keys():
+                if ('StatTime' not in carriers[trit_deposit['CarrierID']].keys() or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > carriers[trit_deposit['CarrierID']]['StatTime']) and ('Fuel' not in carriers[trit_deposit['CarrierID']].keys() or 'DepotTime' not in carriers[trit_deposit['CarrierID']]['Fuel'].keys()):
                     carriers[trit_deposit['CarrierID']]['Fuel']['FuelLevel'] = trit_deposit['Total']
                     carriers[trit_deposit['CarrierID']]['Fuel']['JumpRange'] = None
                     carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
@@ -227,9 +227,28 @@ class CarrierModel:
             if 'CarrierLocation' not in carriers[carrierID].keys():
                 carriers[carrierID]['CarrierLocation'] = {'SystemName': 'Unknown', 'Body': None, 'BodyID': None, 'timestamp': None}
             
+            if 'Finance' not in carriers[carrierID].keys():
+                if carriers[carrierID]['TimeBought'] is not None:
+                    carriers[carrierID]['Finance'] = {'CarrierBalance': 0, 
+                                                    'CmdrBalance': cmdr_balances[carrier_owners[carrierID]] if carrierID in carrier_owners.keys() else None,
+                                                    }
+            
+            if 'Fuel' not in carriers[carrierID].keys():
+                if carriers[carrierID]['TimeBought'] is not None:
+                    carriers[carrierID]['Fuel'] = {'FuelLevel': 500, 'JumpRange': 'Unknown'}
+                else:
+                    carriers[carrierID]['Fuel'] = {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'}
+
+            if 'Services' not in carriers[carrierID].keys():
+                if carriers[carrierID]['TimeBought'] is not None:
+                    carriers[carrierID]['Services'] = pd.DataFrame({'Activated': {'BlackMarket': False, 'Refuel': False, 'Repair': False, 'Rearm': False, 'VoucherRedemption': False, 'Exploration': False, 'Shipyard': False, 'Outfitting': False}, 'Enabled': {'BlackMarket': False, 'Refuel': False, 'Repair': True, 'Rearm': False, 'VoucherRedemption': False, 'Exploration': False, 'Shipyard': False, 'Outfitting': False}})
+
+            if 'StatTime' not in carriers[carrierID].keys():
+                carriers[carrierID]['StatTime'] = None
+            
             if 'DockingPerm' not in carriers[carrierID].keys():
-                if carriers[carrierID]['CarrierLocation']['timestamp'] is not None:
-                    carriers[carrierID]['DockingPerm'] = {'DockingAccess': 'all', 'AllowNotorious': 'false'}
+                if carriers[carrierID]['TimeBought'] is not None:
+                    carriers[carrierID]['DockingPerm'] = {'DockingAccess': 'all', 'AllowNotorious': False}
                 else:
                     carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
             
@@ -369,7 +388,9 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['Finance']
 
     def calculate_afloat_time(self, carrierID, carrier_balance:int, upkeep:int, jump_cost:int) -> str:
-        return naturaltime(self.get_carriers()[carrierID]['StatTime'] + timedelta(weeks=carrier_balance / (upkeep+jump_cost)))
+        stat_time = self.get_stat_time(carrierID=carrierID)
+        stat_time = stat_time if stat_time is not None else datetime.now().astimezone()
+        return naturaltime(stat_time + timedelta(weeks=carrier_balance / (upkeep+jump_cost)))
     
     def calculate_upkeep(self, carrierID) -> int:
         df = self.generate_info_services(carrierID=carrierID)
@@ -450,9 +471,10 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['SpaceUsage']
     
     def generate_info_stat_time(self, carrierID) -> str:
-        return naturaltime(self.get_stat_time(carrierID=carrierID))
+        stat_time = self.get_stat_time(carrierID=carrierID)
+        return naturaltime(stat_time) if stat_time is not None else 'Never'
     
-    def get_stat_time(self, carrierID) -> datetime:
+    def get_stat_time(self, carrierID) -> datetime|None:
         return self.get_carriers()[carrierID]['StatTime']
     
     def generate_info_time_bought(self, carrierID):
@@ -510,8 +532,9 @@ class CarrierModel:
     def sorted_ids(self):
         return sorted(self.get_carriers().keys(), key=lambda x: self.carriers[x]['TimeBought'] if 'TimeBought' in self.carriers[x].keys() else datetime(year=2020, month=6, day=9), reverse=False) # Assumes carrier bought at release if no buy event found
     
-    def get_departure_hammer_countdown(self, carrierID) -> str:
-        return getHammerCountdown(self.get_carriers()[carrierID]['latest_depart'].to_datetime64())
+    def get_departure_hammer_countdown(self, carrierID) -> str|None:
+        latest_depart = self.get_carriers()[carrierID]['latest_depart']
+        return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
     
     def get_formated_last_order(self, carrierID) -> str:
         last_trade = self.get_carriers()[carrierID]['last_trade']
