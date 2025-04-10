@@ -39,8 +39,8 @@ class JournalReader:
             elif journal in latest_journal_info.keys():
                 if latest_journal_info[journal]['is_active']:
                     self._read_journal(journal, latest_journal_info[journal]['line_pos'], latest_journal_info[journal]['fid'])
-            elif journal in self.journal_latest_unknwon_fid.keys():
-                self._read_journal(journal, self.journal_latest_unknwon_fid[journal]['line_pos'])
+            elif journal in self.journal_latest_unknown_fid.keys():
+                self._read_journal(journal, self.journal_latest_unknown_fid[journal]['line_pos'])
         self.items = self._get_parsed_items()
         assert len(self.items[4]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
     
@@ -71,9 +71,9 @@ class JournalReader:
             if fid is None:
                 match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal)
                 if datetime.now() - datetime.strptime(match.group(0), '%Y-%m-%dT%H%M%S') < timedelta(hours=1): # allows one hour for fid to show up
-                    self.journal_latest_unknwon_fid[journal] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+                    self.journal_latest_unknown_fid[journal] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
                 else:
-                    self.journal_latest_unknwon_fid.pop(journal, None)
+                    self.journal_latest_unknown_fid.pop(journal, None)
             else:
                 self.journal_latest_unknwon_fid.pop(journal, None)
                 self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}

@@ -26,7 +26,7 @@ Currently only Windows 11 is supported. Windows 7/8/10 *should* work fine but ha
 - Trade overview of all carriers
 ### Trade Overview
 - Shows all buy and sell orders for all carriers
-- Shows the ammount, commodity, price, and when you set it of each trade order
+- Shows the amount, commodity, price, and when you set it of each trade order
 ### Trading Assist
 - Generate jump countdowns timers in hammertime format
 - Generate trade post command/snippet
@@ -49,13 +49,13 @@ Simply download the EDCM.exe file from releases and launch it.
 ## Limitations
 Some limitations may be addressed in later updates thoon, maybe, eventually... don't count on it
 - EDCM is currently English only
-- This tool relys your local journal files
-  - If you have moved, deleted or otherwise modified your journal files it may result in inaccurate information or unexpected bahavior
+- This tool relies on your local journal files
+  - If you have moved, deleted or otherwise modified your journal files it may result in inaccurate information or unexpected behavior
   - If you play on multiple machines, you will need to find a way to sync up your journal files
 - Trade overview might contain "ghost" orders for both buy and sell
   - This is due to the way the game journal logs trade orders, EDCM is not aware of whether a buy order has been filled
   - For sell orders, this will help you eliminate the ghost sell orders in the carrier management menu in-game, which also contains ghost sell orders (shown as exporting)
-  - To elimate ghost sell orders, follow the steps below:
+  - To eliminate ghost sell orders, follow the steps below:
     1. Set a buy order for the commodity with ghost sell
     2. Cancel the buy order
   - You can follow the similar steps for buy orders, but those only affects EDCM, not the in-game carrier management menu
@@ -64,7 +64,7 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
   - It uses <a href=https://www.edsm.net>EDSM</a> to retrieve the list of stations in system. It may result in an error if it can't reach it
 - Balance updates
   - Carrier balances are updated everytime you open up your carrier management menu
-  - CMDR balances only updates on log-in
+  - CMDR balances only updates on log-in, if you just bought the carrier, you will need to log out and back in to see the CMDR balance
 ## Known Issues
 - Launching it takes a good while and may appear unresponsive or not show anything while it's loading, just give it some time, I promise it'll show up, *usually*. 
 - It may consume a bit more CPU and ram than you expected but shouldn't be *too* bad
