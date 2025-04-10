@@ -12,7 +12,7 @@ class JournalReader:
         self.journal_path = journal_path
         self.journal_processed = []
         self.journal_latest = {}
-        self.journal_latest_unknwon_fid = {}
+        self.journal_latest_unknown_fid = {}
         self._load_games = []
         self._carrier_locations = []
         self._jump_requests = []
@@ -75,10 +75,10 @@ class JournalReader:
                 else:
                     self.journal_latest_unknown_fid.pop(journal, None)
             else:
-                self.journal_latest_unknwon_fid.pop(journal, None)
+                self.journal_latest_unknown_fid.pop(journal, None)
                 self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
         else:
-            self.journal_latest_unknwon_fid.pop(journal, None)
+            self.journal_latest_unknown_fid.pop(journal, None)
             if fid is not None:
                 self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
         if journal not in self.journal_processed:
