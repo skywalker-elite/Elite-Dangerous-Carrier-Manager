@@ -31,6 +31,9 @@ jobs:
           echo "Major with pre-release: ${{ steps.version.outputs.major_prerelease }}"
         if: steps.version.outputs.is_valid == 'true'
       
+      - name: Checkout
+        uses: actions/checkout@v3
+      
       - name: Check VERSION file sameness
         id: check_version_file
         run: |
