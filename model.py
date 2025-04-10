@@ -263,7 +263,6 @@ class CarrierModel:
             for carrierID in carriers.keys():
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
-                    fc_last_order = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].iloc[-1][['timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']].copy()
                     fc_active_trades = {}
                     for i in range(len(fc_trade_orders)):
                         order = fc_trade_orders.iloc[i]
@@ -273,14 +272,11 @@ class CarrierModel:
                         else:
                             fc_active_trades[commodity] = order
                 else:
-                    fc_last_order = None
                     fc_active_trades = {}
                 carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
-                carriers[carrierID]['last_trade'] = fc_last_order
         else:
             for carrierID in carriers.keys():
                 carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
-                carriers[carrierID]['last_trade'] = None
         
         # for carrierID in carriers.keys():
         #     print(self.get_name(carrierID), '\n', carriers[carrierID]['active_trades'])
@@ -536,25 +532,21 @@ class CarrierModel:
         latest_depart = self.get_carriers()[carrierID]['latest_depart']
         return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
     
-    def get_formated_last_order(self, carrierID) -> str:
-        last_trade = self.get_carriers()[carrierID]['last_trade']
-        if last_trade is None or last_trade['CancelTrade'] == True:
-            return None
-        elif last_trade['Commodity'] not in self.df_commodities_all.index:
+    def get_formated_largest_order(self, carrierID) -> str|None:
+        df_active_trades = self.generate_info_trade(carrierID=carrierID)
+        if len(df_active_trades) == 0:
             return None
         else:
-            if last_trade.notna()['PurchaseOrder']:
-                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['name']
-                amount = round(last_trade['PurchaseOrder'] / 500) * 500 / 1000
-                if amount % 1 == 0:
-                    amount = int(amount)
-                return ('loading', commodity, amount)
-            elif last_trade.notna()['SaleOrder']:
-                commodity = self.df_commodities_all.loc[last_trade['Commodity']]['name']
-                amount = round(last_trade['SaleOrder'] / 500) * 500 / 1000
-                if amount % 1 == 0:
-                    amount = int(amount)
-                return ('unloading', commodity, amount)
+            df_active_trades['Amount'] = df_active_trades['Amount'].str.replace(',', '').astype(float)
+            df_active_trades.sort_values('Amount', ascending=False, inplace=True)
+            largest_order = df_active_trades.iloc[0]
+            commodity = largest_order['Commodity']
+            amount = largest_order['Amount']
+            amount = round(amount / 500) * 500 / 1000
+            if amount % 1 == 0:
+                amount = int(amount)
+            order_type = largest_order['Trade Type'].lower()
+            return (order_type, commodity, amount)
             
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
         df = pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True)

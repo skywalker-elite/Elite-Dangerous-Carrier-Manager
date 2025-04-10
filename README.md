@@ -62,7 +62,6 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
 - The post trade function
   - Currently only supports PTN CCO post format
   - It uses <a href=https://www.edsm.net>EDSM</a> to retrieve the list of stations in system. It may result in an error if it can't reach it
-  - It only sees the last order set, so if you first set a buy order of 22k wine and then set a buy order of 2k trit, the tool will generate the buy order for 2k trit, not the 22k of wine
 - Balance updates
   - Carrier balances are updated everytime you open up your carrier management menu
   - CMDR balances only updates on log-in

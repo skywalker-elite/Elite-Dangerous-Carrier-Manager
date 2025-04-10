@@ -83,9 +83,9 @@ class CarrierController:
             carrier_callsign = self.model.get_callsign(carrierID)
 
             if system == 'HIP 58832':
-                last_order = self.model.get_formated_last_order(carrierID=carrierID)
-                if last_order is not None:
-                    trade_type, commodity, amount = last_order
+                largest_order = self.model.get_formated_largest_order(carrierID=carrierID)
+                if largest_order is not None:
+                    trade_type, commodity, amount = largest_order
                     if trade_type == 'unloading' and commodity == 'Wine':
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
@@ -98,18 +98,16 @@ class CarrierController:
                     else:
                         self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
             else:
-                stations, pad_sizes = getStations(sys_name=system)
-                if len(stations) > 0:
-                    last_order = self.model.get_formated_last_order(carrierID=carrierID)
-                    if last_order is not None:
-                        trade_type, commodity, amount = last_order
-
+                largest_order = self.model.get_formated_largest_order(carrierID=carrierID)
+                if largest_order is not None:
+                    trade_type, commodity, amount = largest_order
+                    stations, pad_sizes = getStations(sys_name=system)
+                    if len(stations) > 0:
                         self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
                         self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
-                    else:
-                        self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
+                    else:self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
                 else:
-                    self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
+                    self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
         else:
             self.view.show_message_box_warning('Warning', 'please select one carrier and one carrier only!')
     
