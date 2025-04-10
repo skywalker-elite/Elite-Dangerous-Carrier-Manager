@@ -2,12 +2,13 @@ import threading
 import time
 import pyperclip
 import re
+from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
-from utility import checkTimerFormat
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
@@ -27,6 +28,19 @@ class CarrierController:
         self.redraw_fast()
         self.redraw_slow()
 
+        self.set_current_version()
+        self.check_app_update()
+
+    def set_current_version(self):
+        self.view.label_version.configure(text=getCurrentVersion())
+    
+    def check_app_update(self):
+        if isUpdateAvailable():
+            if self.view.show_message_box_askyesno('Update Available', f'New version available: {getLatestVersion()}\n Go to download?'):
+                open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
+        else:
+            pass
+    
     def update_tables_fast(self, now):
         self.model.update_carriers(now)
         self.view.update_table_jumps(self.model.get_data(now), self.model.get_carriers_pending_decom())

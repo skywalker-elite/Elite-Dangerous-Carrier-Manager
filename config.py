@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-WINDOW_SIZE = "1000x400"
+WINDOW_SIZE = "1000x420"
 WINDOW_SIZE_TIMER = "300x100"
 
 CD = timedelta(minutes=4, seconds=50)
