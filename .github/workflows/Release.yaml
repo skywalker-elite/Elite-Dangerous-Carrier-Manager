@@ -31,6 +31,16 @@ jobs:
           echo "Major with pre-release: ${{ steps.version.outputs.major_prerelease }}"
         if: steps.version.outputs.is_valid == 'true'
       
+      - name: Check VERSION file sameness
+        id: check_version_file
+        run: |
+          echo "Checking if VERSION file matches tag version..."
+          if [ "$(cat VERSION)" != "${{ steps.version.outputs.full }}" ]; then
+            echo "VERSION file does not match tag version!"
+            exit 1
+          fi
+          echo "VERSION file matches tag version!"
+      
       - name: Create Release
         id: create_release
         uses: actions/create-release@v1

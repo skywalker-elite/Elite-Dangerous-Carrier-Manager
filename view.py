@@ -9,9 +9,17 @@ class CarrierView:
     def __init__(self, root):
         self.root = root
 
+        # TopBar
+        self.top_bar = ttk.Frame(self.root)
+        self.top_bar.pack(side='top', fill='x')
+        
         # Clock
-        self.clock_utc = ttk.Label(self.root, width=8)
-        self.clock_utc.pack(side='top', anchor='ne')
+        self.clock_utc = ttk.Label(self.top_bar, width=8)
+        self.clock_utc.pack(side='right', anchor='ne')
+
+        # Version
+        self.label_version = ttk.Label(self.top_bar)
+        self.label_version.pack(side='left', anchor='nw', padx=10)
 
         self.tab_controler = ttk.Notebook(root)
         self.tab_jumps = ttk.Frame(self.tab_controler)
@@ -183,6 +191,12 @@ class CarrierView:
         self.root.attributes('-topmost', True)
         messagebox.showwarning(title=title, message=message)
         self.root.attributes('-topmost', False)
+
+    def show_message_box_askyesno(self, title:str, message:str) -> bool:
+        self.root.attributes('-topmost', True)
+        response = messagebox.askyesno(title=title, message=message)
+        self.root.attributes('-topmost', False)
+        return response
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float):

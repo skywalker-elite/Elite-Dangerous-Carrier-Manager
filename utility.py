@@ -2,6 +2,8 @@ import sys, os
 from datetime import datetime
 import re
 from numpy import datetime64
+import requests
+from packaging import version
 
 def getJournalPath() -> str:
     if sys.platform == 'win32':
@@ -47,3 +49,24 @@ def checkTimerFormat(timer:str) -> bool:
         except ValueError:
             return False
     return True
+
+def isUpdateAvailable() -> bool:
+    version_latest = getLatestVersion()
+    version_current = getCurrentVersion()
+    if version_latest is None or version.parse(version_latest) <= version.parse(version_current):
+        return False
+    else:
+        return True
+
+def getLatestVersion() -> str|None:
+    try:
+        response = requests.get('https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
+    except requests.HTTPError as e:
+        print(f'Error while checking update: {e}')
+        return None
+    latest_version = response.json()['name'].split()[1]
+    return latest_version
+
+def getCurrentVersion() -> str:
+    with open(getResourcePath('VERSION'), 'r') as f:
+        return f.readline()
