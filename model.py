@@ -4,11 +4,12 @@ import re
 import json
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
+from random import random
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW
 
 class JournalReader:
-    def __init__(self, journal_path:str):
+    def __init__(self, journal_path:str, dropout:bool=False):
         self.journal_path = journal_path
         self.journal_processed = []
         self.journal_latest = {}
@@ -24,6 +25,12 @@ class JournalReader:
         self._carrier_owners = {}
         self._docking_perms = []
         self.items = []
+        self.dropout = dropout
+        if self.dropout:
+            print('Dropout mode active, journal data is randomly dropped')
+            self.droplist = [i for i in range(10) if random() < 0.5]
+            for i in self.droplist:
+                print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -121,11 +128,17 @@ class JournalReader:
                 for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
     
     def get_items(self) -> list:
+        if self.dropout:
+            items = self.items.copy()
+            for i in self.droplist:
+                items[i] = type(items[i])()
+            return items
         return self.items.copy()
 
 class CarrierModel:
-    def __init__(self, journal_path:str):
-        self.journal_reader = JournalReader(journal_path)
+    def __init__(self, journal_path:str, dropout:bool=False):
+        self.journal_reader = JournalReader(journal_path, dropout=dropout)
+        self.dropout = dropout
         self.carriers = {}
         self.carriers_updated = {}
         self.active_timer = False
@@ -157,7 +170,7 @@ class CarrierModel:
             if stat['CarrierID'] not in carriers.keys():
                 carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
-                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() else None,
+                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() and carrier_owners[stat['CarrierID']] in cmdr_balances.keys() else None,
                                                           }
                 carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
@@ -178,19 +191,19 @@ class CarrierModel:
         for trit_deposit in trit_deposits:
             if trit_deposit['CarrierID'] in carriers.keys():
                 if ('StatTime' not in carriers[trit_deposit['CarrierID']].keys() or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > carriers[trit_deposit['CarrierID']]['StatTime']) and ('Fuel' not in carriers[trit_deposit['CarrierID']].keys() or 'DepotTime' not in carriers[trit_deposit['CarrierID']]['Fuel'].keys()):
-                    carriers[trit_deposit['CarrierID']]['Fuel']['FuelLevel'] = trit_deposit['Total']
-                    carriers[trit_deposit['CarrierID']]['Fuel']['JumpRange'] = None
-                    carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                    carriers[trit_deposit['CarrierID']]['Fuel'] = {'FuelLevel': trit_deposit['Total'], 'JumpRange': None, 'DepotTime': datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
 
         for docking_perm in docking_perms:
-            if 'DockingPerm' not in carriers[docking_perm['CarrierID']].keys():
-                carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
+            if docking_perm['CarrierID'] in carriers.keys():
+                if 'DockingPerm' not in carriers[docking_perm['CarrierID']].keys():
+                    carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
         
         for carrier_location in carrier_locations:
-            if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
-                carriers[carrier_location['CarrierID']]['CarrierLocation'] = {'SystemName': carrier_location['StarSystem'], 'Body': None, 'BodyID': carrier_location['BodyID'], 'timestamp': datetime.strptime(carrier_location['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
+            if carrier_location['CarrierID'] in carriers.keys():
+                if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
+                    carriers[carrier_location['CarrierID']]['CarrierLocation'] = {'SystemName': carrier_location['StarSystem'], 'Body': None, 'BodyID': carrier_location['BodyID'], 'timestamp': datetime.strptime(carrier_location['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
 
-        jumps = pd.DataFrame(jump_requests + jump_cancels).sort_values('timestamp', ascending=False)
+        jumps = pd.DataFrame(jump_requests + jump_cancels, columns=['CarrierID', 'timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']).sort_values('timestamp', ascending=False)
         for carrierID in carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
             fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
@@ -230,7 +243,7 @@ class CarrierModel:
             if 'Finance' not in carriers[carrierID].keys():
                 if carriers[carrierID]['TimeBought'] is not None:
                     carriers[carrierID]['Finance'] = {'CarrierBalance': 0, 
-                                                    'CmdrBalance': cmdr_balances[carrier_owners[carrierID]] if carrierID in carrier_owners.keys() else None,
+                                                    'CmdrBalance': cmdr_balances[carrier_owners[carrierID]] if carrierID in carrier_owners.keys() and carrier_owners[carrierID] in cmdr_balances.keys() else None,
                                                     }
             
             if 'Fuel' not in carriers[carrierID].keys():
@@ -549,13 +562,14 @@ class CarrierModel:
             return (order_type, commodity, amount)
             
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
-        df = pd.concat([self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()], axis=0, ignore_index=True)
+        trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()]
+        df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
         self.trad_carrierIDs = df['CarrierID']
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
     
-    def generate_info_trade(self, carrierID):
+    def generate_info_trade(self, carrierID) -> pd.DataFrame:
         carrier_name = self.get_name(carrierID)
         active_trades = self.get_active_trades(carrierID)
         if len(active_trades) == 0:
@@ -662,10 +676,20 @@ if __name__ == '__main__':
     model = CarrierModel(getJournalPath())
     now = datetime.now(timezone.utc)
     model.update_carriers(now)
-    print(pd.DataFrame(model.get_data(now)))
-    print(pd.DataFrame(model.get_data_finance()))
-    print(pd.DataFrame(model.get_data_trade()[0]))
-    print(pd.DataFrame(model.get_data_services()))
-    print(pd.DataFrame(model.get_data_misc()))
-    print(model.calculate_upkeep(model.sorted_ids()[0]))
+    print(pd.DataFrame(model.get_data(now), columns=[
+            'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
+            'Status', 'Destination System', 'Body', 'Timer'
+        ]))
+    print(pd.DataFrame(model.get_data_finance(), columns=[
+            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+        ]))
+    print(pd.DataFrame(model.get_data_trade()[0], columns=[
+            'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
+        ]))
+    print(pd.DataFrame(model.get_data_services(), columns=[
+            'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
+        ]))
+    print(pd.DataFrame(model.get_data_misc(), columns=[
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+        ]))
     # print(model.df_upkeeps)
