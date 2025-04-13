@@ -5,6 +5,7 @@ import re
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
+import traceback
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
@@ -56,8 +57,12 @@ class CarrierController:
         self.view.update_time(now.strftime('%H:%M:%S'))
     
     def update_journals(self):
-        self.model.read_journals()  # Re-read journals and update model's data
-        self.view.root.after(UPDATE_INTERVAL, self.update_journals)
+        try:
+            self.model.read_journals()  # Re-read journals and update model's data
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'An error occurred during journal update\n{traceback.format_exc()}')
+        else:
+            self.view.root.after(UPDATE_INTERVAL, self.update_journals)
     
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
@@ -220,15 +225,23 @@ class CarrierController:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     
     def redraw_fast(self):
-        now = datetime.now(timezone.utc)
-        self.update_tables_fast(now)
-        self.update_time(now)
-        self.view.root.after(REDRAW_INTERVAL_FAST, self.redraw_fast)
+        try:
+            now = datetime.now(timezone.utc)
+            self.update_tables_fast(now)
+            self.update_time(now)
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'An error occurred\n{traceback.format_exc()}')
+        else:
+            self.view.root.after(REDRAW_INTERVAL_FAST, self.redraw_fast)
     
     def redraw_slow(self):
-        now = datetime.now(timezone.utc)
-        self.update_tables_slow(now)
-        self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
+        try:
+            now = datetime.now(timezone.utc)
+            self.update_tables_slow(now)
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'An error occurred\n{traceback.format_exc()}')
+        else:
+            self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def get_selected_row(self, sheet=None):
         if sheet is None:
