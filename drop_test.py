@@ -37,7 +37,7 @@ if __name__ == '__main__':
                 'Status', 'Destination System', 'Body', 'Timer'
             ]))
         print(pd.DataFrame(model.get_data_finance(), columns=[
-                'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+                'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
             ]))
         print(pd.DataFrame(model.get_data_trade()[0], columns=[
                 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'

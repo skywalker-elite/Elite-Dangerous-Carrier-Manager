@@ -161,14 +161,17 @@ class CarrierModel:
         load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, carrier_owners = self.journal_reader.get_items()
 
         cmdr_balances = {}
+        cmdr_names = {}
         for load_game in load_games:
             if load_game['FID'] not in cmdr_balances.keys():
                 cmdr_balances[load_game['FID']] = load_game['Credits']
+            if load_game['FID'] not in cmdr_names.keys():
+                cmdr_names[load_game['FID']] = load_game['Commander']
         
         carriers = {}
         for stat in stats:
             if stat['CarrierID'] not in carriers.keys():
-                carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name']}
+                carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': cmdr_names[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() and carrier_owners[stat['CarrierID']] in cmdr_names.keys() else None}
                 carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
                                                           'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() and carrier_owners[stat['CarrierID']] in cmdr_balances.keys() else None,
                                                           }
@@ -184,7 +187,7 @@ class CarrierModel:
         
         for carrier_buy in carrier_buys:
             if carrier_buy['CarrierID'] not in carriers.keys():
-                carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown'}
+                carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown', 'CMDRName': cmdr_names[carrier_owners[carrier_buy['CarrierID']]] if carrier_buy['CarrierID'] in carrier_owners.keys() and carrier_owners[carrier_buy['CarrierID']] in cmdr_names.keys() else None}
             carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
             carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
 
@@ -375,14 +378,14 @@ class CarrierModel:
         return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids()]
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
-        df.insert(3, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
-        df = pd.concat([df, pd.DataFrame([['Total']+[df.iloc[:,i].astype(int).sum() for i in range(1, 6)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
+        df.insert(4, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
+        df = pd.concat([df, pd.DataFrame([['Total'] + [''] +[df.iloc[:,i].astype(int).sum() for i in range(2, 7)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
-        df.iloc[:, 1:] = df.iloc[:, 1:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int else xi for xi in x])
+        df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         return df.values.tolist()
     
@@ -391,10 +394,17 @@ class CarrierModel:
         upkeep = self.calculate_upkeep(carrierID=carrierID)
         jump_cost = self.calculate_average_jump_costs(carrierID=carrierID)
         afloat_time = self.calculate_afloat_time(carrierID=carrierID, carrier_balance=finance[0], upkeep=upkeep, jump_cost=jump_cost)
-        return (self.get_name(carrierID=carrierID), *finance, upkeep, jump_cost, afloat_time)
+        return (self.get_name(carrierID=carrierID), self.generate_info_cmdr_name(carrierID), *finance, upkeep, jump_cost, afloat_time)
     
     def get_finance(self, carrierID):
         return self.get_carriers()[carrierID]['Finance']
+    
+    def generate_info_cmdr_name(self, carrierID) -> str:
+        cmdr_name = self.get_cmdr_name(carrierID=carrierID)
+        return cmdr_name if cmdr_name is not None else 'Unknown'
+    
+    def get_cmdr_name(self, carrierID) -> str|None:
+        return self.get_carriers()[carrierID]['CMDRName']
 
     def calculate_afloat_time(self, carrierID, carrier_balance:int, upkeep:int, jump_cost:int) -> str:
         stat_time = self.get_stat_time(carrierID=carrierID)
@@ -681,7 +691,7 @@ if __name__ == '__main__':
             'Status', 'Destination System', 'Body', 'Timer'
         ]))
     print(pd.DataFrame(model.get_data_finance(), columns=[
-            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ]))
     print(pd.DataFrame(model.get_data_trade()[0], columns=[
             'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
