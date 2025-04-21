@@ -4,26 +4,37 @@ EDCM is a third-party tool that helps you keep track of all your carriers in Eli
 
 
 ![Jumps tab](images_readme/ss_jump.png)
-Jumps and location
+Carrier location and jump countdown
 
 ![Trade tab](images_readme/ss_trade.png)
 Trade overview
 
 ![Finance tab](images_readme/ss_finance.png)
-Credit balance at a glance
+Financial information at a glance
+
+![Services](images_readme/ss_services.png)
+Sees all services available on your carriers
+
+![Miscellaneous](images_readme/ss_miscellaneous.png)
+Miscellaneous information about your carriers
 
 ![Trade post](images_readme/ss_trade_post.png)
 Easy trade posting
+
 ## Supported Game Versions
-The tool is designed to work with the **Live** version of the game. 
+EDCM is designed to work with the **Live** version of the game. 
 ## Supported Platforms
-Currently only Windows 11 is supported. Windows 7/8/10 *should* work fine but has not been tested. 
+Currently Windows 11 and Linux are supported. Windows 7/8/10 *should* work fine but has not been tested. 
 ## Features
 ### Main Features
 - Real-time location of all your fleet carriers
 - Real-time jump countdowns and jump status (i.e. jump locked, pad locked, cooldown)
 - Credit balance overview of all carriers and their respective CMDRs
+- Calculates how long your carriers are funded for upkeep
 - Trade overview of all carriers
+- Services overview of all carriers
+- Highlights carriers in decommision process in red
+- Other information about your carriers (when it was bought, docking permissions, etc.)
 ### Trade Overview
 - Shows all buy and sell orders for all carriers
 - Shows the amount, commodity, price, and when you set it of each trade order
@@ -45,11 +56,11 @@ Currently only Windows 11 is supported. Windows 7/8/10 *should* work fine but ha
   - You can enter the swap timer provided to you and you will get a reminder to plot your jump 2 minutes prior and another at the exact time
   - Do Not rely on this feature to plot your jump! You are solely responsible to plot your jump on time, this is only a reminder in case you get distracted
 ## Installation
-Simply download the EDCM.exe file from releases and launch it. 
+Simply download the EDCM.exe (or EDCM-linux for linux) file from releases and launch it. 
 ## Limitations
 Some limitations may be addressed in later updates thoon, maybe, eventually... don't count on it
 - EDCM is currently English only
-- This tool relies on your local journal files
+- EDCM relies on your local journal files
   - If you have moved, deleted or otherwise modified your journal files it may result in inaccurate information or unexpected behavior
   - If you play on multiple machines, you will need to find a way to sync up your journal files
 - Trade overview might contain "ghost" orders for both buy and sell
