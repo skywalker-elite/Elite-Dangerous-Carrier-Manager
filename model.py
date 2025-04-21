@@ -332,6 +332,10 @@ class CarrierModel:
             if time_diff is not None and time_diff < timedelta(0):
                 self.active_timer = True
                 data['status'] = 'jumping'
+                if data['CarrierLocation']['timestamp'] is not None and (len(data['jumps']) == 1 or data['CarrierLocation']['timestamp'] > data['jumps'].iloc[1]['DepartureTime']) and data['CarrierLocation']['SystemName'] != pre_system:
+                    pre_system = data['CarrierLocation']['SystemName']
+                    pre_body = data['CarrierLocation']['Body']
+                    pre_body_id = data['CarrierLocation']['BodyID']
                 data['current_system'] = pre_system
                 data['current_body'] = pre_body
                 data['current_body_id'] = pre_body_id
