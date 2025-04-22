@@ -45,8 +45,13 @@ def main():
         try:
             import pyi_splash # type: ignore
             pyi_splash.update_text('Reading journals...')
-            model = CarrierModel(journal_path)
-            pyi_splash.close()
+            try:
+                model = CarrierModel(journal_path)
+            except Exception as e:
+                pyi_splash.close()
+                raise e
+            else:
+                pyi_splash.close()
         except ModuleNotFoundError:
             model = CarrierModel(journal_path)
     root = tk.Tk()
