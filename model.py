@@ -553,7 +553,7 @@ class CarrierModel:
         return self.get_destination_body_id(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body_id(carrierID=carrierID)
     
     def sorted_ids(self):
-        return sorted(self.get_carriers().keys(), key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9), reverse=False) # Assumes carrier bought at release if no buy event found
+        return sorted(self.get_carriers().keys(), key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
     
     def get_departure_hammer_countdown(self, carrierID) -> str|None:
         latest_depart = self.get_carriers()[carrierID]['latest_depart']
