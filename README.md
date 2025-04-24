@@ -1,4 +1,5 @@
 # Elite Dangerous Carrier Manager (EDCM)
+![GitHub Release](https://img.shields.io/github/v/release/skywalker-elite/Elite-Dangerous-Carrier-Manager) ![GitHub Release Date](https://img.shields.io/github/release-date/skywalker-elite/Elite-Dangerous-Carrier-Manager) ![GitHub License](https://img.shields.io/github/license/skywalker-elite/Elite-Dangerous-Carrier-Manager) ![GitHub Download Count](https://img.shields.io/github/downloads/skywalker-elite/Elite-Dangerous-Carrier-Manager/total) ![GitHub Repo stars](https://img.shields.io/github/stars/skywalker-elite/Elite-Dangerous-Carrier-Manager)
 ![Banner](images_readme/EDCM_Banner.png)
 EDCM is a third-party tool that helps you keep track of all your carriers in Elite Dangerous. The tool also provides some auxiliary functions to help with your daily trading and financial management.
 
