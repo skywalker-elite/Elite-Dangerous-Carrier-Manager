@@ -197,6 +197,12 @@ class CarrierView:
         response = messagebox.askyesno(title=title, message=message)
         self.root.attributes('-topmost', False)
         return response
+    
+    def show_message_box_askretrycancel(self, title:str, message:str) -> bool:
+        self.root.attributes('-topmost', True)
+        response = messagebox.askretrycancel(title=title, message=message)
+        self.root.attributes('-topmost', False)
+        return response
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float):

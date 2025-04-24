@@ -60,8 +60,10 @@ class CarrierController:
         try:
             self.model.read_journals()  # Re-read journals and update model's data
         except Exception as e:
-            self.view.show_message_box_warning('Error', f'An error occurred during journal update\n{traceback.format_exc()}')
-            self.view.root.destroy()
+            if self.view.show_message_box_askretrycancel('Error', f'An error occurred during journal update\n{traceback.format_exc()}'):
+                self.view.root.after(UPDATE_INTERVAL, self.update_journals)
+            else:
+                self.view.root.destroy()
         else:
             self.view.root.after(UPDATE_INTERVAL, self.update_journals)
     
@@ -231,8 +233,10 @@ class CarrierController:
             self.update_tables_fast(now)
             self.update_time(now)
         except Exception as e:
-            self.view.show_message_box_warning('Error', f'An error occurred\n{traceback.format_exc()}')
-            self.view.root.destroy()
+            if self.view.show_message_box_askretrycancel('Error', f'An error occurred\n{traceback.format_exc()}'):
+                self.view.root.after(REDRAW_INTERVAL_FAST, self.redraw_fast)
+            else:
+                self.view.root.destroy()
         else:
             self.view.root.after(REDRAW_INTERVAL_FAST, self.redraw_fast)
     
@@ -241,8 +245,10 @@ class CarrierController:
             now = datetime.now(timezone.utc)
             self.update_tables_slow(now)
         except Exception as e:
-            self.view.show_message_box_warning('Error', f'An error occurred\n{traceback.format_exc()}')
-            self.view.root.destroy()
+            if self.view.show_message_box_askretrycancel('Error', f'An error occurred\n{traceback.format_exc()}'):
+                self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
+            else:
+                self.view.root.destroy()
         else:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
