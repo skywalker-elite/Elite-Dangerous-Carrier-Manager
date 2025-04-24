@@ -39,16 +39,21 @@ def main():
     assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --path if the default is incorrect'
 
     # Update and close the splash screen
-    try:
-        import pyi_splash # type: ignore
-        if sys.platform == 'darwin':
+    if sys.platform == 'darwin':
             model = CarrierModel(journal_path)
-        else:
+    else:
+        try:
+            import pyi_splash # type: ignore
             pyi_splash.update_text('Reading journals...')
+            try:
+                model = CarrierModel(journal_path)
+            except Exception as e:
+                pyi_splash.close()
+                raise e
+            else:
+                pyi_splash.close()
+        except ModuleNotFoundError:
             model = CarrierModel(journal_path)
-            pyi_splash.close()
-    except ModuleNotFoundError:
-        model = CarrierModel(journal_path)
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()

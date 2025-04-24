@@ -9,18 +9,30 @@ class CarrierView:
     def __init__(self, root):
         self.root = root
 
+        # TopBar
+        self.top_bar = ttk.Frame(self.root)
+        self.top_bar.pack(side='top', fill='x')
+        
         # Clock
-        self.clock_utc = ttk.Label(self.root, width=8)
-        self.clock_utc.pack(side='top', anchor='ne')
+        self.clock_utc = ttk.Label(self.top_bar, width=8)
+        self.clock_utc.pack(side='right', anchor='ne')
+
+        # Version
+        self.label_version = ttk.Label(self.top_bar)
+        self.label_version.pack(side='left', anchor='nw', padx=10)
 
         self.tab_controler = ttk.Notebook(root)
         self.tab_jumps = ttk.Frame(self.tab_controler)
         self.tab_finance = ttk.Frame(self.tab_controler)
         self.tab_trade = ttk.Frame(self.tab_controler)
+        self.tab_services = ttk.Frame(self.tab_controler)
+        self.tab_misc = ttk.Frame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
         self.tab_controler.add(self.tab_trade, text='Trade')
         self.tab_controler.add(self.tab_finance, text='Finance')
+        self.tab_controler.add(self.tab_services, text='Services')
+        self.tab_controler.add(self.tab_misc, text='Misc')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
@@ -29,24 +41,28 @@ class CarrierView:
         self.tab_trade.columnconfigure(0, pad=1, weight=1)
         self.tab_finance.rowconfigure(0, pad=1, weight=1)
         self.tab_finance.columnconfigure(0, pad=1, weight=1)
+        self.tab_services.rowconfigure(0, pad=1, weight=1)
+        self.tab_services.columnconfigure(0, pad=1, weight=1)
+        self.tab_misc.rowconfigure(0, pad=1, weight=1)
+        self.tab_misc.columnconfigure(0, pad=1, weight=1)
 
         self.tab_controler.pack(expand=True, fill='both')
 
         # Initialize the tksheet.Sheet widget
-        self.sheet = Sheet(self.tab_jumps)
-        self.sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet.change_theme('dark', redraw=False)
+        self.sheet_jumps = Sheet(self.tab_jumps)
+        self.sheet_jumps.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_jumps.change_theme('dark', redraw=False)
 
         # Set column headers
-        self.sheet.headers([
-            'Carrier Name', 'Carrier ID', 'Current System', 'Body',
+        self.sheet_jumps.headers([
+            'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
             'Status', 'Destination System', 'Body', 'Timer'
         ])
 
         # Enable column resizing to match window resizing
-        self.sheet.enable_bindings('all')
-        self.sheet.column_width_resize_enabled = False
-        self.sheet.row_height_resize_enabled = False
+        self.sheet_jumps.enable_bindings('all')
+        self.sheet_jumps.column_width_resize_enabled = False
+        self.sheet_jumps.row_height_resize_enabled = False
         
         self.bottom_bar = ttk.Frame(self.tab_jumps)
         self.bottom_bar.grid(row=1, column=0, columnspan=3, sticky='ew')
@@ -84,6 +100,15 @@ class CarrierView:
         self.sheet_trade.column_width_resize_enabled = False
         self.sheet_trade.row_height_resize_enabled = False
 
+        self.bottom_bar_trade = ttk.Frame(self.tab_trade)
+        self.bottom_bar_trade.grid(row=1, column=0, columnspan=3, sticky='ew')
+        self.tab_trade.grid_rowconfigure(1, weight=0)
+        # Buttons
+        # Post trade
+        self.button_post_trade_trade = ttk.Button(self.bottom_bar_trade, text='Post Trade')
+        # self.button_post_trade.grid(row=0, column=0, sticky='sw')
+        self.button_post_trade_trade.pack(side='left')
+
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance)
         self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
@@ -91,30 +116,71 @@ class CarrierView:
 
         # Set column headers
         self.sheet_finance.headers([
-            'Carrier Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Reserve Balance', 'Available Balance',
+            'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ])
-        self.sheet_finance['B:G'].align('right')
+        self.sheet_finance['C:K'].align('right')
 
         # Enable column resizing to match window resizing
         self.sheet_finance.enable_bindings('all')
         self.sheet_finance.column_width_resize_enabled = False
         self.sheet_finance.row_height_resize_enabled = False
 
+        # services tab
+        self.sheet_services = Sheet(self.tab_services)
+        self.sheet_services.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_services.change_theme('dark', redraw=False)
 
-    def update_table(self, data):
-        self.sheet.set_sheet_data(data, reset_col_positions=False)
-        self.sheet.set_all_cell_sizes_to_text()
+        # Set column headers
+        self.sheet_services.headers([
+            'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
+        ])
+        self.sheet_services['B:L'].align('right')
+
+        # Enable column resizing to match window resizing
+        self.sheet_services.enable_bindings('all')
+        self.sheet_services.column_width_resize_enabled = False
+        self.sheet_services.row_height_resize_enabled = False
+
+        # Misc tab
+        self.sheet_misc = Sheet(self.tab_misc)
+        self.sheet_misc.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_misc.change_theme('dark', redraw=False)
+
+        # Set column headers
+        self.sheet_misc.headers([
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+        ])
+        self.sheet_misc['B:J'].align('right')
+
+        # Enable column resizing to match window resizing
+        self.sheet_misc.enable_bindings('all')
+        self.sheet_misc.column_width_resize_enabled = False
+        self.sheet_misc.row_height_resize_enabled = False
+
+    def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
+        table.set_sheet_data(data, reset_col_positions=False)
+        table.dehighlight_all(redraw=False)
+        if rows_pending_decomm is not None:
+            table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
+        table.set_all_cell_sizes_to_text()
+    
+    def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_jumps, data, rows_pending_decomm)
     
     def update_time(self, time:str):
         self.clock_utc.configure(text=time)
     
-    def update_table_finance(self, data):
-        self.sheet_finance.set_sheet_data(data, reset_col_positions=False)
-        self.sheet_finance.set_all_cell_sizes_to_text()
+    def update_table_finance(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_finance, data, rows_pending_decomm)
 
-    def update_table_trade(self, data):
-        self.sheet_trade.set_sheet_data(data, reset_col_positions=False)
-        self.sheet_trade.set_all_cell_sizes_to_text()
+    def update_table_trade(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_trade, data, rows_pending_decomm)
+
+    def update_table_services(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_services, data, rows_pending_decomm)
+    
+    def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_misc, data, rows_pending_decomm)
 
     def show_message_box_info(self, title:str, message:str):
         self.root.attributes('-topmost', True)
@@ -125,6 +191,18 @@ class CarrierView:
         self.root.attributes('-topmost', True)
         messagebox.showwarning(title=title, message=message)
         self.root.attributes('-topmost', False)
+
+    def show_message_box_askyesno(self, title:str, message:str) -> bool:
+        self.root.attributes('-topmost', True)
+        response = messagebox.askyesno(title=title, message=message)
+        self.root.attributes('-topmost', False)
+        return response
+    
+    def show_message_box_askretrycancel(self, title:str, message:str) -> bool:
+        self.root.attributes('-topmost', True)
+        response = messagebox.askretrycancel(title=title, message=message)
+        self.root.attributes('-topmost', False)
+        return response
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float):

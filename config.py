@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-WINDOW_SIZE = "1000x400"
+WINDOW_SIZE = "1080x420"
 WINDOW_SIZE_TIMER = "300x100"
 
 CD = timedelta(minutes=4, seconds=50)
@@ -10,8 +10,11 @@ JUMPLOCK = timedelta(minutes=10)
 REMIND = timedelta(minutes=2)
 
 UPDATE_INTERVAL = 500
-REDRAW_INTERVAL = 250
+REDRAW_INTERVAL_FAST = 250
+REDRAW_INTERVAL_SLOW = 1000
 REMIND_INTERVAL = 1000
+
+AVG_JUMP_CAL_WINDOW = 8
 
 ladder_systems = {
     'Gali': 'N16',

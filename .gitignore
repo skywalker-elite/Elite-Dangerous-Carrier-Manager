@@ -6,3 +6,5 @@ dist
 dist/*
 build_local.spec
 .vscode/*
+fake_journal_test.py
+fake_journals
