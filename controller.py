@@ -84,15 +84,15 @@ class CarrierController:
 
     def button_click_post_trade(self):
         selected_row = self.get_selected_row()
-        self.handle_post_trade_logic(selected_row, self.model.sorted_ids, self.view.sheet_jumps)
+        self.handle_post_trade_logic(selected_row, self.model.sorted_ids(), self.view.sheet_jumps)
 
-    def button_click_post_trade_trade(self): #TODO: remove this and use the same as button_click_post_trade
+    def button_click_post_trade_trade(self):
         selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
-        self.handle_post_trade_logic(selected_row, lambda: self.model.trade_carrierIDs, self.view.sheet_trade)
+        self.handle_post_trade_logic(selected_row, self.model.trade_carrierIDs, self.view.sheet_trade)
 
-    def handle_post_trade_logic(self, selected_row, get_carrier_ids, sheet):
+    def handle_post_trade_logic(self, selected_row, carrier_ids, sheet):
         if selected_row is not None:
-            carrierID = get_carrier_ids()[selected_row]
+            carrierID = carrier_ids[selected_row]
             carrier_name = self.model.get_name(carrierID)
             system = self.model.get_current_or_destination_system(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
@@ -126,43 +126,6 @@ class CarrierController:
                     self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
         else:
             self.view.show_message_box_warning('Warning', f'please select one {sheet.name} and one {sheet.name} only!')
-    
-    def button_click_post_trade_trade(self): #TODO: remove this and use the same as button_click_post_trade   
-        selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
-        if selected_row is not None:
-            carrierID = self.model.trade_carrierIDs[selected_row]
-            carrier_name = self.model.get_name(carrierID)
-            system = self.model.get_current_or_destination_system(carrierID)
-            trade_type, amount, commodity = self.view.sheet_trade.data[selected_row][1:4]
-            trade_type = trade_type.lower()
-            amount = float(amount.replace(',',''))
-            amount = round(amount / 500) * 500 / 1000
-            if amount % 1 == 0:
-                amount = int(amount)
-
-            if system == 'HIP 58832':
-                if trade_type == 'unloading' and commodity == 'Wine':
-                    callsign = self.model.get_callsign(carrierID=carrierID)
-                    body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
-                    body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
-                    if body is not None:
-                        post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
-                        pyperclip.copy(post_string)
-                        self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
-                    else:
-                        self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {body=}')
-                else:
-                    self.view.show_message_box_warning('What are you doing?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
-            else:
-                stations, pad_sizes = getStations(sys_name=system)
-                if len(stations) > 0:
-                    self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
-                    self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
-                else:
-                    self.view.show_message_box_warning('No station', 'There are no stations in this system')
-        else:
-            self.view.show_message_box_warning('Warning', 'please select one trade and one trade only!')
-
     
     def button_click_post(self, carrier_name:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
