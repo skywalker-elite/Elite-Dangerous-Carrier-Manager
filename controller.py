@@ -98,13 +98,15 @@ class CarrierController:
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
                         if body is not None:
-                            post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body} market_type: Open'
+                            post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
                             pyperclip.copy(post_string)
                             self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
                         else:
                             self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {body=}')
                     else:
                         self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
+                else:
+                    self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
             else:
                 largest_order = self.model.get_formated_largest_order(carrierID=carrierID)
                 if largest_order is not None:
@@ -138,7 +140,7 @@ class CarrierController:
                     body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                     body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
                     if body is not None:
-                        post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body} market_type: Open'
+                        post_string = f'/wine_unload carrier_id: {callsign} planetary_body: {body}'
                         pyperclip.copy(post_string)
                         self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
                     else:
