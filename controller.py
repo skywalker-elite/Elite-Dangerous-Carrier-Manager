@@ -106,7 +106,9 @@ class CarrierController:
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
                         if body is not None:
-                            post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
+                            # post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
+                            s = Template('/wine_unload carrier_id: $callsign planetary_body: $body')
+                            post_string = s.safe_substitute(callsign=carrier_callsign, body=body)
                             pyperclip.copy(post_string)
                             self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
                         else:
