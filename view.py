@@ -49,7 +49,7 @@ class CarrierView:
         self.tab_controler.pack(expand=True, fill='both')
 
         # Initialize the tksheet.Sheet widget
-        self.sheet_jumps = Sheet(self.tab_jumps)
+        self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps')
         self.sheet_jumps.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_jumps.change_theme('dark', redraw=False)
 
@@ -84,7 +84,7 @@ class CarrierView:
         self.button_post_departure.pack(side='left')
 
         # Trade tab
-        self.sheet_trade = Sheet(self.tab_trade)
+        self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade')
         self.sheet_trade.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_trade.change_theme('dark', redraw=False)
 
@@ -110,7 +110,7 @@ class CarrierView:
         self.button_post_trade_trade.pack(side='left')
 
         # finance tab
-        self.sheet_finance = Sheet(self.tab_finance)
+        self.sheet_finance = Sheet(self.tab_finance, name='sheet_finance')
         self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_finance.change_theme('dark', redraw=False)
 
@@ -126,7 +126,7 @@ class CarrierView:
         self.sheet_finance.row_height_resize_enabled = False
 
         # services tab
-        self.sheet_services = Sheet(self.tab_services)
+        self.sheet_services = Sheet(self.tab_services, name='sheet_services')
         self.sheet_services.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_services.change_theme('dark', redraw=False)
 
@@ -142,7 +142,7 @@ class CarrierView:
         self.sheet_services.row_height_resize_enabled = False
 
         # Misc tab
-        self.sheet_misc = Sheet(self.tab_misc)
+        self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc')
         self.sheet_misc.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_misc.change_theme('dark', redraw=False)
 

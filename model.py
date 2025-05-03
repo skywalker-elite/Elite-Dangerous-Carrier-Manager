@@ -578,7 +578,7 @@ class CarrierModel:
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
         trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
-        self.trad_carrierIDs = df['CarrierID']
+        self.trade_carrierIDs = df['CarrierID']
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
