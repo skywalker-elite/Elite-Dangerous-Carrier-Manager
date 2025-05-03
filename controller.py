@@ -5,18 +5,23 @@ import re
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
+from os import makedirs
+from shutil import copyfile
 import traceback
+import tomllib
 from string import Template
+from settings import Settings
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
     def __init__(self, root, model:CarrierModel):
         self.model = model
         self.view = CarrierView(root)
+        self.load_settings(getSettingsPath())
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
@@ -42,6 +47,29 @@ class CarrierController:
                 open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
         else:
             pass
+    
+    def load_settings(self, settings_file:str):
+        try:
+            self.settings = Settings(settings_file=settings_file)
+        except FileNotFoundError as e:
+            if settings_file == getSettingsDefaultPath():
+                raise e
+            else:
+                if self.view.show_message_box_askyesno('Settings file not found', 'Do you want to create a new settings file?'):
+                    makedirs(getSettingsDir(), exist_ok=True)
+                    copyfile(getSettingsDefaultPath(), settings_file)
+                    if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
+                        open_new_tab(url=settings_file)
+                    self.load_settings(settings_file)
+                else:
+                    self.view.show_message_box_info('Settings', 'Using default settings')
+                    self.load_settings(getSettingsDefaultPath())
+        except tomllib.TOMLDecodeError:
+            if settings_file == getSettingsDefaultPath():
+                raise e
+            else:
+                self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
+                self.load_settings(getSettingsDefaultPath())
     
     def update_tables_fast(self, now):
         self.model.update_carriers(now)
@@ -107,7 +135,7 @@ class CarrierController:
                         body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
                         if body is not None:
                             # post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
-                            s = Template('/wine_unload carrier_id: $callsign planetary_body: $body')
+                            s = Template(self.settings.get('post_format')['wine_unload_string'])
                             post_string = s.safe_substitute(callsign=carrier_callsign, body=body)
                             pyperclip.copy(post_string)
                             self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
@@ -124,7 +152,7 @@ class CarrierController:
                     stations, pad_sizes = getStations(sys_name=system)
                     if len(stations) > 0:
                         self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
-                        self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
+                        self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, carrier_callsign=carrier_callsign, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
                     else:
                         self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
                 else:
@@ -132,18 +160,20 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
     
-    def button_click_post(self, carrier_name:str, trade_type:str, commodity:str, system:str, amount:int|float):
+    def button_click_post(self, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
         # s = '/cco {trade_type} carrier:{carrier_name} commodity:{commodity} system:{system} station:{station} profit:{profit} pads:{pad_size} {demand_supply}: {amount}'
-        s = Template('/cco $trade_type carrier:$carrier_name commodity:$commodity system:$system station:$station profit:$profit pads:$pad_size $demand_supply: $amount')
+        s = Template(self.settings.get('post_format')['trade_post_string'])
         station = self.trade_post_view.cbox_stations.get()
         profit = self.trade_post_view.cbox_profit.get()
         pad_size = self.trade_post_view.cbox_pad_size.get()
         match pad_size:
             case 'L':
                 pad_size = 'Large'
+                pad_size_short = 'L'
             case 'M':
                 pad_size = 'Medium'
+                pad_size_short = 'M'
             case _:
                 raise RuntimeError(f'Unexpected pad_size: {pad_size}')
 
@@ -161,11 +191,13 @@ class CarrierController:
         post_string = s.safe_substitute(
             trade_type=trade_type,
             carrier_name=carrier_name,
+            carrier_callsign=carrier_callsign,
             commodity=commodity,
             system=system,
             station=station,
             profit=profit,
             pad_size=pad_size,
+            pad_size_short=pad_size_short,
             demand_supply=demand_supply,
             amount=amount
         )

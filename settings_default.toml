@@ -1,0 +1,4 @@
+[post_format]
+trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${commodity} system:${system} station:${station} profit:${profit} pads:${pad_size} ${demand_supply}: ${amount}" # CCO post format
+# trade_post_string = "**${carrier_name} (${carrier_callsign})** is loading **${commodity}** from **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units." # ACO post format
+wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${body}" # Wine unload post format
