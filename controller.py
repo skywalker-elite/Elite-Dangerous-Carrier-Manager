@@ -6,6 +6,7 @@ from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
 import traceback
+from string import Template
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
@@ -131,7 +132,8 @@ class CarrierController:
     
     def button_click_post(self, carrier_name:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
-        s = '/cco {trade_type} carrier:{carrier_name} commodity:{commodity} system:{system} station:{station} profit:{profit} pads:{pad_size} {demand_supply}: {amount}'
+        # s = '/cco {trade_type} carrier:{carrier_name} commodity:{commodity} system:{system} station:{station} profit:{profit} pads:{pad_size} {demand_supply}: {amount}'
+        s = Template('/cco $trade_type carrier:$carrier_name commodity:$commodity system:$system station:$station profit:$profit pads:$pad_size $demand_supply: $amount')
         station = self.trade_post_view.cbox_stations.get()
         profit = self.trade_post_view.cbox_profit.get()
         pad_size = self.trade_post_view.cbox_pad_size.get()
@@ -143,7 +145,28 @@ class CarrierController:
             case _:
                 raise RuntimeError(f'Unexpected pad_size: {pad_size}')
 
-        post_string = s.format(trade_type=trade_type.replace('ing', ''), carrier_name=carrier_name, commodity=commodity, system=system, station=station, profit=profit, pad_size=pad_size, demand_supply='demand' if trade_type=='loading'else 'supply', amount=amount)
+        match trade_type:
+            case 'loading':
+                trade_type = 'load'
+                demand_supply = 'demand'
+            case 'unloading':
+                trade_type = 'unload'
+                demand_supply = 'supply'
+            case _:
+                raise RuntimeError(f'Unexpected trade_type: {trade_type}')
+
+        # post_string = s.format(trade_type=trade_type.replace('ing', ''), carrier_name=carrier_name, commodity=commodity, system=system, station=station, profit=profit, pad_size=pad_size, demand_supply='demand' if trade_type=='loading'else 'supply', amount=amount)
+        post_string = s.safe_substitute(
+            trade_type=trade_type,
+            carrier_name=carrier_name,
+            commodity=commodity,
+            system=system,
+            station=station,
+            profit=profit,
+            pad_size=pad_size,
+            demand_supply=demand_supply,
+            amount=amount
+        )
         pyperclip.copy(post_string)
         self.trade_post_view.popup.destroy()
     
