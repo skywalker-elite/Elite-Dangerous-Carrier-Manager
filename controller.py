@@ -125,7 +125,7 @@ class CarrierController:
                 else:
                     self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
         else:
-            self.view.show_message_box_warning('Warning', f'please select one {sheet.name} and one {sheet.name} only!')
+            self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
     
     def button_click_post(self, carrier_name:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
