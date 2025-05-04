@@ -27,12 +27,14 @@ class CarrierView:
         self.tab_trade = ttk.Frame(self.tab_controler)
         self.tab_services = ttk.Frame(self.tab_controler)
         self.tab_misc = ttk.Frame(self.tab_controler)
+        self.tab_options = ttk.Frame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
         self.tab_controler.add(self.tab_trade, text='Trade')
         self.tab_controler.add(self.tab_finance, text='Finance')
         self.tab_controler.add(self.tab_services, text='Services')
         self.tab_controler.add(self.tab_misc, text='Misc')
+        self.tab_controler.add(self.tab_options, text='Options')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
@@ -156,6 +158,21 @@ class CarrierView:
         self.sheet_misc.enable_bindings('all')
         self.sheet_misc.column_width_resize_enabled = False
         self.sheet_misc.row_height_resize_enabled = False
+
+        # Options tab
+        self.labelframe_settings = ttk.Labelframe(self.tab_options, text='Settings')
+        self.labelframe_settings.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_reload_settings = ttk.Button(self.labelframe_settings, text='Reload Settings File')
+        self.button_reload_settings.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_open_settings = ttk.Button(self.labelframe_settings, text='Open Settings File')
+        self.button_open_settings.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.button_reset_settings = ttk.Button(self.labelframe_settings, text='Reset Settings to Defaults')
+        self.button_reset_settings.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+
+        self.labelframe_EDCM = ttk.Labelframe(self.tab_options, text='EDCM')
+        self.labelframe_EDCM.grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
+        self.button_check_updates.grid(row=0, column=0, padx=10, pady=10, sticky='w')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
