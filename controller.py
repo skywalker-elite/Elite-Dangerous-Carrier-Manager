@@ -60,6 +60,7 @@ class CarrierController:
                     copyfile(getSettingsDefaultPath(), settings_file)
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         open_new_tab(url=settings_file)
+                        self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
                     self.load_settings(settings_file)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')

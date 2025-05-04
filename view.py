@@ -187,6 +187,9 @@ class CarrierView:
         messagebox.showinfo(title=title, message=message)
         self.root.attributes('-topmost', False)
 
+    def show_message_box_info_no_topmost(self, title:str, message:str):
+        messagebox.showinfo(title=title, message=message)
+    
     def show_message_box_warning(self, title:str, message:str):
         self.root.attributes('-topmost', True)
         messagebox.showwarning(title=title, message=message)
