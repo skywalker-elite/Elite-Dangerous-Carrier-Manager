@@ -160,19 +160,19 @@ class CarrierView:
         self.sheet_misc.row_height_resize_enabled = False
 
         # Options tab
+        self.labelframe_EDCM = ttk.Labelframe(self.tab_options, text='EDCM')
+        self.labelframe_EDCM.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
+        self.button_check_updates.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+
         self.labelframe_settings = ttk.Labelframe(self.tab_options, text='Settings')
-        self.labelframe_settings.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.labelframe_settings.grid(row=1, column=0, padx=10, pady=10, sticky='w')
         self.button_reload_settings = ttk.Button(self.labelframe_settings, text='Reload Settings File')
         self.button_reload_settings.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.button_open_settings = ttk.Button(self.labelframe_settings, text='Open Settings File')
         self.button_open_settings.grid(row=0, column=1, padx=10, pady=10, sticky='w')
         self.button_reset_settings = ttk.Button(self.labelframe_settings, text='Reset Settings to Defaults')
         self.button_reset_settings.grid(row=0, column=2, padx=10, pady=10, sticky='w')
-
-        self.labelframe_EDCM = ttk.Labelframe(self.tab_options, text='EDCM')
-        self.labelframe_EDCM.grid(row=1, column=0, padx=10, pady=10, sticky='w')
-        self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
-        self.button_check_updates.grid(row=0, column=0, padx=10, pady=10, sticky='w')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)

@@ -27,6 +27,11 @@ class CarrierController:
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
+        self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
+        self.view.button_open_settings.configure(command=lambda: open_new_tab(url=getSettingsPath()))
+        self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
+
 
         # Start the carrier update loop
         self.update_journals()
@@ -41,12 +46,12 @@ class CarrierController:
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
     
-    def check_app_update(self):
+    def check_app_update(self, notify_is_latest:bool=False):
         if isUpdateAvailable():
             if self.view.show_message_box_askyesno('Update Available', f'New version available: {getLatestVersion()}\n Go to download?'):
                 open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
-        else:
-            pass
+        elif notify_is_latest:
+            self.view.show_message_box_info('No update available', f'You are using the latest version: {getCurrentVersion()}')
     
     def load_settings(self, settings_file:str):
         try:
@@ -71,6 +76,22 @@ class CarrierController:
             else:
                 self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
                 self.load_settings(getSettingsDefaultPath())
+    
+    def button_click_reload_settings(self):
+        try:
+            self.load_settings(getSettingsPath())
+            self.view.show_message_box_info('Success!', 'Settings reloaded')
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while reloading settings\n{traceback.format_exc()}')
+    
+    def button_click_reset_settings(self):
+        if self.view.show_message_box_askyesno('Reset settings', 'Do you want to reset the settings to default?'):
+            try:
+                copyfile(getSettingsDefaultPath(), getSettingsPath())
+                self.load_settings(getSettingsPath())
+                self.view.show_message_box_info('Success!', 'Settings reset to default')
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while resetting settings\n{traceback.format_exc()}')
     
     def update_tables_fast(self, now):
         self.model.update_carriers(now)
