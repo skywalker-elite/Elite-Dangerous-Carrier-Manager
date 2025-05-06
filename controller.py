@@ -149,7 +149,7 @@ class CarrierController:
             carrier_name = self.model.get_name(carrierID)
             system = self.model.get_current_or_destination_system(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
-            if self.view.sheet_trade.name == 'sheet_trade':
+            if sheet.name == 'sheet_trade':
                 trade_type, amount, commodity = self.view.sheet_trade.data[selected_row][1:4]
                 trade_type = trade_type.lower()
                 amount = float(amount.replace(',',''))
@@ -157,7 +157,7 @@ class CarrierController:
                 if amount % 1 == 0:
                     amount = int(amount)
                 order = (trade_type, commodity, amount)
-            elif self.view.sheet_jumps.name == 'sheet_jumps':
+            elif sheet.name == 'sheet_jumps':
                 order = self.model.get_formated_largest_order(carrierID=carrierID)
             else:
                 raise RuntimeError(f'Unexpected sheet name: {sheet.name}')
