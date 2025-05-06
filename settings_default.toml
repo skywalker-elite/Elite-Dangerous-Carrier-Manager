@@ -1,7 +1,32 @@
 [post_format]
-trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${commodity} system:${system} station:${station} profit:${profit} pads:${pad_size} ${demand_supply}: ${amount}" # CCO post format
-# trade_post_string = "**${carrier_name} (${carrier_callsign})** is loading **${commodity}** from **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units." # ACO post format
-wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${body}" # Wine unload post format
+# The format of the trade post. 
+# The CCO and ACO post formats for the PTN discord server are included, simply uncomment the one you want to use and comment the other one. 
+
+# CCO post format
+trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${commodity} system:${system} station:${station} profit:${profit} pads:${pad_size} ${demand_supply}: ${amount}"
+# ACO post format
+# trade_post_string = "**${carrier_name} (${carrier_callsign})** is loading **${commodity}** from **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units."
+
+# If you want to customize your post format, you can use any of the variables listed below:
+# ${carrier_name}     - The name of the carrier (example: P.T.N. Carrier Name)
+# ${carrier_callsign} - The callsign of the carrier (example: PTN-123)
+# ${system}           - The system where the carrier is located (example: Sol)
+# ${station}          - The station you are trading with (example: Abraham Lincoln)
+# ${pad_size}         - The pad size of the station (example: Large)
+# ${pad_size_short}   - The one letter representation of the pad size (example: L)
+# ${commodity}        - The commodity being traded (example: Gold)
+# ${amount}           - The amount of the commodity (in k tons) being traded (example: 22)
+# ${profit}           - The profit per unit (in k credits) (example: 10)
+# ${demand_supply}    - This would be "demand" for loading and "supply" for unloading (example: demand)
+# ${trade_type}       - The type of trade (load/unload) (example: load)
+# ${trading_type}     - The type of trade in v-ing (loading/unloading) (example: loading)
+
+# The format of the wine unload post. This is used in the PTN discord server if you sign up as a wine carrier owner (WCO). 
+# ${carrier_callsign} - The callsign of the carrier (example: PTN-123)
+# ${planetary_body}   - The planetary body at the peak where the carrier is located (example: P1)
+# Wine unload post format, you should not need to edit this unless the Steve command changes.
+wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${planetary_body}"
+
 
 
 [compatibility] # DO NOT EDIT THIS SECTION

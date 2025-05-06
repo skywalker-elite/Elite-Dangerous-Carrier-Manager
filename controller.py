@@ -31,6 +31,8 @@ class CarrierController:
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_new_tab(url=getSettingsPath()))
         self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
+        self.view.button_test_trade_post.configure(command=self.button_click_test_trade_post)
+        self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
 
 
         # Start the carrier update loop
@@ -154,15 +156,14 @@ class CarrierController:
                     trade_type, commodity, amount = largest_order
                     if trade_type == 'unloading' and commodity == 'Wine':
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
-                        body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
-                        if body is not None:
+                        planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
+                        if planetary_body is not None:
                             # post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
-                            s = Template(self.settings.get('post_format')['wine_unload_string'])
-                            post_string = s.safe_substitute(callsign=carrier_callsign, body=body)
+                            post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
                             pyperclip.copy(post_string)
                             self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
                         else:
-                            self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {body=}')
+                            self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {planetary_body=}')
                     else:
                         self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
                 else:
@@ -202,16 +203,19 @@ class CarrierController:
         match trade_type:
             case 'loading':
                 trade_type = 'load'
+                trading_type = 'loading'
                 demand_supply = 'demand'
             case 'unloading':
                 trade_type = 'unload'
+                trading_type = 'unloading'
                 demand_supply = 'supply'
             case _:
                 raise RuntimeError(f'Unexpected trade_type: {trade_type}')
 
         # post_string = s.format(trade_type=trade_type.replace('ing', ''), carrier_name=carrier_name, commodity=commodity, system=system, station=station, profit=profit, pad_size=pad_size, demand_supply='demand' if trade_type=='loading'else 'supply', amount=amount)
-        post_string = s.safe_substitute(
+        post_string = self.generate_trade_post_string(
             trade_type=trade_type,
+            trading_type=trading_type,
             carrier_name=carrier_name,
             carrier_callsign=carrier_callsign,
             commodity=commodity,
@@ -225,6 +229,41 @@ class CarrierController:
         )
         pyperclip.copy(post_string)
         self.trade_post_view.popup.destroy()
+    
+    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:int|float, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
+        s = Template(self.settings.get('post_format')['trade_post_string'])
+        post_string = s.safe_substitute(
+            trade_type=trade_type,
+            trading_type=trading_type,
+            carrier_name=carrier_name,
+            carrier_callsign=carrier_callsign,
+            commodity=commodity,
+            system=system,
+            station=station,
+            profit=profit,
+            pad_size=pad_size,
+            pad_size_short=pad_size_short,
+            demand_supply=demand_supply,
+            amount=amount
+        )
+        return post_string
+
+    def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str) -> str:
+        s = Template(self.settings.get('post_format')['wine_unload_string'])
+        post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
+        return post_string
+    
+    def button_click_test_trade_post(self):
+        from config import test_trade_data
+        post_string = self.generate_trade_post_string(**test_trade_data)
+        pyperclip.copy(post_string)
+        self.view.show_message_box_info('Generated!', f'This is what your trade post looks like:\n{post_string}')
+
+    def button_click_test_wine_unload(self):
+        from config import test_wine_unload_data
+        post_string = self.generate_wine_unload_post_string(**test_wine_unload_data)
+        pyperclip.copy(post_string)
+        self.view.show_message_box_info('Generated!', f'This is what your wine unload post looks like:\n{post_string}')
     
     def button_click_manual_timer(self): # TODO
         self.manual_timer_view = ManualTimerView(self.view.root)
