@@ -128,8 +128,12 @@ class CarrierController:
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             if hammer_countdown is not None:
-                pyperclip.copy(hammer_countdown)
-                self.view.show_message_box_info('Success!', f'Hammertime for {carrier_name} ({carrier_callsign}) copied!')
+                try:
+                    pyperclip.copy(hammer_countdown)
+                except pyperclip.PyperclipException as e:
+                    self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+                else:
+                    self.view.show_message_box_info('Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) copied!')
             else:
                 self.view.show_message_box_warning('Error', f'No jump data found for {carrier_name} ({carrier_callsign})')
         else:
@@ -171,8 +175,12 @@ class CarrierController:
                         if planetary_body is not None:
                             # post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
                             post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
-                            pyperclip.copy(post_string)
-                            self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
+                            try:
+                                pyperclip.copy(post_string)
+                            except pyperclip.PyperclipException as e:
+                                self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+                            else:
+                                self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
                         else:
                             self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {planetary_body=}')
                     else:
@@ -237,8 +245,12 @@ class CarrierController:
             demand_supply=demand_supply,
             amount=amount
         )
-        pyperclip.copy(post_string)
-        self.trade_post_view.popup.destroy()
+        try:
+            pyperclip.copy(post_string)
+        except pyperclip.PyperclipException as e:
+            self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+        else:
+            self.trade_post_view.popup.destroy()
     
     def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:int|float, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
         s = Template(self.settings.get('post_format')['trade_post_string'])
@@ -266,14 +278,22 @@ class CarrierController:
     def button_click_test_trade_post(self):
         from config import test_trade_data
         post_string = self.generate_trade_post_string(**test_trade_data)
-        pyperclip.copy(post_string)
-        self.view.show_message_box_info('Generated!', f'This is what your trade post looks like:\n{post_string}')
+        try:
+            pyperclip.copy(post_string)
+        except pyperclip.PyperclipException as e:
+            self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+        else:
+            self.view.show_message_box_info('Generated!', f'This is what your trade post looks like:\n{post_string}')
 
     def button_click_test_wine_unload(self):
         from config import test_wine_unload_data
         post_string = self.generate_wine_unload_post_string(**test_wine_unload_data)
-        pyperclip.copy(post_string)
-        self.view.show_message_box_info('Generated!', f'This is what your wine unload post looks like:\n{post_string}')
+        try:
+            pyperclip.copy(post_string)
+        except pyperclip.PyperclipException as e:
+            self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+        else:
+            self.view.show_message_box_info('Generated!', f'This is what your wine unload post looks like:\n{post_string}')
     
     def button_click_manual_timer(self): # TODO
         self.manual_timer_view = ManualTimerView(self.view.root)
@@ -306,8 +326,12 @@ class CarrierController:
                     system_current = ladder_systems[system_current]
                     # /wine_carrier_departure carrier_id:xxx-xxx departure_location:Gali arrival_location:N2 departing_at:<t:1733359620>
                     s = f'/wine_carrier_departure carrier_id:{carrier_callsign} departure_location:{system_current} arrival_location:{system_dest} departing_at:{hammer_countdown}'
-                    pyperclip.copy(s)
-                    self.view.show_message_box_info('Success!', f'Departure command for {carrier_name} ({carrier_callsign}) going {system_current} -> {system_dest} copied!')
+                    try:
+                        pyperclip.copy(s)
+                    except pyperclip.PyperclipException as e:
+                        self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+                    else:
+                        self.view.show_message_box_info('Success!', f'Departure command for {carrier_name} ({carrier_callsign}) going {system_current} -> {system_dest} copied!')
                 else:
                     self.view.show_message_box_warning('Warning', 'Only movements to and from N3 and up are supported')
             else:
