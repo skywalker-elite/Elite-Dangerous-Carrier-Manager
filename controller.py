@@ -149,11 +149,22 @@ class CarrierController:
             carrier_name = self.model.get_name(carrierID)
             system = self.model.get_current_or_destination_system(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
+            if self.view.sheet_trade.name == 'sheet_trade':
+                trade_type, amount, commodity = self.view.sheet_trade.data[selected_row][1:4]
+                trade_type = trade_type.lower()
+                amount = float(amount.replace(',',''))
+                amount = round(amount / 500) * 500 / 1000
+                if amount % 1 == 0:
+                    amount = int(amount)
+                order = (trade_type, commodity, amount)
+            elif self.view.sheet_jumps.name == 'sheet_jumps':
+                order = self.model.get_formated_largest_order(carrierID=carrierID)
+            else:
+                raise RuntimeError(f'Unexpected sheet name: {sheet.name}')
 
             if system == 'HIP 58832':
-                largest_order = self.model.get_formated_largest_order(carrierID=carrierID)
-                if largest_order is not None:
-                    trade_type, commodity, amount = largest_order
+                if order is not None:
+                    trade_type, commodity, amount = order
                     if trade_type == 'unloading' and commodity == 'Wine':
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
@@ -169,9 +180,8 @@ class CarrierController:
                 else:
                     self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
             else:
-                largest_order = self.model.get_formated_largest_order(carrierID=carrierID)
-                if largest_order is not None:
-                    trade_type, commodity, amount = largest_order
+                if order is not None:
+                    trade_type, commodity, amount = order
                     stations, pad_sizes = getStations(sys_name=system)
                     if len(stations) > 0:
                         self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
