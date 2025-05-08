@@ -27,6 +27,21 @@ trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${comm
 # Wine unload post format, you should not need to edit this unless the Steve command changes.
 wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${planetary_body}"
 
+[notifications]
+# These are the settings for the notifications. You can set them to true or false to enable or disable them.
+jump_plotted = false # Popup notification when a jump is plotted
+jump_plotted_discord = false # Discord notification when a jump is plotted
+jump_plotted_discord_ping = false # Whether to ping when with the jump plotted discord notification
+jump_completed = false # Popup notification when a jump is completed
+jump_completed_discord = false # Discord notification when a jump is completed
+jump_completed_discord_ping = false # Whether to ping when with the jump completed discord notification
+jump_cancelled = false # Popup notification when a jump is cancelled
+jump_cancelled_discord = false # Discord notification when a jump is cancelled
+jump_cancelled_discord_ping = false # Whether to ping when with the jump cancelled discord notification
+cooldown_finished = false # Popup notification when a cooldown is finished
+cooldown_finished_discord = false # Discord notification when a cooldown is finished
+cooldown_finished_discord_ping = false # Whether to ping when with the cooldown finished discord notification
+
 [discord]
 webhook = "" # Discord webhook URL
 userID = "" # Discord user ID (optional, used for pings), find this by sending /@[your username] in discord, copy the number after the @ and paste it here.

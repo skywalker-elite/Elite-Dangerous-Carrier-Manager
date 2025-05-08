@@ -2,9 +2,11 @@ import pandas as pd
 from os import listdir, path
 import re
 import json
+import threading
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
+from typing import Callable
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW
 
@@ -144,6 +146,7 @@ class CarrierModel:
         self.active_timer = False
         self.manual_timers = []
         self.journal_path = journal_path
+        self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
         self.df_commodities = self.df_commodities.set_index('symbol')
@@ -373,8 +376,19 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                  
+        old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
+        new_status = {carrierID: carriers[carrierID]['status'] for carrierID in carriers.keys()}
         self.carriers_updated = carriers.copy()
 
+        for carrierID in old_status.keys():
+            if new_status[carrierID] != old_status[carrierID]:
+                # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
+                self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
+
+    def register_status_change_callback(self, callback:Callable[[str, str, str], None]):
+        self._callback_status_change = lambda carrierID, status_old, status_new: threading.Thread(target=callback, args=(carrierID, status_old, status_new)).start()
+    
     def get_carriers(self):
         return self.carriers_updated.copy()
     

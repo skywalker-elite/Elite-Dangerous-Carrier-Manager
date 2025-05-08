@@ -180,6 +180,10 @@ class CarrierView:
         self.button_test_trade_post.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.button_test_wine_unload = ttk.Button(self.labelframe_testing, text='Test Wine Unload')
         self.button_test_wine_unload.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.button_test_discord = ttk.Button(self.labelframe_testing, text='Test Discord Webhook')
+        self.button_test_discord.grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
+        self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)

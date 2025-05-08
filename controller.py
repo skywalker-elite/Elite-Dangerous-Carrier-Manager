@@ -15,12 +15,14 @@ from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
+from discord_handler import DiscordWebhookHandler
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
     def __init__(self, root, model:CarrierModel):
         self.model = model
         self.view = CarrierView(root)
+        self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
@@ -33,6 +35,8 @@ class CarrierController:
         self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
         self.view.button_test_trade_post.configure(command=self.button_click_test_trade_post)
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
+        self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
+        self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
 
 
         # Start the carrier update loop
@@ -78,6 +82,47 @@ class CarrierController:
             else:
                 self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
                 self.load_settings(getSettingsDefaultPath())
+        finally:
+            self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
+    
+    def status_change(self, carrierID:str, status_old:str, status_new:str):
+        # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
+        if status_new == 'jumping':
+            # jump plotted
+            # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
+            if self.settings.get('notifications')['jump_plotted']:
+                self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
+            if self.settings.get('notifications')['jump_plotted_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Jump plotted to **{self.model.get_destination_system(carrierID)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_plotted_discord_ping'])
+        elif status_new == 'cool_down':
+            # jump completed
+            # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
+            if self.settings.get('notifications')['jump_completed']:
+                self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
+            if self.settings.get('notifications')['jump_completed_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Jump completed at **{self.model.get_current_system(carrierID)}** body **{self.model.get_current_body(carrierID)}**'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_completed_discord_ping'])
+        elif status_new == 'cool_down_cancel':
+            # jump cancelled
+            # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
+            if self.settings.get('notifications')['jump_cancelled']:
+                self.view.show_message_box_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
+            if self.settings.get('notifications')['jump_cancelled_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Jump cancelled'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_cancelled_discord_ping'])
+        elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
+            # cool down complete
+            # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
+            if self.settings.get('notifications')['cooldown_finished']:
+                self.view.show_message_box_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
+            if self.settings.get('notifications')['cooldown_finished_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Cool down complete, ready to jump'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['cooldown_finished_discord_ping'])
     
     def button_click_reload_settings(self):
         try:
@@ -294,6 +339,22 @@ class CarrierController:
             self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
         else:
             self.view.show_message_box_info('Generated!', f'This is what your wine unload post looks like:\n{post_string}')
+
+    def button_click_test_discord_webhook(self):
+        try:
+            self.webhook_handler.send_message_with_embed('Test', 'If you see this, the webhook is working')
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while sending discord webhook\n{e}')
+        else:
+            self.view.show_message_box_info('Success!', 'Test message sent to discord')
+
+    def button_click_test_discord_webhook_ping(self):
+        try:
+            self.webhook_handler.send_message('https://tenor.com/view/ping-one-ping-give-me-a-ping-one-ping-only-no-ping-gif-2233845608210360328', ping=True)
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while sending discord ping\n{e}')
+        else:
+            self.view.show_message_box_info('Success!', 'Test message sent to discord with ping')
     
     def button_click_manual_timer(self): # TODO
         self.manual_timer_view = ManualTimerView(self.view.root)
