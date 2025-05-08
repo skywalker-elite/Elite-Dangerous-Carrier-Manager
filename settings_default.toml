@@ -28,7 +28,8 @@ trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${comm
 wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${planetary_body}"
 
 [discord]
-discord_webhook = "" # Discord webhook URL
+webhook = "" # Discord webhook URL
+userID = "" # Discord user ID (optional, used for pings), find this by sending /@[your username] in discord, copy the number after the @ and paste it here.
 
 [compatibility] # DO NOT EDIT THIS SECTION
 settings_version = 1 # Version of the settings file. Do not edit this line.
