@@ -6,6 +6,7 @@ class DiscordWebhookHandler:
     def __init__(self, webhook_url: str, userID: str = ''):
         self.webhook_url = webhook_url
         self.userID = userID
+        self.userID = userID
         self.username = "Elite Dangerous Carrier Manager"
         self.avatar_url = "https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/blob/main/images/EDCM.png?raw=true"
 
