@@ -136,7 +136,7 @@ class JournalReader:
         return self.items.copy()
 
 class CarrierModel:
-    def __init__(self, journal_path:str, dropout:bool=False):
+    def __init__(self, journal_path:str, dropout:bool=False, callback_status_change:function=lambda carrierID, status_old, status_new: None):
         self.journal_reader = JournalReader(journal_path, dropout=dropout)
         self.dropout = dropout
         self.carriers = {}
@@ -144,6 +144,7 @@ class CarrierModel:
         self.active_timer = False
         self.manual_timers = []
         self.journal_path = journal_path
+        self.callback_status_change = callback_status_change
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
         self.df_commodities = self.df_commodities.set_index('symbol')
