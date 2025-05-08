@@ -24,7 +24,6 @@ class CarrierController:
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
-        self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
@@ -36,6 +35,8 @@ class CarrierController:
         self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
         self.view.button_test_trade_post.configure(command=self.button_click_test_trade_post)
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
+        self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
+        self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
 
 
         # Start the carrier update loop
@@ -81,6 +82,8 @@ class CarrierController:
             else:
                 self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
                 self.load_settings(getSettingsDefaultPath())
+        finally:
+            self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
     
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
@@ -336,6 +339,22 @@ class CarrierController:
             self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
         else:
             self.view.show_message_box_info('Generated!', f'This is what your wine unload post looks like:\n{post_string}')
+
+    def button_click_test_discord_webhook(self):
+        try:
+            self.webhook_handler.send_message_with_embed('Test', 'If you see this, the webhook is working')
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while sending discord webhook\n{e}')
+        else:
+            self.view.show_message_box_info('Success!', 'Test message sent to discord')
+
+    def button_click_test_discord_webhook_ping(self):
+        try:
+            self.webhook_handler.send_message('https://tenor.com/view/ping-one-ping-give-me-a-ping-one-ping-only-no-ping-gif-2233845608210360328', ping=True)
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while sending discord ping\n{e}')
+        else:
+            self.view.show_message_box_info('Success!', 'Test message sent to discord with ping')
     
     def button_click_manual_timer(self): # TODO
         self.manual_timer_view = ManualTimerView(self.view.root)

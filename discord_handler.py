@@ -3,36 +3,39 @@ from settings import Settings
 from utility import getSettingsPath
 
 class DiscordWebhookHandler:
+    class UserIDNotSetError(Exception):
+        pass
     def __init__(self, webhook_url: str, userID: str = ''):
         self.webhook_url = webhook_url
-        self.userID = userID
         self.userID = userID
         self.username = "Elite Dangerous Carrier Manager"
         self.avatar_url = "https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/blob/main/images/EDCM.png?raw=true"
 
     def send_message(self, message: str, ping: bool = False):
-        if ping:
-            self.send_ping()
         webhook = discord.SyncWebhook.from_url(self.webhook_url)
         webhook.send(message, username=self.username, avatar_url=self.avatar_url)
+        if ping:
+            self.send_ping()
 
     def send_embed(self, embed: discord.Embed):
         webhook = discord.SyncWebhook.from_url(self.webhook_url)
         webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
 
     def send_message_with_embed(self, title: str, description: str, ping: bool = False):
-        if ping:
-            self.send_ping()
         embed = discord.Embed(
             title=title,
             description=description,
         )
         self.send_embed(embed)
+        if ping:
+            self.send_ping()
 
     def send_ping(self):
         if self.userID != '':
             webhook = discord.SyncWebhook.from_url(self.webhook_url)
             webhook.send(f'<@{self.userID}>', username=self.username, avatar_url=self.avatar_url)
+        else:
+            raise self.UserIDNotSetError("User ID is not set")
 
 if __name__ == "__main__":
     from datetime import datetime, timezone, timedelta
