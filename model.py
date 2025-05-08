@@ -383,7 +383,7 @@ class CarrierModel:
 
         for carrierID in old_status.keys():
             if new_status[carrierID] != old_status[carrierID]:
-                print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
+                # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 
     def register_status_change_callback(self, callback:Callable[[str, str, str], None]):

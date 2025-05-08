@@ -15,6 +15,7 @@ from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
+from discord_handler import DiscordWebhookHandler
 from config import UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, REMIND, ladder_systems
 
 class CarrierController:
@@ -23,6 +24,7 @@ class CarrierController:
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
+        self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
@@ -81,27 +83,43 @@ class CarrierController:
                 self.load_settings(getSettingsDefaultPath())
     
     def status_change(self, carrierID:str, status_old:str, status_new:str):
-        print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
+        # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
         if status_new == 'jumping':
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
-            if self.settings.get('notification')['jump_plotted']:
+            if self.settings.get('notifications')['jump_plotted']:
                 self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
+            if self.settings.get('notifications')['jump_plotted_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Jump plotted to **{self.model.get_destination_system(carrierID)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_plotted_discord_ping'])
         elif status_new == 'cool_down':
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
-            if self.settings.get('notification')['jump_completed']:
+            if self.settings.get('notifications')['jump_completed']:
                 self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
+            if self.settings.get('notifications')['jump_completed_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Jump completed at **{self.model.get_current_system(carrierID)}** body **{self.model.get_current_body(carrierID)}**'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_completed_discord_ping'])
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
-            if self.settings.get('notification')['jump_cancelled']:
+            if self.settings.get('notifications')['jump_cancelled']:
                 self.view.show_message_box_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
+            if self.settings.get('notifications')['jump_cancelled_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Jump cancelled'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_cancelled_discord_ping'])
         elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
-            if self.settings.get('notification')['cooldown_finished']:
+            if self.settings.get('notifications')['cooldown_finished']:
                 self.view.show_message_box_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
+            if self.settings.get('notifications')['cooldown_finished_discord']:
+                title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
+                description = f'Cool down complete, ready to jump'
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['cooldown_finished_discord_ping'])
     
     def button_click_reload_settings(self):
         try:
