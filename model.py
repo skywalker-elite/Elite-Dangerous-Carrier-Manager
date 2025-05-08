@@ -143,6 +143,9 @@ class CarrierModel:
         self.dropout = dropout
         self.carriers = {}
         self.carriers_updated = {}
+        self.cmdr_balances = {}
+        self.cmdr_names = {}
+        self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = []
         self.journal_path = journal_path
@@ -163,60 +166,85 @@ class CarrierModel:
 
     def read_journals(self):
         self.journal_reader.read_journals()
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, carrier_owners = self.journal_reader.get_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, self.carrier_owners = self.journal_reader.get_items()
 
-        cmdr_balances = {}
-        cmdr_names = {}
-        for load_game in load_games:
-            if load_game['FID'] not in cmdr_balances.keys():
-                cmdr_balances[load_game['FID']] = load_game['Credits']
-            if load_game['FID'] not in cmdr_names.keys():
-                cmdr_names[load_game['FID']] = load_game['Commander']
+        self.process_load_games(load_games)
         
-        carriers = {}
+        self.carriers = {}
+        self.process_stats(stats)
+        
+        self.process_carrier_buys(carrier_buys)
+
+        self.process_trit_deposits(trit_deposits)
+
+        self.process_docking_perms(docking_perms)
+        
+        self.process_carrier_locations(carrier_locations)
+
+        self.process_jumps(jump_requests, jump_cancels)
+
+        self.process_trade_orders(trade_orders)
+
+        self.fill_missing_data()
+
+        self.update_ignore_list()
+
+    def process_load_games(self, load_games):
+            for load_game in load_games:
+                if load_game['FID'] not in self.cmdr_balances.keys():
+                    self.cmdr_balances[load_game['FID']] = load_game['Credits']
+                if load_game['FID'] not in self.cmdr_names.keys():
+                    self.cmdr_names[load_game['FID']] = load_game['Commander']
+
+    def process_stats(self, stats):
         for stat in stats:
-            if stat['CarrierID'] not in carriers.keys():
-                carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': cmdr_names[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() and carrier_owners[stat['CarrierID']] in cmdr_names.keys() else None}
-                carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
-                                                          'CmdrBalance': cmdr_balances[carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in carrier_owners.keys() and carrier_owners[stat['CarrierID']] in cmdr_balances.keys() else None,
+            if stat['CarrierID'] not in self.carriers.keys():
+                self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None}
+                self.carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
+                                                          'CmdrBalance': self.cmdr_balances[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_balances.keys() else None,
                                                           }
-                carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
-                carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
-                carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
+                self.carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
+                self.carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                self.carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
                                                              'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
                 df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
-                carriers[stat['CarrierID']]['Services'] = df_services.copy()
-                carriers[stat['CarrierID']]['PendingDecom'] = stat['PendingDecommission']
-        
+                self.carriers[stat['CarrierID']]['Services'] = df_services.copy()
+                self.carriers[stat['CarrierID']]['PendingDecom'] = stat['PendingDecommission']    
+
+    def process_carrier_buys(self, carrier_buys):
         for carrier_buy in carrier_buys:
-            if carrier_buy['CarrierID'] not in carriers.keys():
-                carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown', 'CMDRName': cmdr_names[carrier_owners[carrier_buy['CarrierID']]] if carrier_buy['CarrierID'] in carrier_owners.keys() and carrier_owners[carrier_buy['CarrierID']] in cmdr_names.keys() else None}
-            carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
-            carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
-
+            if carrier_buy['CarrierID'] not in self.carriers.keys():
+                self.carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown', 'CMDRName': self.cmdr_names[self.carrier_owners[carrier_buy['CarrierID']]] if carrier_buy['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[carrier_buy['CarrierID']] in self.cmdr_names.keys() else None}
+            self.carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
+            self.carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)    
+    
+    def process_trit_deposits(self, trit_deposits):
         for trit_deposit in trit_deposits:
-            if trit_deposit['CarrierID'] in carriers.keys():
-                if ('StatTime' not in carriers[trit_deposit['CarrierID']].keys() or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > carriers[trit_deposit['CarrierID']]['StatTime']) and ('Fuel' not in carriers[trit_deposit['CarrierID']].keys() or 'DepotTime' not in carriers[trit_deposit['CarrierID']]['Fuel'].keys()):
-                    carriers[trit_deposit['CarrierID']]['Fuel'] = {'FuelLevel': trit_deposit['Total'], 'JumpRange': None, 'DepotTime': datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
-
+            if trit_deposit['CarrierID'] in self.carriers.keys():
+                if ('StatTime' not in self.carriers[trit_deposit['CarrierID']].keys() or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > self.carriers[trit_deposit['CarrierID']]['StatTime']) and ('Fuel' not in self.carriers[trit_deposit['CarrierID']].keys() or 'DepotTime' not in self.carriers[trit_deposit['CarrierID']]['Fuel'].keys()):
+                    self.carriers[trit_deposit['CarrierID']]['Fuel'] = {'FuelLevel': trit_deposit['Total'], 'JumpRange': None, 'DepotTime': datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
+    
+    def process_docking_perms(self, docking_perms):
         for docking_perm in docking_perms:
-            if docking_perm['CarrierID'] in carriers.keys():
-                if 'DockingPerm' not in carriers[docking_perm['CarrierID']].keys():
-                    carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
-        
-        for carrier_location in carrier_locations:
-            if carrier_location['CarrierID'] in carriers.keys():
-                if 'CarrierLocation' not in carriers[carrier_location['CarrierID']].keys():
-                    carriers[carrier_location['CarrierID']]['CarrierLocation'] = {'SystemName': carrier_location['StarSystem'], 'Body': None, 'BodyID': carrier_location['BodyID'], 'timestamp': datetime.strptime(carrier_location['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
+            if docking_perm['CarrierID'] in self.carriers.keys():
+                if 'DockingPerm' not in self.carriers[docking_perm['CarrierID']].keys():
+                    self.carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
 
+    def process_carrier_locations(self, carrier_locations):
+        for carrier_location in carrier_locations:
+            if carrier_location['CarrierID'] in self.carriers.keys():
+                if 'CarrierLocation' not in self.carriers[carrier_location['CarrierID']].keys():
+                    self.carriers[carrier_location['CarrierID']]['CarrierLocation'] = {'SystemName': carrier_location['StarSystem'], 'Body': None, 'BodyID': carrier_location['BodyID'], 'timestamp': datetime.strptime(carrier_location['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
+    
+    def process_jumps(self, jump_requests, jump_cancels):
         jumps = pd.DataFrame(jump_requests + jump_cancels, columns=['CarrierID', 'timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']).sort_values('timestamp', ascending=False)
-        for carrierID in carriers.keys():
+        for carrierID in self.carriers.keys():
             fc_jumps = jumps[jumps['CarrierID'] == carrierID][['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']].copy()
             fc_jumps['timestamp'] = fc_jumps['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             last_cancel = fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled'].iloc[0] if len(fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled']) > 0 else None
-            carriers[carrierID]['last_cancel'] = last_cancel
+            self.carriers[carrierID]['last_cancel'] = last_cancel
             cancelled = []
             flag = False
             for item in range(len(fc_jumps)):
@@ -237,51 +265,12 @@ class CarrierModel:
             fc_jumps_with_departure_time['DepartureTime'] = fc_jumps_with_departure_time['DepartureTime'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             fc_jumps = pd.concat([fc_jumps_with_departure_time, fc_jumps_no_departure_time])
             fc_jumps = fc_jumps.sort_values('timestamp', ascending=False)
-            carriers[carrierID]['jumps'] = fc_jumps
+            self.carriers[carrierID]['jumps'] = fc_jumps
 
-            if 'SpawnLocation' not in carriers[carrierID].keys():
-                carriers[carrierID]['SpawnLocation'] = 'Unknown'
-
-            if 'TimeBought' not in carriers[carrierID].keys():
-                carriers[carrierID]['TimeBought'] = None
-
-            if 'CarrierLocation' not in carriers[carrierID].keys():
-                carriers[carrierID]['CarrierLocation'] = {'SystemName': 'Unknown', 'Body': None, 'BodyID': None, 'timestamp': None}
-            
-            if 'Finance' not in carriers[carrierID].keys():
-                if carriers[carrierID]['TimeBought'] is not None:
-                    carriers[carrierID]['Finance'] = {'CarrierBalance': 0, 
-                                                    'CmdrBalance': cmdr_balances[carrier_owners[carrierID]] if carrierID in carrier_owners.keys() and carrier_owners[carrierID] in cmdr_balances.keys() else None,
-                                                    }
-            
-            if 'Fuel' not in carriers[carrierID].keys():
-                if carriers[carrierID]['TimeBought'] is not None:
-                    carriers[carrierID]['Fuel'] = {'FuelLevel': 500, 'JumpRange': 'Unknown'}
-                else:
-                    carriers[carrierID]['Fuel'] = {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'}
-
-            if 'Services' not in carriers[carrierID].keys():
-                if carriers[carrierID]['TimeBought'] is not None:
-                    carriers[carrierID]['Services'] = pd.DataFrame({'Activated': {'BlackMarket': False, 'Refuel': False, 'Repair': False, 'Rearm': False, 'VoucherRedemption': False, 'Exploration': False, 'Shipyard': False, 'Outfitting': False}, 'Enabled': {'BlackMarket': False, 'Refuel': False, 'Repair': True, 'Rearm': False, 'VoucherRedemption': False, 'Exploration': False, 'Shipyard': False, 'Outfitting': False}})
-
-            if 'StatTime' not in carriers[carrierID].keys():
-                carriers[carrierID]['StatTime'] = None
-            
-            if 'DockingPerm' not in carriers[carrierID].keys():
-                if carriers[carrierID]['TimeBought'] is not None:
-                    carriers[carrierID]['DockingPerm'] = {'DockingAccess': 'all', 'AllowNotorious': False}
-                else:
-                    carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
-            
-            if 'SpaceUsage' not in carriers[carrierID].keys():
-                carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
-
-            if 'PendingDecom' not in carriers[carrierID].keys():
-                carriers[carrierID]['PendingDecom'] = False
-            
+    def process_trade_orders(self, trade_orders):
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
-            for carrierID in carriers.keys():
+            for carrierID in self.carriers.keys():
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
                 if len(fc_trade_orders) > 0:
                     fc_active_trades = {}
@@ -294,16 +283,52 @@ class CarrierModel:
                             fc_active_trades[commodity] = order
                 else:
                     fc_active_trades = {}
-                carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
-        else:
-            for carrierID in carriers.keys():
-                carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
-        
-        # for carrierID in carriers.keys():
-        #     print(self.get_name(carrierID), '\n', carriers[carrierID]['active_trades'])
-        
-        self.carriers = carriers.copy()
-        self.update_ignore_list()
+                self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
+
+    def fill_missing_data(self):
+        for carrierID in self.carriers.keys():
+            if 'SpawnLocation' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['SpawnLocation'] = 'Unknown'
+
+            if 'TimeBought' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['TimeBought'] = None
+
+            if 'CarrierLocation' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['CarrierLocation'] = {'SystemName': 'Unknown', 'Body': None, 'BodyID': None, 'timestamp': None}
+                
+            if 'Finance' not in self.carriers[carrierID].keys():
+                if self.carriers[carrierID]['TimeBought'] is not None:
+                    self.carriers[carrierID]['Finance'] = {'CarrierBalance': 0, 
+                                                        'CmdrBalance': self.cmdr_balances[self.carrier_owners[carrierID]] if carrierID in self.carrier_owners.keys() and self.carrier_owners[carrierID] in self.cmdr_balances.keys() else None,
+                                                        }
+                
+            if 'Fuel' not in self.carriers[carrierID].keys():
+                if self.carriers[carrierID]['TimeBought'] is not None:
+                    self.carriers[carrierID]['Fuel'] = {'FuelLevel': 500, 'JumpRange': 'Unknown'}
+                else:
+                    self.carriers[carrierID]['Fuel'] = {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'}
+
+            if 'Services' not in self.carriers[carrierID].keys():
+                if self.carriers[carrierID]['TimeBought'] is not None:
+                    self.carriers[carrierID]['Services'] = pd.DataFrame({'Activated': {'BlackMarket': False, 'Refuel': False, 'Repair': False, 'Rearm': False, 'VoucherRedemption': False, 'Exploration': False, 'Shipyard': False, 'Outfitting': False}, 'Enabled': {'BlackMarket': False, 'Refuel': False, 'Repair': True, 'Rearm': False, 'VoucherRedemption': False, 'Exploration': False, 'Shipyard': False, 'Outfitting': False}})
+
+            if 'StatTime' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['StatTime'] = None
+                
+            if 'DockingPerm' not in self.carriers[carrierID].keys():
+                if self.carriers[carrierID]['TimeBought'] is not None:
+                    self.carriers[carrierID]['DockingPerm'] = {'DockingAccess': 'all', 'AllowNotorious': False}
+                else:
+                    self.carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
+                
+            if 'SpaceUsage' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
+
+            if 'PendingDecom' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['PendingDecom'] = False
+
+            if 'active_trades' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
 
     def update_ignore_list(self):
         for carrierID in self.get_carriers_pending_decom():
