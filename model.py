@@ -8,7 +8,7 @@ from humanize import naturaltime
 from random import random
 from typing import Callable
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
-from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW
+from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
     def __init__(self, journal_path:str, dropout:bool=False):
@@ -146,6 +146,7 @@ class CarrierModel:
         self.active_timer = False
         self.manual_timers = []
         self.journal_path = journal_path
+        self._ignore_list = []
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
@@ -158,6 +159,7 @@ class CarrierModel:
             {'Service': {0: 'Refuel', 1: 'Repair', 2: 'Rearm', 3: 'Shipyard', 4: 'Outfitting', 5: 'Exploration', 6: 'VistaGenomics', 7: 'PioneerSupplies', 8: 'Bartender', 9: 'VoucherRedemption', 10: 'BlackMarket'}, 'Active': {0: 1500000, 1: 1500000, 2: 1500000, 3: 6500000, 4: 5000000, 5: 1850000, 6: 1500000, 7: 5000000, 8: 1750000, 9: 1850000, 10: 2000000}, 'Paused': {0: 750000, 1: 750000, 2: 750000, 3: 1800000, 4: 1500000, 5: 700000, 6: 700000, 7: 1500000, 8: 1250000, 9: 850000, 10: 1250000}, 'Off': {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}}
             ).set_index('Service')
         self.read_journals()
+        self.update_carriers(datetime.now(timezone.utc))
 
     def read_journals(self):
         self.journal_reader.read_journals()
@@ -301,7 +303,25 @@ class CarrierModel:
         #     print(self.get_name(carrierID), '\n', carriers[carrierID]['active_trades'])
         
         self.carriers = carriers.copy()
+        self.update_ignore_list()
 
+    def update_ignore_list(self):
+        for carrierID in self.get_carriers_pending_decom():
+            if carrierID in self._ignore_list:
+                continue
+            now = datetime.now(timezone.utc)
+            if self.get_stat_time(carrierID) is not None and now.astimezone() - self.get_stat_time(carrierID) > ASSUME_DECCOM_AFTER:
+                self._ignore_list.append(carrierID)
+
+    def add_ignore_list(self, call_signs:list[str]):
+        for call_sign in call_signs:
+            carrierID = self.get_id_by_callsign(call_sign)
+            if carrierID is not None and carrierID not in self._ignore_list:
+                self._ignore_list.append(carrierID)
+    
+    def reset_ignore_list(self):
+        self._ignore_list = []
+    
     def update_carriers(self, now):
         carriers = self.carriers.copy()
         for carrierID in carriers.keys():
@@ -381,8 +401,8 @@ class CarrierModel:
         new_status = {carrierID: carriers[carrierID]['status'] for carrierID in carriers.keys()}
         self.carriers_updated = carriers.copy()
 
-        for carrierID in old_status.keys():
-            if new_status[carrierID] != old_status[carrierID]:
+        for carrierID in old_status.keys() & new_status.keys():
+            if new_status[carrierID] != old_status[carrierID] and carrierID not in self._ignore_list:
                 # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 
@@ -393,10 +413,10 @@ class CarrierModel:
         return self.carriers_updated.copy()
     
     def get_data(self, now):
-        return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids()]
+        return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids_display()]
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids()], columns=['Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
@@ -442,9 +462,9 @@ class CarrierModel:
         return int(round(len(df) / AVG_JUMP_CAL_WINDOW, 2) * 100000)
     
     def get_data_services(self):
-        df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
+        df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids_display()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
         df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
-        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids()]
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket']].values.tolist()
     
     def generate_info_services(self, carrierID) -> pd.Series:
@@ -465,17 +485,17 @@ class CarrierModel:
     
     def get_data_misc(self):
         df = pd.DataFrame()
-        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids()]
-        df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids()]
-        df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids()]
-        df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids()]
-        df['Cargo'] = [self.generate_info_space_usage(carrierID)[1] for carrierID in self.sorted_ids()]
-        df['BuyOrder'] = [self.generate_info_space_usage(carrierID)[2] for carrierID in self.sorted_ids()]
-        df['ShipPacks'] = [self.generate_info_space_usage(carrierID)[3] for carrierID in self.sorted_ids()]
-        df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids()]
-        df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids()]
-        df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids()]
-        df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids()]
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids_display()]
+        df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids_display()]
+        df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids_display()]
+        df['Cargo'] = [self.generate_info_space_usage(carrierID)[1] for carrierID in self.sorted_ids_display()]
+        df['BuyOrder'] = [self.generate_info_space_usage(carrierID)[2] for carrierID in self.sorted_ids_display()]
+        df['ShipPacks'] = [self.generate_info_space_usage(carrierID)[3] for carrierID in self.sorted_ids_display()]
+        df['ModulePacks'] = [self.generate_info_space_usage(carrierID)[4] for carrierID in self.sorted_ids_display()]
+        df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids_display()]
+        df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
+        df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
@@ -521,8 +541,11 @@ class CarrierModel:
     def get_time_bought(self, carrierID) -> datetime|None:
         return self.get_carriers()[carrierID]['TimeBought']
     
-    def get_carriers_pending_decom(self) -> list[int]|None:
-        decomming = [i for i, carrierID in enumerate(self.sorted_ids()) if self.get_carriers()[carrierID]['PendingDecom'] == True]
+    def get_carriers_pending_decom(self) -> list[str]:
+        return [carrierID for carrierID in self.sorted_ids() if self.get_pending_decom(carrierID)]
+    
+    def get_rows_pending_decom(self) -> list[int]|None:
+        decomming = [i for i, carrierID in enumerate(self.sorted_ids_display()) if self.get_pending_decom(carrierID)]
         return decomming if len(decomming) > 0 else None
     
     def get_pending_decom(self, carrierID) -> bool:
@@ -566,8 +589,17 @@ class CarrierModel:
     def get_current_or_destination_body_id(self, carrierID) -> int:
         return self.get_destination_body_id(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body_id(carrierID=carrierID)
     
+    def get_id_by_callsign(self, callsign) -> str|None:
+        for carrierID in self.get_carriers().keys():
+            if self.get_callsign(carrierID) == callsign:
+                return carrierID
+        return None
+    
     def sorted_ids(self):
         return sorted(self.get_carriers().keys(), key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
+    
+    def sorted_ids_display(self):
+        return [i for i in self.sorted_ids() if i not in self._ignore_list]
     
     def get_departure_hammer_countdown(self, carrierID) -> str|None:
         latest_depart = self.get_carriers()[carrierID]['latest_depart']
@@ -590,7 +622,7 @@ class CarrierModel:
             return (order_type, commodity, amount)
             
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
-        trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids()]
+        trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids_display()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
         self.trade_carrierIDs = df['CarrierID']
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
