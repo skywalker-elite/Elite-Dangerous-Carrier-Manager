@@ -611,6 +611,14 @@ class CarrierModel:
             return None
         else:
             df_active_trades['Amount'] = df_active_trades['Amount'].str.replace(',', '').astype(float)
+            df_active_trades['Time Set (Local)'] = df_active_trades['Time Set (Local)'].apply(lambda x: datetime.strptime(x, '%x %X').replace(tzinfo=timezone.utc).astimezone())
+            df_active_trades.sort_values('Time Set (Local)', ascending=False, inplace=True)
+            total_tonnage = 0
+            for i in range(len(df_active_trades)):
+                total_tonnage += df_active_trades.iloc[i]['Amount']
+                if total_tonnage >= 25000:
+                    df_active_trades = df_active_trades.iloc[:i]
+                    break
             df_active_trades.sort_values('Amount', ascending=False, inplace=True)
             largest_order = df_active_trades.iloc[0]
             commodity = largest_order['Commodity']
