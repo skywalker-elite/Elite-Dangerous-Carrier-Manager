@@ -84,6 +84,8 @@ class CarrierController:
                 self.load_settings(getSettingsDefaultPath())
         finally:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
+            self.model.reset_ignore_list()
+            self.model.add_ignore_list(self.settings.get('advanced')['ignore_list'])
     
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
@@ -142,10 +144,10 @@ class CarrierController:
     
     def update_tables_fast(self, now):
         self.model.update_carriers(now)
-        self.view.update_table_jumps(self.model.get_data(now), self.model.get_carriers_pending_decom())
+        self.view.update_table_jumps(self.model.get_data(now), self.model.get_rows_pending_decom())
     
     def update_tables_slow(self, now):
-        pending_decom = self.model.get_carriers_pending_decom()
+        pending_decom = self.model.get_rows_pending_decom()
         self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
         self.view.update_table_trade(*self.model.get_data_trade())
         self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance

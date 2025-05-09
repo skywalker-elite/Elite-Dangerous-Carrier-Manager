@@ -16,6 +16,8 @@ REMIND_INTERVAL = 1000
 
 AVG_JUMP_CAL_WINDOW = 8
 
+ASSUME_DECCOM_AFTER = timedelta(weeks=2)
+
 ladder_systems = {
     'Gali': 'N16',
     'Wregoe TO-C b56-0': 'N15B',
