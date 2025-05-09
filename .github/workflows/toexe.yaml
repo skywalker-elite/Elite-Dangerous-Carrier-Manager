@@ -1,5 +1,6 @@
 name: To Exe
-
+permissions:
+  contents: read
 on:
   push:
     branches: 
