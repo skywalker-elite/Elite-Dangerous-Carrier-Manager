@@ -46,5 +46,9 @@ cooldown_finished_discord_ping = false # Whether to ping when with the cooldown 
 webhook = "" # Discord webhook URL
 userID = "" # Discord user ID (optional, used for pings), find this by sending /@[your username] in discord, copy the number after the @ and paste it here.
 
+[advanced]
+# These are advanced settings. You should not need to edit these unless you know what you are doing.
+ignore_list = [] # List of carriers to ignore. This is a list of carrier IDs (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
+
 [compatibility] # DO NOT EDIT THIS SECTION
 settings_version = 1 # Version of the settings file. Do not edit this line.
