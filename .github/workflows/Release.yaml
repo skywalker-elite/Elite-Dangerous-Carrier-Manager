@@ -106,9 +106,10 @@ jobs:
     steps:
       - name: Create Executable
         id: create_executable
-        uses: skywalkerctu/pyinstaller-action@v1.2.1
+        uses: skywalkerctu/pyinstaller-action@v1.3.0
         with:
           python_ver: '3.12.7'
+          cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM'
