@@ -26,6 +26,7 @@ class JournalReader:
         self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         self.items = []
         self.dropout = dropout
         if self.dropout:
@@ -95,7 +96,6 @@ class JournalReader:
 
 
     def _parse_items(self, items:list) -> tuple[str, bool]:
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         fid = None
         fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
         if len(fid_temp) > 0:
@@ -131,6 +131,7 @@ class JournalReader:
                 for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
     
     def get_items(self) -> list:
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         if self.dropout:
             items = self.items.copy()
             for i in self.droplist:
@@ -142,6 +143,7 @@ class JournalReader:
         items = []
         for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         return items + [self._carrier_owners]
 
 class CarrierModel:
@@ -156,6 +158,7 @@ class CarrierModel:
         self.active_timer = False
         self.manual_timers = []
         self.journal_path = journal_path
+        # self.read_counter = 0
         self._ignore_list = []
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
@@ -175,7 +178,8 @@ class CarrierModel:
         self.journal_reader.read_journals()
         first_read = self.carriers == {}
         load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
-
+        # print(self.read_counter, first_read, len(load_games), len(carrier_locations), len(jump_requests), len(jump_cancels), len(stats), len(trade_orders), len(carrier_buys), len(trit_deposits), len(docking_perms))
+        # self.read_counter += 1
         self.process_load_games(load_games, first_read)
         
         self.process_stats(stats, first_read)
@@ -197,16 +201,21 @@ class CarrierModel:
         self.update_ignore_list()
 
     def process_load_games(self, load_games, first_read:bool=True):
-            for load_game in load_games:
-                if not first_read or load_game['FID'] not in self.cmdr_balances.keys():
-                    self.cmdr_balances[load_game['FID']] = load_game['Credits']
-                if not first_read or load_game['FID'] not in self.cmdr_names.keys():
-                    self.cmdr_names[load_game['FID']] = load_game['Commander']
+        for load_game in load_games:
+            if not first_read or load_game['FID'] not in self.cmdr_balances.keys():
+                self.cmdr_balances[load_game['FID']] = load_game['Credits']
+            if not first_read or load_game['FID'] not in self.cmdr_names.keys():
+                self.cmdr_names[load_game['FID']] = load_game['Commander']
 
     def process_stats(self, stats, first_read:bool=True):
         for stat in stats:
             if not first_read or stat['CarrierID'] not in self.carriers.keys():
-                self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None}
+                if first_read:
+                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None}
+                else:
+                    self.carriers[stat['CarrierID']]['Callsign'] = stat['Callsign']
+                    self.carriers[stat['CarrierID']]['Name'] = stat['Name']
+                    self.carriers[stat['CarrierID']]['CMDRName'] = self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None
                 self.carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
                                                           'CmdrBalance': self.cmdr_balances[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_balances.keys() else None,
                                                           }
@@ -222,10 +231,12 @@ class CarrierModel:
 
     def process_carrier_buys(self, carrier_buys, first_read:bool=True):
         for carrier_buy in carrier_buys:
-            if not first_read or carrier_buy['CarrierID'] not in self.carriers.keys():
+            if carrier_buy['CarrierID'] not in self.carriers.keys():
                 self.carriers[carrier_buy['CarrierID']] = {'Callsign': carrier_buy['Callsign'], 'Name': 'Unknown', 'CMDRName': self.cmdr_names[self.carrier_owners[carrier_buy['CarrierID']]] if carrier_buy['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[carrier_buy['CarrierID']] in self.cmdr_names.keys() else None}
-            self.carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
-            self.carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)    
+            if 'SpawnLocation' not in self.carriers[carrier_buy['CarrierID']].keys():
+                self.carriers[carrier_buy['CarrierID']]['SpawnLocation'] = carrier_buy['Location']
+            if 'TimeBought' not in self.carriers[carrier_buy['CarrierID']].keys():
+                self.carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)    
     
     def process_trit_deposits(self, trit_deposits, first_read:bool=True):
         for trit_deposit in trit_deposits:
@@ -255,6 +266,10 @@ class CarrierModel:
             last_cancel = fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled'].iloc[0] if len(fc_jumps[fc_jumps['event'] == 'CarrierJumpCancelled']) > 0 else None
             if first_read or last_cancel is not None:
                 self.carriers[carrierID]['last_cancel'] = last_cancel
+            if len(fc_jumps) == 0:
+                if first_read:
+                    self.carriers[carrierID]['jumps'] = pd.DataFrame(columns=['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']).copy()
+                continue
             cancelled = []
             flag = False
             for item in range(len(fc_jumps)):
@@ -442,14 +457,13 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
-                  
         old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
         new_status = {carrierID: carriers[carrierID]['status'] for carrierID in carriers.keys()}
         self.carriers_updated = carriers.copy()
 
         for carrierID in old_status.keys() & new_status.keys():
             if new_status[carrierID] != old_status[carrierID] and carrierID not in self._ignore_list:
-                # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
+                print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 
     def register_status_change_callback(self, callback:Callable[[str, str, str], None]):
