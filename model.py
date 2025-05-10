@@ -3,6 +3,7 @@ from os import listdir, path
 import re
 import json
 import threading
+from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
@@ -386,7 +387,7 @@ class CarrierModel:
     def update_carriers(self, now):
         carriers = self.carriers.copy()
         for carrierID in carriers.keys():
-            data = carriers[carrierID]
+            data = carriers[carrierID].copy()
             if len(data['jumps']) == 0:
                 data['latest_depart'] = None
                 latest_body = None
@@ -457,13 +458,15 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+            carriers[carrierID] = data
+                  
         old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
         new_status = {carrierID: carriers[carrierID]['status'] for carrierID in carriers.keys()}
         self.carriers_updated = carriers.copy()
 
         for carrierID in old_status.keys() & new_status.keys():
             if new_status[carrierID] != old_status[carrierID] and carrierID not in self._ignore_list:
-                print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
+                # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 
     def register_status_change_callback(self, callback:Callable[[str, str, str], None]):
