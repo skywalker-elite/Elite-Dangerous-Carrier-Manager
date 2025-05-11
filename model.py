@@ -301,7 +301,7 @@ class CarrierModel:
 
     def process_trade_orders(self, trade_orders, first_read:bool=True):
         if len(trade_orders) != 0:
-            df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
+            df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
             for carrierID in self.carriers.keys():
                 if 'active_trades' not in self.carriers[carrierID].keys():
                     fc_active_trades = {}
