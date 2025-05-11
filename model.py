@@ -303,13 +303,13 @@ class CarrierModel:
         if len(trade_orders) != 0:
             df_trade_orders = pd.DataFrame(trade_orders, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
             for carrierID in self.carriers.keys():
-                fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID].copy()
+                if 'active_trades' not in self.carriers[carrierID].keys():
+                    fc_active_trades = {}
+                else:
+                    df_active_trades = self.carriers[carrierID]['active_trades']
+                    fc_active_trades = {df_active_trades.iloc[i]['Commodity']: df_active_trades.iloc[i].to_dict() for i in range(len(df_active_trades))}
+                fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID]
                 if len(fc_trade_orders) > 0:
-                    if first_read:
-                        fc_active_trades = {}
-                    else:
-                        df_active_trades = self.carriers[carrierID]['active_trades'].copy()
-                        fc_active_trades = {df_active_trades.iloc[i]['Commodity']: df_active_trades.iloc[i].to_dict() for i in range(len(df_active_trades))}
                     for i in range(len(fc_trade_orders)):
                         order = fc_trade_orders.iloc[i]
                         commodity = order['Commodity']
@@ -317,10 +317,8 @@ class CarrierModel:
                             fc_active_trades.pop(commodity, None)
                         else:
                             fc_active_trades[commodity] = order
-                else:
-                    if first_read:
-                        fc_active_trades = {}
-                self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True)
+                self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
+                
 
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
