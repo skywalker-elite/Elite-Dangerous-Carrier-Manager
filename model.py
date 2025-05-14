@@ -296,7 +296,10 @@ class CarrierModel:
                 if len(old_jumps) > 0:
                     if flag:
                         old_jumps.drop(0, axis=0, inplace=True)
-                    fc_jumps = pd.concat([fc_jumps, old_jumps])
+                    if len(fc_jumps) > 0:
+                        fc_jumps = pd.concat([fc_jumps, old_jumps])
+                    else:
+                        fc_jumps = old_jumps
             self.carriers[carrierID]['jumps'] = fc_jumps.copy()
 
     def process_trade_orders(self, trade_orders, first_read:bool=True):
