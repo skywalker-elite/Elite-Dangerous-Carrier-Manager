@@ -72,16 +72,16 @@ class CarrierController:
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         open_new_tab(url=settings_file)
                         self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
-                    self.load_settings(settings_file)
+                    self.settings = Settings(settings_file=settings_file)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
-                    self.load_settings(getSettingsDefaultPath())
+                    self.settings = Settings(settings_file=getSettingsDefaultPath())
         except tomllib.TOMLDecodeError:
             if settings_file == getSettingsDefaultPath():
                 raise e
             else:
                 self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
-                self.load_settings(getSettingsDefaultPath())
+                self.settings = Settings(settings_file=getSettingsDefaultPath())
         finally:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
             self.model.reset_ignore_list()
