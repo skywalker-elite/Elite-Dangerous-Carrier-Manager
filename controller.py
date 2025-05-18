@@ -5,11 +5,12 @@ import re
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone
-from os import makedirs
+from os import makedirs, path
 from shutil import copyfile
 import traceback
 import tomllib
 from string import Template
+from playsound3 import playsound
 from settings import Settings
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
@@ -37,7 +38,6 @@ class CarrierController:
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
-
 
         # Start the carrier update loop
         self.update_journals()
@@ -72,16 +72,16 @@ class CarrierController:
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         open_new_tab(url=settings_file)
                         self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
-                    self.load_settings(settings_file)
+                    self.settings = Settings(settings_file=settings_file)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
-                    self.load_settings(getSettingsDefaultPath())
-        except tomllib.TOMLDecodeError:
+                    self.settings = Settings(settings_file=getSettingsDefaultPath())
+        except tomllib.TOMLDecodeError as e:
             if settings_file == getSettingsDefaultPath():
                 raise e
             else:
                 self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
-                self.load_settings(getSettingsDefaultPath())
+                self.settings = Settings(settings_file=getSettingsDefaultPath())
         finally:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
             self.model.reset_ignore_list()
@@ -94,6 +94,8 @@ class CarrierController:
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications')['jump_plotted']:
                 self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
+            if self.settings.get('notifications')['jump_plotted_sound']:
+                self.play_sound(self.settings.get('notifications')['jump_plotted_sound_file'])
             if self.settings.get('notifications')['jump_plotted_discord']:
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump plotted to **{self.model.get_destination_system(carrierID)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
@@ -103,6 +105,8 @@ class CarrierController:
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
             if self.settings.get('notifications')['jump_completed']:
                 self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
+            if self.settings.get('notifications')['jump_completed_sound']:
+                self.play_sound(self.settings.get('notifications')['jump_completed_sound_file'])
             if self.settings.get('notifications')['jump_completed_discord']:
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump completed at **{self.model.get_current_system(carrierID)}** body **{self.model.get_current_body(carrierID)}**'
@@ -112,6 +116,8 @@ class CarrierController:
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
             if self.settings.get('notifications')['jump_cancelled']:
                 self.view.show_message_box_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
+            if self.settings.get('notifications')['jump_cancelled_sound']:
+                self.play_sound(self.settings.get('notifications')['jump_cancelled_sound_file'])
             if self.settings.get('notifications')['jump_cancelled_discord']:
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump cancelled'
@@ -121,11 +127,19 @@ class CarrierController:
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
             if self.settings.get('notifications')['cooldown_finished']:
                 self.view.show_message_box_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
+            if self.settings.get('notifications')['cooldown_finished_sound']:
+                self.play_sound(self.settings.get('notifications')['cooldown_finished_sound_file'])
             if self.settings.get('notifications')['cooldown_finished_discord']:
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Cool down complete, ready to jump'
                 self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['cooldown_finished_discord_ping'])
     
+    def play_sound(self, sound_file:str, block:bool=False):
+        if path.exists(sound_file):
+            self.sound = playsound(sound_file, block=block)
+        else:
+            self.view.show_message_box_warning('Error', f'Sound file {sound_file} not found')
+
     def button_click_reload_settings(self):
         try:
             self.load_settings(getSettingsPath())

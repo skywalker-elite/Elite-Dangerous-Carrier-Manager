@@ -29,16 +29,25 @@ wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_bod
 
 [notifications]
 # These are the settings for the notifications. You can set them to true or false to enable or disable them.
+# An AI TTS voice will be used if no sound file is provided.
 jump_plotted = false # Popup notification when a jump is plotted
+jump_plotted_sound = false # Sound notification when a jump is plotted
+jump_plotted_sound_file = '' # Path to the sound file for the jump plotted notification (.wav or .mp3) NOTE: make sure to use single quotes (')
 jump_plotted_discord = false # Discord notification when a jump is plotted
 jump_plotted_discord_ping = false # Whether to ping when with the jump plotted discord notification
 jump_completed = false # Popup notification when a jump is completed
+jump_completed_sound = false # Sound notification when a jump is completed
+jump_completed_sound_file = '' # Path to the sound file for the jump completed notification (.wav or .mp3) NOTE: make sure to use single quotes (')
 jump_completed_discord = false # Discord notification when a jump is completed
 jump_completed_discord_ping = false # Whether to ping when with the jump completed discord notification
 jump_cancelled = false # Popup notification when a jump is cancelled
+jump_cancelled_sound = false # Sound notification when a jump is cancelled
+jump_cancelled_sound_file = '' # Path to the sound file for the jump cancelled notification (.wav or .mp3) NOTE: make sure to use single quotes (')
 jump_cancelled_discord = false # Discord notification when a jump is cancelled
 jump_cancelled_discord_ping = false # Whether to ping when with the jump cancelled discord notification
 cooldown_finished = false # Popup notification when a cooldown is finished
+cooldown_finished_sound = false # Sound notification when a cooldown is finished
+cooldown_finished_sound_file = '' # Path to the sound file for the cooldown finished notification (.wav or .mp3) NOTE: make sure to use single quotes (')
 cooldown_finished_discord = false # Discord notification when a cooldown is finished
 cooldown_finished_discord_ping = false # Whether to ping when with the cooldown finished discord notification
 
@@ -48,7 +57,7 @@ userID = "" # Discord user ID (optional, used for pings), find this by sending /
 
 [advanced]
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
-ignore_list = [] # List of carriers to ignore. This is a list of carrier IDs (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
+ignore_list = [] # List of carriers to ignore. This is a list of carrier callsigns (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
 
 [compatibility] # DO NOT EDIT THIS SECTION
 settings_version = 1 # Version of the settings file. Do not edit this line.
