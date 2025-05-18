@@ -80,13 +80,13 @@ class CarrierController:
             if settings_file == getSettingsDefaultPath():
                 raise e
             else:
-                self.view.show_message_box_warning('Settings file corrupted', 'Using default settings')
+                self.view.show_message_box_warning('Settings file corrupted', f'Using default settings\n{e}')
                 self.settings = Settings(settings_file=getSettingsDefaultPath())
         finally:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
             self.model.reset_ignore_list()
-            self.model.add_ignore_list(self.settings.get('advanced')['ignore_list'])
-    
+            self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
         if status_new == 'jumping':
@@ -94,46 +94,46 @@ class CarrierController:
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications')['jump_plotted']:
                 self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
-            if self.settings.get('notifications')['jump_plotted_sound']:
-                self.play_sound(self.settings.get('notifications')['jump_plotted_sound_file'])
-            if self.settings.get('notifications')['jump_plotted_discord']:
+            if self.settings.get('notifications', 'jump_plotted_sound'):
+                self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))
+            if self.settings.get('notifications', 'jump_plotted_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump plotted to **{self.model.get_destination_system(carrierID)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
-                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_plotted_discord_ping'])
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications', 'jump_plotted_discord_ping'))
         elif status_new == 'cool_down':
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
-            if self.settings.get('notifications')['jump_completed']:
+            if self.settings.get('notifications', 'jump_completed'):
                 self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
-            if self.settings.get('notifications')['jump_completed_sound']:
-                self.play_sound(self.settings.get('notifications')['jump_completed_sound_file'])
-            if self.settings.get('notifications')['jump_completed_discord']:
+            if self.settings.get('notifications', 'jump_completed_sound'):
+                self.play_sound(self.settings.get('notifications', 'jump_completed_sound_file'))
+            if self.settings.get('notifications', 'jump_completed_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump completed at **{self.model.get_current_system(carrierID)}** body **{self.model.get_current_body(carrierID)}**'
-                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_completed_discord_ping'])
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications', 'jump_completed_discord_ping'))
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
-            if self.settings.get('notifications')['jump_cancelled']:
+            if self.settings.get('notifications', 'jump_cancelled'):
                 self.view.show_message_box_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
-            if self.settings.get('notifications')['jump_cancelled_sound']:
-                self.play_sound(self.settings.get('notifications')['jump_cancelled_sound_file'])
-            if self.settings.get('notifications')['jump_cancelled_discord']:
+            if self.settings.get('notifications', 'jump_cancelled_sound'):
+                self.play_sound(self.settings.get('notifications', 'jump_cancelled_sound_file'))
+            if self.settings.get('notifications', 'jump_cancelled_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump cancelled'
-                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['jump_cancelled_discord_ping'])
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications', 'jump_cancelled_discord_ping'))
         elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
-            if self.settings.get('notifications')['cooldown_finished']:
+            if self.settings.get('notifications', 'cooldown_finished'):
                 self.view.show_message_box_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
-            if self.settings.get('notifications')['cooldown_finished_sound']:
-                self.play_sound(self.settings.get('notifications')['cooldown_finished_sound_file'])
-            if self.settings.get('notifications')['cooldown_finished_discord']:
+            if self.settings.get('notifications', 'cooldown_finished_sound'):
+                self.play_sound(self.settings.get('notifications', 'cooldown_finished_sound_file'))
+            if self.settings.get('notifications', 'cooldown_finished_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Cool down complete, ready to jump'
-                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications')['cooldown_finished_discord_ping'])
-    
+                self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications', 'cooldown_finished_discord_ping'))
+
     def play_sound(self, sound_file:str, block:bool=False):
         if path.exists(sound_file):
             self.sound = playsound(sound_file, block=block)
@@ -265,7 +265,7 @@ class CarrierController:
     def button_click_post(self, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
         # s = '/cco {trade_type} carrier:{carrier_name} commodity:{commodity} system:{system} station:{station} profit:{profit} pads:{pad_size} {demand_supply}: {amount}'
-        s = Template(self.settings.get('post_format')['trade_post_string'])
+        s = Template(self.settings.get('post_format', 'trade_post_string'))
         station = self.trade_post_view.cbox_stations.get()
         profit = self.trade_post_view.cbox_profit.get()
         pad_size = self.trade_post_view.cbox_pad_size.get()
@@ -314,7 +314,7 @@ class CarrierController:
             self.trade_post_view.popup.destroy()
     
     def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:int|float, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
-        s = Template(self.settings.get('post_format')['trade_post_string'])
+        s = Template(self.settings.get('post_format', 'trade_post_string'))
         post_string = s.safe_substitute(
             trade_type=trade_type,
             trading_type=trading_type,
@@ -332,7 +332,7 @@ class CarrierController:
         return post_string
 
     def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str) -> str:
-        s = Template(self.settings.get('post_format')['wine_unload_string'])
+        s = Template(self.settings.get('post_format', 'wine_unload_string'))
         post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
         return post_string
     

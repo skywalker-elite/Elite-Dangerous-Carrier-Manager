@@ -10,9 +10,13 @@ class Settings:
     def set(self, key, value):
         self._settings[key] = value
 
-    def get(self, key):
-        return self._settings.get(key, None)
-    
+    def get(self, *keys):
+        assert 0 < len(keys) <= 2, f'Invalid number of keys: {len(keys)}'
+        result = self._settings
+        for key in keys:
+            result = result.get(key, None)
+        return result
+
     def load(self, settings_file=None):
         self._settings = {}
         if settings_file is None:
@@ -34,6 +38,5 @@ class Settings:
 if __name__ == '__main__':
     settings = Settings()
     print(settings._settings)
-    print(settings.get('post_format')['trade_post_string'])
-    print(settings.get('post_format')['wine_unload_string'])
-    
+    print(settings.get('post_format', 'trade_post_string'))
+    print(settings.get('post_format', 'wine_unload_string'))
