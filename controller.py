@@ -76,7 +76,7 @@ class CarrierController:
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
                     self.settings = Settings(settings_file=getSettingsDefaultPath())
-        except tomllib.TOMLDecodeError:
+        except tomllib.TOMLDecodeError as e:
             if settings_file == getSettingsDefaultPath():
                 raise e
             else:
