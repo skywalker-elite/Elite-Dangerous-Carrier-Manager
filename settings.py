@@ -23,7 +23,7 @@ class Settings:
     def fill_default_sound_files(self):
         default_sound_files = {
             'jump_plotted_sound_file': getResourcePath(join('sounds', 'carrier-jump-plotted.mp3')),
-            'jump_completed_sound_file': getResourcePath(join('sounds', 'carrier-jump-complete.mp3')),
+            'jump_completed_sound_file': getResourcePath(join('sounds', 'carrier-jump-completed.mp3')),
             'jump_cancelled_sound_file': getResourcePath(join('sounds', 'carrier-jump-cancelled.mp3')),
             'cooldown_finished_sound_file': getResourcePath(join('sounds', 'carrier-cooldown-finished.mp3')),
         }
