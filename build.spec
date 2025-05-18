@@ -4,7 +4,7 @@ import sys ; sys.setrecursionlimit(sys.getrecursionlimit() * 5)
 a = Analysis(
     ['main.py'],
     pathex=[],
-    datas=[('images', 'images'), ('3rdParty', '3rdParty'), ('VERSION', '.'), ('settings_default.toml', '.')],
+    datas=[('images', 'images'), ('sounds', 'sounds'), ('3rdParty', '3rdParty'), ('VERSION', '.'), ('settings_default.toml', '.')],
     hiddenimports=['sv_ttk'],
     hookspath=[],
     hooksconfig={},
