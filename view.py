@@ -62,7 +62,7 @@ class CarrierView:
         ])
 
         # Enable column resizing to match window resizing
-        self.sheet_jumps.enable_bindings('all')
+        self.sheet_jumps.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_jumps.column_width_resize_enabled = False
         self.sheet_jumps.row_height_resize_enabled = False
         
@@ -98,7 +98,7 @@ class CarrierView:
         self.sheet_trade['E'].align('right')
         
         # Enable column resizing to match window resizing
-        self.sheet_trade.enable_bindings('all')
+        self.sheet_trade.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_trade.column_width_resize_enabled = False
         self.sheet_trade.row_height_resize_enabled = False
 
@@ -123,7 +123,7 @@ class CarrierView:
         self.sheet_finance['C:K'].align('right')
 
         # Enable column resizing to match window resizing
-        self.sheet_finance.enable_bindings('all')
+        self.sheet_finance.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_finance.column_width_resize_enabled = False
         self.sheet_finance.row_height_resize_enabled = False
 
@@ -139,7 +139,7 @@ class CarrierView:
         self.sheet_services['B:L'].align('right')
 
         # Enable column resizing to match window resizing
-        self.sheet_services.enable_bindings('all')
+        self.sheet_services.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_services.column_width_resize_enabled = False
         self.sheet_services.row_height_resize_enabled = False
 
@@ -155,7 +155,7 @@ class CarrierView:
         self.sheet_misc['B:J'].align('right')
 
         # Enable column resizing to match window resizing
-        self.sheet_misc.enable_bindings('all')
+        self.sheet_misc.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_misc.column_width_resize_enabled = False
         self.sheet_misc.row_height_resize_enabled = False
 
