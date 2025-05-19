@@ -266,7 +266,7 @@ class TradePostView:
         self.label_in.grid(row=0, column=8, padx=2)
         self.label_system = ttk.Label(self.popup, text=system)
         self.label_system.grid(row=0, column=9, padx=2)
-        self.cbox_profit = ttk.Combobox(self.popup, values=[i for i in range(10, 21)], width=5)
+        self.cbox_profit = ttk.Combobox(self.popup, values=[f'{i}' for i in range(10, 21)], width=5)
         self.cbox_profit.current(0)
         self.cbox_profit.grid(row=0, column=10, padx=2)
         self.label_k_per_ton = ttk.Label(self.popup, text='k/unit profit')

@@ -41,5 +41,5 @@ if __name__ == "__main__":
     from datetime import datetime, timezone, timedelta
     settings = Settings(getSettingsPath())
     settings.load()
-    webhook_handler = DiscordWebhookHandler(settings.get('discord')['webhook'], settings.get('discord')['userID'])
+    webhook_handler = DiscordWebhookHandler(settings.get('discord', 'webhook'), settings.get('discord', 'userID'))
     webhook_handler.send_message_with_embed("P.T.N. Carrier (PTN-123)", f"Jump plotted to **Sol** body **Earth**, arriving <t:{(datetime.now(timezone.utc) + timedelta(minutes=15)).timestamp():.0f}:R>", ping=True)

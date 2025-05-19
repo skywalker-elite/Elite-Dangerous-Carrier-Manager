@@ -11,7 +11,7 @@ import traceback
 import tomllib
 from string import Template
 from playsound3 import playsound
-from settings import Settings
+from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
@@ -82,8 +82,16 @@ class CarrierController:
             else:
                 self.view.show_message_box_warning('Settings file corrupted', f'Using default settings\n{e}')
                 self.settings = Settings(settings_file=getSettingsDefaultPath())
+        except SettingsValidationError as e:
+            if settings_file == getSettingsDefaultPath():
+                raise e
+            else:
+                self.view.show_message_box_warning('Settings file validation failed', f'{e}\nUsing default settings')
+                self.settings = Settings(settings_file=getSettingsDefaultPath())
         finally:
-            self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord')['webhook'], self.settings.get('discord')['userID'])
+            if self.settings.validation_warnings:
+                self.view.show_message_box_warning('Settings file warnings', f'{"\n".join(self.settings.validation_warnings)}')
+            self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
             self.model.reset_ignore_list()
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
 
@@ -92,7 +100,7 @@ class CarrierController:
         if status_new == 'jumping':
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
-            if self.settings.get('notifications')['jump_plotted']:
+            if self.settings.get('notifications', 'jump_plotted'):
                 self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications', 'jump_plotted_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))
@@ -313,7 +321,7 @@ class CarrierController:
         else:
             self.trade_post_view.popup.destroy()
     
-    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:int|float, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
+    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
         s = Template(self.settings.get('post_format', 'trade_post_string'))
         post_string = s.safe_substitute(
             trade_type=trade_type,

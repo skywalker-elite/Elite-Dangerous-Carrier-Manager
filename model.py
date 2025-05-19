@@ -96,7 +96,7 @@ class JournalReader:
             self.journal_processed.append(journal)
 
 
-    def _parse_items(self, items:list) -> tuple[str, bool]:
+    def _parse_items(self, items:list) -> tuple[str|None, bool]:
         fid = None
         fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
         if len(fid_temp) > 0:
