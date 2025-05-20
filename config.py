@@ -16,6 +16,8 @@ REMIND_INTERVAL = 1000
 
 AVG_JUMP_CAL_WINDOW = 8
 
+ASSUME_DECCOM_AFTER = timedelta(weeks=2)
+
 ladder_systems = {
     'Gali': 'N16',
     'Wregoe TO-C b56-0': 'N15B',
@@ -36,3 +38,23 @@ ladder_systems = {
     'HD 105341': 'N1',
     'HIP 58832': 'N0'
  }
+
+test_trade_data = {
+    'trade_type': 'load',
+    'trading_type': 'loading',
+    'carrier_name': 'P.T.N. Carrier Name',
+    'carrier_callsign': 'PTN-123',
+    'commodity': 'Gold',
+    'system': 'Sol',
+    'station': 'Abraham Lincoln',
+    'profit': 15,
+    'pad_size': 'Large',
+    'pad_size_short': 'L',
+    'demand_supply': 'demand',
+    'amount': 22,
+}
+
+test_wine_unload_data = {
+    'carrier_callsign': 'PTN-123',
+    'planetary_body': 'Star',
+}

@@ -1,0 +1,63 @@
+[post_format]
+# The format of the trade post. 
+# The CCO and ACO post formats for the PTN discord server are included, simply uncomment the one you want to use and comment the other one. 
+
+# CCO post format
+trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${commodity} system:${system} station:${station} profit:${profit} pads:${pad_size} ${demand_supply}: ${amount}"
+# ACO post format
+# trade_post_string = "**${carrier_name} (${carrier_callsign})** is loading **${commodity}** from **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units."
+
+# If you want to customize your post format, you can use any of the variables listed below:
+# ${carrier_name}     - The name of the carrier (example: P.T.N. Carrier Name)
+# ${carrier_callsign} - The callsign of the carrier (example: PTN-123)
+# ${system}           - The system where the carrier is located (example: Sol)
+# ${station}          - The station you are trading with (example: Abraham Lincoln)
+# ${pad_size}         - The pad size of the station (example: Large)
+# ${pad_size_short}   - The one letter representation of the pad size (example: L)
+# ${commodity}        - The commodity being traded (example: Gold)
+# ${amount}           - The amount of the commodity (in k tons) being traded (example: 22)
+# ${profit}           - The profit per unit (in k credits) (example: 10)
+# ${demand_supply}    - This would be "demand" for loading and "supply" for unloading (example: demand)
+# ${trade_type}       - The type of trade (load/unload) (example: load)
+# ${trading_type}     - The type of trade in v-ing (loading/unloading) (example: loading)
+
+# The format of the wine unload post. This is used in the PTN discord server if you sign up as a wine carrier owner (WCO). 
+# ${carrier_callsign} - The callsign of the carrier (example: PTN-123)
+# ${planetary_body}   - The planetary body at the peak where the carrier is located (example: P1)
+# Wine unload post format, you should not need to edit this unless the Steve command changes.
+wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${planetary_body}"
+
+[notifications]
+# These are the settings for the notifications. You can set them to true or false to enable or disable them.
+# An AI TTS voice will be used if no sound file is provided.
+jump_plotted = false # Popup notification when a jump is plotted
+jump_plotted_sound = false # Sound notification when a jump is plotted
+jump_plotted_sound_file = '' # Path to the sound file for the jump plotted notification (.wav or .mp3) NOTE: make sure to use single quotes (')
+jump_plotted_discord = false # Discord notification when a jump is plotted
+jump_plotted_discord_ping = false # Whether to ping when with the jump plotted discord notification
+jump_completed = false # Popup notification when a jump is completed
+jump_completed_sound = false # Sound notification when a jump is completed
+jump_completed_sound_file = '' # Path to the sound file for the jump completed notification (.wav or .mp3) NOTE: make sure to use single quotes (')
+jump_completed_discord = false # Discord notification when a jump is completed
+jump_completed_discord_ping = false # Whether to ping when with the jump completed discord notification
+jump_cancelled = false # Popup notification when a jump is cancelled
+jump_cancelled_sound = false # Sound notification when a jump is cancelled
+jump_cancelled_sound_file = '' # Path to the sound file for the jump cancelled notification (.wav or .mp3) NOTE: make sure to use single quotes (')
+jump_cancelled_discord = false # Discord notification when a jump is cancelled
+jump_cancelled_discord_ping = false # Whether to ping when with the jump cancelled discord notification
+cooldown_finished = false # Popup notification when a cooldown is finished
+cooldown_finished_sound = false # Sound notification when a cooldown is finished
+cooldown_finished_sound_file = '' # Path to the sound file for the cooldown finished notification (.wav or .mp3) NOTE: make sure to use single quotes (')
+cooldown_finished_discord = false # Discord notification when a cooldown is finished
+cooldown_finished_discord_ping = false # Whether to ping when with the cooldown finished discord notification
+
+[discord]
+webhook = "" # Discord webhook URL
+userID = "" # Discord user ID (optional, used for pings), find this by sending /@[your username] in discord, copy the number after the @ and paste it here.
+
+[advanced]
+# These are advanced settings. You should not need to edit these unless you know what you are doing.
+ignore_list = [] # List of carriers to ignore. This is a list of carrier callsigns (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
+
+[compatibility] # DO NOT EDIT THIS SECTION
+settings_version = 1 # Version of the settings file. Do not edit this line.

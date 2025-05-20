@@ -1,5 +1,6 @@
 name: To Exe
-
+permissions:
+  contents: read
 on:
   push:
     branches: 
@@ -14,9 +15,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Create Executable
-        uses: skywalkerctu/pyinstaller-action@v1.2.1
+        uses: skywalkerctu/pyinstaller-action@v1.3.0
         with:
           python_ver: '3.12.7'
+          cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM'
@@ -25,9 +27,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Create Executable
-        uses: skywalkerctu/pyinstaller-action@v1.2.1
+        uses: skywalkerctu/pyinstaller-action@v1.3.0
         with:
           python_ver: '3.12.7'
+          cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM-linux'

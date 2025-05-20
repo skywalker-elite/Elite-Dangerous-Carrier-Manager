@@ -70,3 +70,23 @@ def getLatestVersion() -> str|None:
 def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
         return f.readline()
+    
+def getSettingsDir() -> str:
+    if sys.platform == 'win32':
+        user_path = os.environ.get('USERPROFILE')
+        return os.path.join(user_path, 'AppData', 'Roaming', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    elif sys.platform == 'linux':
+        user_path = os.path.expanduser('~')
+        return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    else:
+        return None
+
+def getSettingsPath() -> str:
+    settings_dir = getSettingsDir()
+    if settings_dir is None:
+        return None
+    else:
+        return os.path.join(settings_dir, 'settings.toml')
+
+def getSettingsDefaultPath() -> str:
+    return getResourcePath('settings_default.toml')

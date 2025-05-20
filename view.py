@@ -27,12 +27,14 @@ class CarrierView:
         self.tab_trade = ttk.Frame(self.tab_controler)
         self.tab_services = ttk.Frame(self.tab_controler)
         self.tab_misc = ttk.Frame(self.tab_controler)
+        self.tab_options = ttk.Frame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
         self.tab_controler.add(self.tab_trade, text='Trade')
         self.tab_controler.add(self.tab_finance, text='Finance')
         self.tab_controler.add(self.tab_services, text='Services')
         self.tab_controler.add(self.tab_misc, text='Misc')
+        self.tab_controler.add(self.tab_options, text='Options')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
@@ -49,7 +51,7 @@ class CarrierView:
         self.tab_controler.pack(expand=True, fill='both')
 
         # Initialize the tksheet.Sheet widget
-        self.sheet_jumps = Sheet(self.tab_jumps)
+        self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps')
         self.sheet_jumps.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_jumps.change_theme('dark', redraw=False)
 
@@ -60,7 +62,7 @@ class CarrierView:
         ])
 
         # Enable column resizing to match window resizing
-        self.sheet_jumps.enable_bindings('all')
+        self.sheet_jumps.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_jumps.column_width_resize_enabled = False
         self.sheet_jumps.row_height_resize_enabled = False
         
@@ -84,7 +86,7 @@ class CarrierView:
         self.button_post_departure.pack(side='left')
 
         # Trade tab
-        self.sheet_trade = Sheet(self.tab_trade)
+        self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade')
         self.sheet_trade.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_trade.change_theme('dark', redraw=False)
 
@@ -96,7 +98,7 @@ class CarrierView:
         self.sheet_trade['E'].align('right')
         
         # Enable column resizing to match window resizing
-        self.sheet_trade.enable_bindings('all')
+        self.sheet_trade.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_trade.column_width_resize_enabled = False
         self.sheet_trade.row_height_resize_enabled = False
 
@@ -110,7 +112,7 @@ class CarrierView:
         self.button_post_trade_trade.pack(side='left')
 
         # finance tab
-        self.sheet_finance = Sheet(self.tab_finance)
+        self.sheet_finance = Sheet(self.tab_finance, name='sheet_finance')
         self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_finance.change_theme('dark', redraw=False)
 
@@ -121,12 +123,12 @@ class CarrierView:
         self.sheet_finance['C:K'].align('right')
 
         # Enable column resizing to match window resizing
-        self.sheet_finance.enable_bindings('all')
+        self.sheet_finance.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_finance.column_width_resize_enabled = False
         self.sheet_finance.row_height_resize_enabled = False
 
         # services tab
-        self.sheet_services = Sheet(self.tab_services)
+        self.sheet_services = Sheet(self.tab_services, name='sheet_services')
         self.sheet_services.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_services.change_theme('dark', redraw=False)
 
@@ -137,12 +139,12 @@ class CarrierView:
         self.sheet_services['B:L'].align('right')
 
         # Enable column resizing to match window resizing
-        self.sheet_services.enable_bindings('all')
+        self.sheet_services.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_services.column_width_resize_enabled = False
         self.sheet_services.row_height_resize_enabled = False
 
         # Misc tab
-        self.sheet_misc = Sheet(self.tab_misc)
+        self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc')
         self.sheet_misc.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.sheet_misc.change_theme('dark', redraw=False)
 
@@ -153,9 +155,35 @@ class CarrierView:
         self.sheet_misc['B:J'].align('right')
 
         # Enable column resizing to match window resizing
-        self.sheet_misc.enable_bindings('all')
+        self.sheet_misc.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_misc.column_width_resize_enabled = False
         self.sheet_misc.row_height_resize_enabled = False
+
+        # Options tab
+        self.labelframe_EDCM = ttk.Labelframe(self.tab_options, text='EDCM')
+        self.labelframe_EDCM.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
+        self.button_check_updates.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+
+        self.labelframe_settings = ttk.Labelframe(self.tab_options, text='Settings')
+        self.labelframe_settings.grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        self.button_reload_settings = ttk.Button(self.labelframe_settings, text='Reload Settings File')
+        self.button_reload_settings.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_open_settings = ttk.Button(self.labelframe_settings, text='Open Settings File')
+        self.button_open_settings.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.button_reset_settings = ttk.Button(self.labelframe_settings, text='Reset Settings to Defaults')
+        self.button_reset_settings.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+
+        self.labelframe_testing = ttk.Labelframe(self.tab_options, text='Testing')
+        self.labelframe_testing.grid(row=2, column=0, padx=10, pady=10, sticky='w')
+        self.button_test_trade_post = ttk.Button(self.labelframe_testing, text='Test Trade Post')
+        self.button_test_trade_post.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_test_wine_unload = ttk.Button(self.labelframe_testing, text='Test Wine Unload')
+        self.button_test_wine_unload.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.button_test_discord = ttk.Button(self.labelframe_testing, text='Test Discord Webhook')
+        self.button_test_discord.grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
+        self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
@@ -187,6 +215,9 @@ class CarrierView:
         messagebox.showinfo(title=title, message=message)
         self.root.attributes('-topmost', False)
 
+    def show_message_box_info_no_topmost(self, title:str, message:str):
+        messagebox.showinfo(title=title, message=message)
+    
     def show_message_box_warning(self, title:str, message:str):
         self.root.attributes('-topmost', True)
         messagebox.showwarning(title=title, message=message)
@@ -235,7 +266,7 @@ class TradePostView:
         self.label_in.grid(row=0, column=8, padx=2)
         self.label_system = ttk.Label(self.popup, text=system)
         self.label_system.grid(row=0, column=9, padx=2)
-        self.cbox_profit = ttk.Combobox(self.popup, values=[i for i in range(10, 21)], width=5)
+        self.cbox_profit = ttk.Combobox(self.popup, values=[f'{i}' for i in range(10, 21)], width=5)
         self.cbox_profit.current(0)
         self.cbox_profit.grid(row=0, column=10, padx=2)
         self.label_k_per_ton = ttk.Label(self.popup, text='k/unit profit')
@@ -265,3 +296,13 @@ class ManualTimerView:
         self.button_post = ttk.Button(self.popup, text='OK')
         self.button_post.pack(side='bottom')
 
+if __name__ == '__main__':
+    import sv_ttk
+    from config import WINDOW_SIZE
+    from main import apply_theme_to_titlebar
+    root = tk.Tk()
+    sv_ttk.set_theme("dark")
+    root.geometry(WINDOW_SIZE)
+    apply_theme_to_titlebar(root)
+    view = CarrierView(root)
+    root.mainloop()
