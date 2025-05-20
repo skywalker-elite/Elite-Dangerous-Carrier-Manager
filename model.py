@@ -623,16 +623,18 @@ class CarrierModel:
     
     def get_status(self, carrierID) -> str:
         return self.get_carriers()[carrierID]['status']
-    
-    def get_current_system(self, carrierID) -> str:
-        return self.get_carriers()[carrierID]['current_system']
-    
-    def get_destination_system(self, carrier_ID) -> str|None:
-        return self.get_carriers()[carrier_ID]['destination_system']
-    
-    def get_current_or_destination_system(self, carrierID) -> str:
-        return self.get_destination_system(carrier_ID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_system(carrierID=carrierID)
-    
+
+    def get_current_system(self, carrierID, use_custom_name:bool=False) -> str:
+        system_name = self.get_carriers()[carrierID]['current_system']
+        return get_custom_system_name(system_name) if use_custom_name else system_name
+
+    def get_destination_system(self, carrier_ID, use_custom_name:bool=False) -> str|None:
+        system_name = self.get_carriers()[carrier_ID]['destination_system']
+        return get_custom_system_name(system_name) if use_custom_name else system_name
+
+    def get_current_or_destination_system(self, carrierID, use_custom_name:bool=False) -> str:
+        return self.get_destination_system(carrier_ID=carrierID, use_custom_name=use_custom_name) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_system(carrierID=carrierID, use_custom_name=use_custom_name)
+
     def get_current_body(self, carrierID) -> str:
         _, body = getLocation(self.get_carriers()[carrierID]['current_system'], self.get_carriers()[carrierID]['current_body'], self.get_carriers()[carrierID]['current_body_id'])
         return body
@@ -740,9 +742,13 @@ def getLocation(system, body, body_id):
         else: 
             result_system, result_body = system, body
     
-    if result_system in ladder_systems.keys():
-        result_system = f'{ladder_systems[result_system]} ({result_system})'
+    result_system = get_custom_system_name(result_system)
     return result_system, result_body
+
+def get_custom_system_name(system_name):
+    if system_name in ladder_systems.keys():
+        system_name = f'{ladder_systems[system_name]} ({system_name})'
+    return system_name
 
 
 def generateInfo(carrier, now):

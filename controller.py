@@ -101,23 +101,23 @@ class CarrierController:
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications', 'jump_plotted'):
-                self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
+                self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications', 'jump_plotted_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))
             if self.settings.get('notifications', 'jump_plotted_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
-                description = f'Jump plotted to **{self.model.get_destination_system(carrierID)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
+                description = f'Jump plotted to **{self.model.get_destination_system(carrierID, use_custom_name=True)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
                 self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications', 'jump_plotted_discord_ping'))
         elif status_new == 'cool_down':
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
             if self.settings.get('notifications', 'jump_completed'):
-                self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
+                self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
             if self.settings.get('notifications', 'jump_completed_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_completed_sound_file'))
             if self.settings.get('notifications', 'jump_completed_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
-                description = f'Jump completed at **{self.model.get_current_system(carrierID)}** body **{self.model.get_current_body(carrierID)}**'
+                description = f'Jump completed at **{self.model.get_current_system(carrierID, use_custom_name=True)}** body **{self.model.get_current_body(carrierID)}**'
                 self.webhook_handler.send_message_with_embed(title, description, self.settings.get('notifications', 'jump_completed_discord_ping'))
         elif status_new == 'cool_down_cancel':
             # jump cancelled
