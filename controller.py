@@ -197,12 +197,7 @@ class CarrierController:
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             if hammer_countdown is not None:
-                try:
-                    pyperclip.copy(hammer_countdown)
-                except pyperclip.PyperclipException as e:
-                    self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
-                else:
-                    self.view.show_message_box_info('Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) copied!')
+                self.copy_to_clipboard(hammer_countdown, 'Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) copied!')
             else:
                 self.view.show_message_box_warning('Error', f'No jump data found for {carrier_name} ({carrier_callsign})')
         else:
@@ -314,12 +309,7 @@ class CarrierController:
             demand_supply=demand_supply,
             amount=amount
         )
-        try:
-            pyperclip.copy(post_string)
-        except pyperclip.PyperclipException as e:
-            self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
-        else:
-            self.trade_post_view.popup.destroy()
+        self.copy_to_clipboard(post_string, None, None, on_success=lambda: self.trade_post_view.popup.destroy())
     
     def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
         s = Template(self.settings.get('post_format', 'trade_post_string'))
@@ -344,15 +334,21 @@ class CarrierController:
         post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
         return post_string
     
-    def button_click_test_trade_post(self):
-        from config import test_trade_data
-        post_string = self.generate_trade_post_string(**test_trade_data)
+    def copy_to_clipboard(self, text, success_title, success_message, on_success=None):
         try:
-            pyperclip.copy(post_string)
+            pyperclip.copy(text)
         except pyperclip.PyperclipException as e:
             self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
         else:
-            self.view.show_message_box_info('Generated!', f'This is what your trade post looks like:\n{post_string}')
+            if success_title and success_message:
+                self.view.show_message_box_info(success_title, success_message)
+            if on_success:
+                on_success()
+
+    def button_click_test_trade_post(self):
+        from config import test_trade_data
+        post_string = self.generate_trade_post_string(**test_trade_data)
+        self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}')
 
     def button_click_test_wine_unload(self):
         from config import test_wine_unload_data
@@ -362,7 +358,7 @@ class CarrierController:
         except pyperclip.PyperclipException as e:
             self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
         else:
-            self.view.show_message_box_info('Generated!', f'This is what your wine unload post looks like:\n{post_string}')
+            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your wine unload post looks like:\n{post_string}')
 
     def button_click_test_discord_webhook(self):
         try:
@@ -411,12 +407,7 @@ class CarrierController:
                     system_current = ladder_systems[system_current]
                     # /wine_carrier_departure carrier_id:xxx-xxx departure_location:Gali arrival_location:N2 departing_at:<t:1733359620>
                     s = f'/wine_carrier_departure carrier_id:{carrier_callsign} departure_location:{system_current} arrival_location:{system_dest} departing_at:{hammer_countdown}'
-                    try:
-                        pyperclip.copy(s)
-                    except pyperclip.PyperclipException as e:
-                        self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
-                    else:
-                        self.view.show_message_box_info('Success!', f'Departure command for {carrier_name} ({carrier_callsign}) going {system_current} -> {system_dest} copied!')
+                    self.copy_to_clipboard(s, 'Success!', f'Departure command for {carrier_name} ({carrier_callsign}) going {system_current} -> {system_dest} copied!')
                 else:
                     self.view.show_message_box_warning('Warning', 'Only movements to and from N3 and up are supported')
             else:

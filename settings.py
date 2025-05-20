@@ -42,7 +42,7 @@ class Settings:
             'cooldown_finished_sound_file': getResourcePath(join('sounds', 'carrier-cooldown-finished.mp3')),
         }
         for key, value in default_sound_files.items():
-            if  self.get('notifications', key) == '':
+            if self.get('notifications', key) == '':
                 self._settings['notifications'][key] = value
 
     def validate(self):
