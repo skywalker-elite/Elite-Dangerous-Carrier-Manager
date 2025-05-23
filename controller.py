@@ -94,6 +94,7 @@ class CarrierController:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
             self.model.reset_ignore_list()
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+            self.view.set_font_size(self.settings.get('font_size', 'table'))
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
