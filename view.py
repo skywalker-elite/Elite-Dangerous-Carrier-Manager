@@ -3,7 +3,7 @@ from tkinter import ttk
 from tkinter import messagebox
 from tksheet import Sheet
 from typing import Literal
-from config import WINDOW_SIZE_TIMER
+from config import WINDOW_SIZE_TIMER, font_sizes
 
 class CarrierView:
     def __init__(self, root):
@@ -185,12 +185,18 @@ class CarrierView:
         self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
+    def set_font_size(self, font_size:str):
+        font_size = font_sizes[font_size]
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc]:
+            sheet.font(('Calibri', font_size, 'normal'))
+            sheet.header_font(('Calibri', font_size, 'normal'))
+
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        table.set_all_cell_sizes_to_text()
+        table.set_all_column_widths()
     
     def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_jumps, data, rows_pending_decomm)
