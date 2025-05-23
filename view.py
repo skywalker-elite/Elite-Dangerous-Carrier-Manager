@@ -298,12 +298,13 @@ class TradePostView:
     def station_selected(self, event):
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
         stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
-        self.label_price.configure(text=f'station price {price:,}cr')
-        self.label_stock.configure(text=f'{"supply" if self.trade_type == "loading" else "demand"} {stock:,} units')
-        self.label_market_updated.configure(text='Last updated: ' + self.market_updated[self.cbox_stations.current()])
-        profit = self.price - price if self.trade_type == 'loading' else price - self.price
-        profit = int(profit / 1000)
-        self.cbox_profit.set(profit)
+        self.label_price.configure(text=f'Station price {price:,}cr' if price is not None else 'station price unknown')
+        self.label_stock.configure(text=f'{"Supply" if self.trade_type == "loading" else "Demand"}' + (f' {stock:,} units' if stock is not None else ' unknown'))
+        self.label_market_updated.configure(text='Last updated: ' + (self.market_updated[self.cbox_stations.current()] if self.market_updated[self.cbox_stations.current()] is not None else ' unknown'))
+        if price is not None:
+            profit = self.price - price if self.trade_type == 'loading' else price - self.price
+            profit = int(profit / 1000)
+            self.cbox_profit.set(profit)
 
 class ManualTimerView:
     def __init__(self, root):

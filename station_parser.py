@@ -4,7 +4,7 @@ from typing import Literal
 from datetime import datetime, timezone, timedelta
 
 url = 'https://www.edsm.net/api-system-v1/stations'
-def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str], list[str], list[str]]:
+def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str], list[str], list[str|None]]:
     """
     Fetch station data from EDSM API.
     """
@@ -20,7 +20,7 @@ def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str],
     station_pad_sizes = ['M' if t == 'Outpost' else 'L' for t in station_types]
     market_ids = [s['marketId'] for s in stations]
     now = datetime.now().astimezone()
-    market_updated = [humanize.naturaltime(now - datetime.strptime(s['updateTime']['market'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)) for s in stations]
+    market_updated = [humanize.naturaltime(now - datetime.strptime(s['updateTime']['market'], '%Y-%m-%d %H:%M:%S').replace(tzinfo=timezone.utc)) if 'updateTime' in s.keys() and 'market' in s['updateTime'].keys() else None for s in stations]
     # station_dist = [s['name'] for s in stations]
     # station_names = sorted(station_names, key=station_dist)
     return stations if details else station_names, station_pad_sizes, market_ids, market_updated
