@@ -453,13 +453,15 @@ class CarrierController:
         else:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
-    def get_selected_row(self, sheet=None):
+    def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]:
         if sheet is None:
             sheet = self.view.sheet_jumps
-        selected = sheet.selected
-        if selected:
-            if selected.box.from_r == selected.box.upto_r - 1:
-                return selected.box.from_r
+        selected_rows = sheet.get_selected_rows(get_cells=False, get_cells_as_rows=True, return_tuple=True)
+        if selected_rows:
+            if len(selected_rows) == 1:
+                return selected_rows[0]
+            elif allow_multiple:
+                return selected_rows
             else:
                 return None
         else:
