@@ -370,7 +370,7 @@ class CarrierController:
 
     def button_click_test_discord_webhook_ping(self):
         try:
-            self.webhook_handler.send_message('https://tenor.com/view/ping-one-ping-give-me-a-ping-one-ping-only-no-ping-gif-2233845608210360328', ping=True)
+            self.webhook_handler.send_message_with_embed('', '', image_url='https://c.tenor.com/HwA2vshx6AgAAAAd/tenor.gif', ping=True)
         except Exception as e:
             self.view.show_message_box_warning('Error', f'Error while sending discord ping\n{e}')
         else:

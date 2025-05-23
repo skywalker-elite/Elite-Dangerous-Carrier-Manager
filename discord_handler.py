@@ -13,27 +13,29 @@ class DiscordWebhookHandler:
 
     def send_message(self, message: str, ping: bool = False):
         webhook = discord.SyncWebhook.from_url(self.webhook_url)
-        webhook.send(message, username=self.username, avatar_url=self.avatar_url)
         if ping:
-            self.send_ping()
+            message = self._get_ping_message() + " " + message
+        webhook.send(message, username=self.username, avatar_url=self.avatar_url)
 
-    def send_embed(self, embed: discord.Embed):
+    def _send_embed(self, embed: discord.Embed, ping: bool = False):
         webhook = discord.SyncWebhook.from_url(self.webhook_url)
-        webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
+        if ping:
+            webhook.send(self._get_ping_message(), embed=embed, username=self.username, avatar_url=self.avatar_url)
+        else:
+            webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
 
-    def send_message_with_embed(self, title: str, description: str, ping: bool = False):
+    def send_message_with_embed(self, title: str, description: str, image_url: str|None=None, ping: bool = False):
         embed = discord.Embed(
             title=title,
             description=description,
         )
-        self.send_embed(embed)
-        if ping:
-            self.send_ping()
+        if image_url:
+            embed.set_image(url=image_url)
+        self._send_embed(embed, ping=ping)
 
-    def send_ping(self):
+    def _get_ping_message(self):
         if self.userID != '':
-            webhook = discord.SyncWebhook.from_url(self.webhook_url)
-            webhook.send(f'<@{self.userID}>', username=self.username, avatar_url=self.avatar_url)
+            return f'<@{self.userID}>'
         else:
             raise self.UserIDNotSetError("User ID is not set")
 
