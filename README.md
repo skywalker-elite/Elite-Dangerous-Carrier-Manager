@@ -56,8 +56,38 @@ Currently Windows 11 and Linux are supported. Windows 7/8/10 *should* work fine 
 - Timer reminder
   - You can enter the swap timer provided to you and you will get a reminder to plot your jump 2 minutes prior and another at the exact time
   - Do Not rely on this feature to plot your jump! You are solely responsible to plot your jump on time, this is only a reminder in case you get distracted
+### Jump Status Notification
+- You can set up notifications for the following events:
+  - Jump plotted
+  - Jump completed
+  - Jump cancelled
+  - Cooldown finished
+- Each notification can be in the form of a popup message, playing a sound, sending a message to a Discord channel (with or without a ping), or a combination of all three
+- You can customize notifications for each event
+- You can specify the audio file (.mp3 or .wav) to play for each event
 ## Installation
 Simply download the EDCM.exe (or EDCM-linux for linux) file from releases and launch it. 
+The first time you run EDCM, it will ask if you want to create a settings file. Click yes and it will create one using the default settings.
+You can edit the settings file using any text editor to change the settings to your liking.
+## Settings
+The settings file is a toml file that contains all the settings for EDCM. You can edit it to change the settings to your liking. 
+### How to edit the settings file
+1. Go to the options tab, click the `Open Settings File` button
+2. If prompted, choose your text editor of choice (notepad, notepad++, etc.)
+3. Change the settings to your liking
+4. Save the file and close the text editor
+5. Click the `Reload Settings` button in EDCM to apply the changes
+6. EDCM will check if the settings file is valid, if not, correct the errors and try again
+### Suggested things to change
+- **trade_post** section
+  - Make sure the trade post format matches what you want to use (the default is PTN CCO format, with ACO format commented out for you to uncomment)
+- **notification** section
+  - Enable the notifications you want to use
+  - Set the notification sound to your desired sound file if you want to use a custom sound (.mp3 or .wav). The default is a simple TTS announcement
+- **discord** section
+  - Set the Discord webhook URL to your webhook of an appropriate channel if you want to use the Discord notification feature
+  - Set the userID to your discord user ID if you want to use the ping feature
+- It's recommended to test your settings in the options tab for the first time you set them up
 ## Limitations
 Some limitations may be addressed in later updates thoon, maybe, eventually... don't count on it
 - EDCM is currently English only
@@ -71,8 +101,8 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
     1. Set a buy order for the commodity with ghost sell
     2. Cancel the buy order
   - You can follow the similar steps for buy orders, but those only affects EDCM, not the in-game carrier management menu
+  - TL;DR: Any trade orders you haven't manually cancelled in-game will show up
 - The post trade function
-  - Currently only supports PTN CCO post format
   - It uses <a href=https://www.edsm.net>EDSM</a> to retrieve the list of stations in system. It may result in an error if it can't reach it
 - Balance updates
   - Carrier balances are updated everytime you open up your carrier management menu
@@ -84,3 +114,5 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
 Thank you <a href=https://github.com/aussig>aussig</a> for the <a href=https://github.com/aussig/BGS-Tally/tree/develop/data>lists of commodities</a>, related files are in the `3rdParty\aussig.BGS-Tally` folder with the corresponding license file. 
 ## Disclaimers
 Although influenced a lot by the <a href=https://pilotstradenetwork.com>Pilots Trade Network (PTN)</a> in its design, EDCM is not endorsed by or affliated with the PTN and is not an offical tool of any player group. 
+
+EDCM is a third-party tool and is not affiliated with or endorsed by Frontier Developments, the developers of Elite Dangerous. 
