@@ -314,7 +314,7 @@ class CarrierModel:
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID]
                 if len(fc_trade_orders) > 0:
                     for i in range(len(fc_trade_orders)):
-                        order = fc_trade_orders.iloc[i]
+                        order = fc_trade_orders.iloc[i].to_dict()
                         commodity = order['Commodity']
                         if order['CancelTrade'] == True:
                             fc_active_trades.pop(commodity, None)
