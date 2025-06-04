@@ -17,6 +17,7 @@ class JournalReader:
         self.journal_processed = []
         self.journal_latest = {}
         self.journal_latest_unknown_fid = {}
+        self.events_to_read = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'carrier_decom', 'carrier_decom_cancel']
         self._load_games = []
         self._carrier_locations = []
         self._jump_requests = []
@@ -27,14 +28,16 @@ class JournalReader:
         self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._carrier_decom = []
+        self._carrier_decom_cancel = []
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.events_to_read}
         self.items = []
         self.dropout = dropout
         if self.dropout:
             print('Dropout mode active, journal data is randomly dropped')
-            self.droplist = [i for i in range(10) if random() < 0.5]
+            self.droplist = [i for i in range(len(self.events_to_read) + 1) if random() < 0.5]
             for i in self.droplist:
-                print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+                print(f'{(self.events_to_read + ["carrier_owners"])[i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -123,16 +126,20 @@ class JournalReader:
                 self._carrier_buys.append(item)
             if item['event'] == 'CarrierDockingPermission':
                 self._docking_perms.append(item)
-                
+            if item['event'] == 'CarrierDecommission':
+                self._carrier_decom.append(item)
+            if item['event'] == 'CarrierCancelDecommission':
+                self._carrier_decom_cancel.append(item)
+
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid, is_active
     
     def _get_parsed_items(self):
         return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
-    
+                for i in [getattr(self, f'_{item_type}') for item_type in self.events_to_read]] + [self._carrier_owners]
+
     def get_items(self) -> list:
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.events_to_read}
         if self.dropout:
             items = self.items.copy()
             for i in self.droplist:
@@ -142,9 +149,9 @@ class JournalReader:
     
     def get_new_items(self) -> list:
         items = []
-        for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']:
+        for item_type in self.events_to_read:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.events_to_read}
         return items + [self._carrier_owners]
 
 class CarrierModel:
@@ -178,7 +185,7 @@ class CarrierModel:
     def read_journals(self):
         self.journal_reader.read_journals()
         first_read = self.carriers == {}
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, carrier_decom, carrier_decom_cancel, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
         # print(self.read_counter, first_read, len(load_games), len(carrier_locations), len(jump_requests), len(jump_cancels), len(stats), len(trade_orders), len(carrier_buys), len(trit_deposits), len(docking_perms))
         # self.read_counter += 1
         self.process_load_games(load_games, first_read)
@@ -196,6 +203,8 @@ class CarrierModel:
         self.process_jumps(jump_requests, jump_cancels, first_read)
 
         self.process_trade_orders(trade_orders, first_read)
+
+        self.process_decom(carrier_decom, carrier_decom_cancel, first_read)
 
         self.fill_missing_data()
 
@@ -322,7 +331,20 @@ class CarrierModel:
                             fc_active_trades[commodity] = order
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
                 
-
+    def process_decom(self, carrier_decom, carrier_decom_cancel, first_read:bool=True):
+        df_carrier_decom = pd.DataFrame(carrier_decom + carrier_decom_cancel, columns=['CarrierID', 'timestamp', 'event', 'ScrapTime']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
+        for carrierID in self.carriers.keys():
+            fc_decom = df_carrier_decom[df_carrier_decom['CarrierID'] == carrierID]
+            if len(fc_decom) > 0:
+                last_action = fc_decom.iloc[-1]
+                if last_action['event'] == 'CarrierDecommission':
+                    self.carriers[carrierID]['ManualDecom'] = {'Initiated': True, 'TimeStamp': datetime.strptime(last_action['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc), 'ScrapTime': datetime.fromtimestamp(last_action['ScrapTime'], tz=timezone.utc)}
+                elif last_action['event'] == 'CarrierCancelDecommission':
+                    self.carriers[carrierID]['ManualDecom'] =  {'Initiated': False, 'TimeStamp': datetime.strptime(last_action['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc), 'ScrapTime': None}
+            else:
+                if 'ManualDecom' not in self.carriers[carrierID].keys():
+                    self.carriers[carrierID]['ManualDecom'] = {'Initiated': None, 'TimeStamp': None, 'ScrapTime': None}
+    
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
             if 'SpawnLocation' not in self.carriers[carrierID].keys():
@@ -368,6 +390,9 @@ class CarrierModel:
             if 'active_trades' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
 
+            if 'ManualDecom' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['ManualDecom'] = {'Initiated': None, 'TimeStamp': None, 'ScrapTime': None}
+
     def update_ignore_list(self):
         for carrierID in self.get_carriers_pending_decom():
             if carrierID in self._ignore_list:
@@ -375,6 +400,17 @@ class CarrierModel:
             now = datetime.now(timezone.utc)
             if self.get_stat_time(carrierID) is not None and now.astimezone() - self.get_stat_time(carrierID) > ASSUME_DECCOM_AFTER:
                 self._ignore_list.append(carrierID)
+
+        for carrierID in self.get_carriers().keys():
+            manual_decom = self.get_manual_decom(carrierID)
+            if manual_decom is None:
+                continue
+            if manual_decom['Initiated'] == True and manual_decom['TimeStamp'] > self.get_stat_time(carrierID) and manual_decom['ScrapTime'] < datetime.now(timezone.utc):
+                if carrierID not in self._ignore_list:
+                    self._ignore_list.append(carrierID)
+            elif manual_decom['Initiated'] == False and manual_decom['TimeStamp'] > self.get_stat_time(carrierID):
+                if carrierID in self._ignore_list:
+                    self._ignore_list.remove(carrierID)
 
     def add_ignore_list(self, call_signs:list[str]):
         for call_sign in call_signs:
@@ -604,6 +640,9 @@ class CarrierModel:
     
     def get_time_bought(self, carrierID) -> datetime|None:
         return self.get_carriers()[carrierID]['TimeBought']
+    
+    def get_manual_decom(self, carrierID) -> dict[bool|None, datetime|None, datetime|None]:
+        return self.get_carriers()[carrierID]['ManualDecom']
     
     def get_carriers_pending_decom(self) -> list[str]:
         return [carrierID for carrierID in self.sorted_ids() if self.get_pending_decom(carrierID)]
