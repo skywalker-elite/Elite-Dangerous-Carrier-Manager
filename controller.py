@@ -4,7 +4,7 @@ import pyperclip
 import re
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 from os import makedirs, path
 from shutil import copyfile
 import traceback
@@ -387,9 +387,15 @@ class CarrierController:
     
     def button_click_manual_timer_post(self):
         if self.manual_timer_view.entry_timer.validate():
+            timer = self.manual_timer_view.entry_timer.get()
+            timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
+            timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
+            if timer < datetime.now(timezone.utc):
+                timer += timedelta(days=1)
+            assert timer > datetime.now(timezone.utc), f'Timer must be in the future, {timer}, {datetime.now(timezone.utc)}'
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
-            self.model.manual_timers.append(self.manual_timer_view.entry_timer.get())
+            self.model.manual_timers.append({'time': timer, 'reminded': False})
             self.manual_timer_view.popup.destroy()
     
     def button_click_post_departure(self):
@@ -420,10 +426,11 @@ class CarrierController:
         in2min = (datetime.now(timezone.utc) + REMIND)
         for timer in self.model.manual_timers:
             m, s = divmod(REMIND.total_seconds(), 60)
-            if timer == now.strftime('%H:%M:%S'):
+            if timer['time'] <= now:
                 self.view.show_message_box_info('Plot now!', f'Plot now')
                 self.model.manual_timers.remove(timer)
-            elif timer == in2min.strftime('%H:%M:%S'):
+            elif timer['time'] <= in2min and not timer['reminded']:
+                timer['reminded'] = True
                 self.view.show_message_box_info('Get ready!', f'Be ready to plot in {m:02.0f} m {s:02.0f} s')
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
