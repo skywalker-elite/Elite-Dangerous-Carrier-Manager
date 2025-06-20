@@ -404,7 +404,7 @@ class CarrierController:
     def button_click_post_departure(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
-            carrierID = self.model.sorted_id_display()[selected_row]
+            carrierID = self.model.sorted_ids_display()[selected_row]
             system_current = self.model.get_current_system(carrierID=carrierID)
             system_dest = self.model.get_destination_system(carrier_ID=carrierID)
             carrier_name = self.model.get_name(carrierID)
