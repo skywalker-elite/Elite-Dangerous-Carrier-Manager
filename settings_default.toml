@@ -58,6 +58,7 @@ userID = "" # Discord user ID (optional, used for pings), find this by sending /
 [font_size]
 # Font size for UI elements
 # Options: 'tiny', 'small', 'normal', 'large', 'huge', 'giant', 'colossal'
+UI = "normal" # Font size for the UI elements
 table = "normal" # Font size for the tables
 
 [advanced]
