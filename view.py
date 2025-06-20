@@ -5,6 +5,7 @@ from tksheet import Sheet
 from typing import Literal
 from config import WINDOW_SIZE_TIMER, font_sizes
 import tkinter.font as tkfont
+from station_parser import getStockPrice
 
 class CarrierView:
     def __init__(self, root):
@@ -269,9 +270,15 @@ class CarrierView:
         return response
 
 class TradePostView:
-    def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float):
+    def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
+                 market_ids:list[str], market_updated:list[str], price:str|int):
+        self.trade_type = trade_type
+        self.commodity = commodity
         self.pad_sizes = pad_sizes
-        
+        self.market_ids = market_ids
+        self.market_updated = market_updated
+        self.price = int(price.replace(',', '')) if isinstance(price, str) else price
+
         self.popup = tk.Toplevel(root)
         self.popup.rowconfigure(1, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
@@ -308,11 +315,29 @@ class TradePostView:
         self.label_amount.grid(row=0, column=12, padx=2)
         self.label_units = ttk.Label(self.popup, text='k units')
         self.label_units.grid(row=0, column=13, padx=2)
+        self.frame_market = ttk.Frame(self.popup)
+        self.frame_market.grid(row=1, column=5, columnspan=9, sticky='ew')
+        self.label_price = ttk.Label(self.frame_market, text='')
+        self.label_price.pack(side='left', padx=2)
+        self.label_stock = ttk.Label(self.frame_market, text='')
+        self.label_stock.pack(side='left', padx=2)
+        self.label_market_updated = ttk.Label(self.frame_market, text='')
+        self.label_market_updated.pack(side='left', padx=2)
         self.button_post = ttk.Button(self.popup, text='OK')
-        self.button_post.grid(row=1, column=0, columnspan=14, pady=10)
+        self.button_post.grid(row=2, column=0, columnspan=14, pady=10)
+        
+        self.station_selected(None)
     
     def station_selected(self, event):
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
+        stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
+        self.label_price.configure(text=f'Station price {price:,}cr' if price is not None else 'station price unknown')
+        self.label_stock.configure(text=f'{"Supply" if self.trade_type == "loading" else "Demand"}' + (f' {stock:,} units' if stock is not None else ' unknown'))
+        self.label_market_updated.configure(text='Last updated: ' + (self.market_updated[self.cbox_stations.current()] if self.market_updated[self.cbox_stations.current()] is not None else ' unknown'))
+        if price is not None:
+            profit = self.price - price if self.trade_type == 'loading' else price - self.price
+            profit = int(profit / 1000)
+            self.cbox_profit.set(profit)
 
 class ManualTimerView:
     def __init__(self, root, carrierID:str):

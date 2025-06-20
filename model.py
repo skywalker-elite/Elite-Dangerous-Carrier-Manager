@@ -758,9 +758,10 @@ class CarrierModel:
             amount = round(amount / 500) * 500 / 1000
             if amount % 1 == 0:
                 amount = int(amount)
+            price = largest_order['Price']
             order_type = largest_order['Trade Type'].lower()
-            return (order_type, commodity, amount)
-            
+            return (order_type, commodity, amount, price)
+
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
         trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids_display()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
