@@ -434,11 +434,11 @@ class CarrierController:
             if timer is None:
                 continue
             if timer['time'] <= now:
-                self.view.show_message_box_info('Plot now!', f'Plot now')
+                self.view.show_message_box_info('Plot now!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) now')
                 self.model.manual_timers.pop(carrierID)
             elif timer['time'] <= in2min and not timer['reminded']:
                 timer['reminded'] = True
-                self.view.show_message_box_info('Get ready!', f'Be ready to plot in {m:02.0f} m {s:02.0f} s')
+                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     
