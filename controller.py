@@ -192,7 +192,7 @@ class CarrierController:
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
-            carrierID = self.model.sorted_ids()[selected_row]
+            carrierID = self.model.sorted_ids_display()[selected_row]
             carrier_name = self.model.get_name(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
@@ -205,7 +205,7 @@ class CarrierController:
 
     def button_click_post_trade(self):
         selected_row = self.get_selected_row()
-        self.handle_post_trade_logic(selected_row, self.model.sorted_ids(), self.view.sheet_jumps)
+        self.handle_post_trade_logic(selected_row, self.model.sorted_ids_display(), self.view.sheet_jumps)
 
     def button_click_post_trade_trade(self):
         selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
@@ -376,17 +376,20 @@ class CarrierController:
         else:
             self.view.show_message_box_info('Success!', 'Test message sent to discord with ping')
     
-    def button_click_manual_timer(self): # TODO
-        self.manual_timer_view = ManualTimerView(self.view.root)
-        reg = self.manual_timer_view.popup.register(checkTimerFormat)
-        self.manual_timer_view.entry_timer.configure(validate='focusout', validatecommand=(reg, '%s'))
-        self.manual_timer_view.button_post.configure(command=self.button_click_manual_timer_post)
-        # selected_row = self.get_selected_row()
-        # if selected_row is not None:
-        #     carrierID = self.model.sorted_ids()[selected_row]
+    def button_click_manual_timer(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            self.manual_timer_view = ManualTimerView(self.view.root, carrierID=carrierID)
+            reg = self.manual_timer_view.popup.register(checkTimerFormat)
+            self.manual_timer_view.entry_timer.configure(validate='focusout', validatecommand=(reg, '%s'))
+            self.manual_timer_view.button_post.configure(command=self.button_click_manual_timer_post)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
     
     def button_click_manual_timer_post(self):
         if self.manual_timer_view.entry_timer.validate():
+            carrierID = self.manual_timer_view.carrierID
             timer = self.manual_timer_view.entry_timer.get()
             timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
             timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
@@ -395,13 +398,13 @@ class CarrierController:
             assert timer > datetime.now(timezone.utc), f'Timer must be in the future, {timer}, {datetime.now(timezone.utc)}'
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
-            self.model.manual_timers.append({'time': timer, 'reminded': False})
+            self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False}
             self.manual_timer_view.popup.destroy()
     
     def button_click_post_departure(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
-            carrierID = self.model.sorted_ids()[selected_row]
+            carrierID = self.model.sorted_id_display()[selected_row]
             system_current = self.model.get_current_system(carrierID=carrierID)
             system_dest = self.model.get_destination_system(carrier_ID=carrierID)
             carrier_name = self.model.get_name(carrierID)
@@ -424,11 +427,15 @@ class CarrierController:
     def check_manual_timer(self): # TODO: UI to show timers
         now = datetime.now(timezone.utc)
         in2min = (datetime.now(timezone.utc) + REMIND)
-        for timer in self.model.manual_timers:
-            m, s = divmod(REMIND.total_seconds(), 60)
+        m, s = divmod(REMIND.total_seconds(), 60)
+
+        for carrierID in self.model.sorted_ids():
+            timer = self.model.manual_timers.get(carrierID, None)
+            if timer is None:
+                continue
             if timer['time'] <= now:
                 self.view.show_message_box_info('Plot now!', f'Plot now')
-                self.model.manual_timers.remove(timer)
+                self.model.manual_timers.pop(carrierID)
             elif timer['time'] <= in2min and not timer['reminded']:
                 timer['reminded'] = True
                 self.view.show_message_box_info('Get ready!', f'Be ready to plot in {m:02.0f} m {s:02.0f} s')

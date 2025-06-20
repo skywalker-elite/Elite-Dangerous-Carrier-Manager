@@ -58,7 +58,7 @@ class CarrierView:
         # Set column headers
         self.sheet_jumps.headers([
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-            'Status', 'Destination System', 'Body', 'Timer'
+            'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer',
         ])
 
         # Enable column resizing to match window resizing
@@ -282,7 +282,8 @@ class TradePostView:
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
 
 class ManualTimerView:
-    def __init__(self, root):
+    def __init__(self, root, carrierID:str):
+        self.carrierID = carrierID
         self.popup = tk.Toplevel(root)
         self.popup.geometry(WINDOW_SIZE_TIMER)
         self.popup.focus_force()
