@@ -157,7 +157,7 @@ class CarrierModel:
         self.cmdr_names = {}
         self.carrier_owners = {}
         self.active_timer = False
-        self.manual_timers = []
+        self.manual_timers = {}
         self.journal_path = journal_path
         # self.read_counter = 0
         self._ignore_list = []
@@ -477,7 +477,73 @@ class CarrierModel:
         return self.carriers_updated.copy()
     
     def get_data(self, now):
-        return [generateInfo(self.get_carriers()[carrierID], now) for carrierID in self.sorted_ids_display()]
+        return [self.generateInfo(carrierID, now) for carrierID in self.sorted_ids_display()]
+
+    def generateInfo(self, carrierID, now):
+        carrier = self.get_carriers()[carrierID]
+        location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
+        fuel_level = carrier['Fuel']['FuelLevel']
+        timer = self.manual_timers.get(carrierID, None)
+        timer = timer['time'].strftime('%H:%M:%S') if timer is not None else ''
+        if carrier['status'] == 'jumping':
+            destination_system, destination_body = getLocation(carrier['destination_system'], carrier['destination_body'], carrier['destination_body_id'])
+            time_diff = carrier['latest_depart'] - now
+            h, m, s = getHMS(time_diff.total_seconds())
+            return (
+                f"{carrier['Name']}", 
+                f"{carrier['Callsign']}", 
+                f"{fuel_level}",
+                f"{location_system}", 
+                f"{location_body}", 
+                f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
+                f"{destination_system}", 
+                f"{destination_body}", 
+                f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
+                f"{timer}"
+                )
+        elif carrier['status'] == 'cool_down':
+            time_diff = CD - (now - carrier['latest_depart'])
+            h, m, s = getHMS(time_diff.total_seconds())
+            return (
+                f"{carrier['Name']}", 
+                f"{carrier['Callsign']}", 
+                f"{fuel_level}",
+                f"{location_system}", 
+                f"{location_body}", 
+                f"Cooling Down",
+                f"", 
+                f"",
+                f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
+                f"{timer}"
+                )
+        elif carrier['status'] == 'cool_down_cancel':
+            time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
+            h, m, s = getHMS(time_diff.total_seconds())
+            return (
+                f"{carrier['Name']}", 
+                f"{carrier['Callsign']}", 
+                f"{fuel_level}",
+                f"{location_system}", 
+                f"{location_body}", 
+                f"Cooling Down",
+                f"", 
+                f"",
+                f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
+                f"{timer}"
+                )
+        else:
+            return (
+                f"{carrier['Name']}", 
+                f"{carrier['Callsign']}", 
+                f"{fuel_level}",
+                f"{location_system}", 
+                f"{location_body}", 
+                f"Idle",
+                f"", 
+                f"",
+                f"",
+                f"{timer}"
+                )
     
     def get_data_finance(self):
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
@@ -750,66 +816,6 @@ def get_custom_system_name(system_name):
     if system_name in ladder_systems.keys():
         system_name = f'{ladder_systems[system_name]} ({system_name})'
     return system_name
-
-
-def generateInfo(carrier, now):
-    location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
-    fuel_level = carrier['Fuel']['FuelLevel']
-    if carrier['status'] == 'jumping':
-        destination_system, destination_body = getLocation(carrier['destination_system'], carrier['destination_body'], carrier['destination_body_id'])
-        time_diff = carrier['latest_depart'] - now
-        h, m, s = getHMS(time_diff.total_seconds())
-        return (
-            f"{carrier['Name']}", 
-            f"{carrier['Callsign']}", 
-            f"{fuel_level}",
-            f"{location_system}", 
-            f"{location_body}", 
-            f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
-            f"{destination_system}", 
-            f"{destination_body}", 
-            f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
-            )
-    elif carrier['status'] == 'cool_down':
-        time_diff = CD - (now - carrier['latest_depart'])
-        h, m, s = getHMS(time_diff.total_seconds())
-        return (
-            f"{carrier['Name']}", 
-            f"{carrier['Callsign']}", 
-            f"{fuel_level}",
-            f"{location_system}", 
-            f"{location_body}", 
-            f"Cooling Down",
-            f"", 
-            f"",
-            f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
-            )
-    elif carrier['status'] == 'cool_down_cancel':
-        time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
-        h, m, s = getHMS(time_diff.total_seconds())
-        return (
-            f"{carrier['Name']}", 
-            f"{carrier['Callsign']}", 
-            f"{fuel_level}",
-            f"{location_system}", 
-            f"{location_body}", 
-            f"Cooling Down",
-            f"", 
-            f"",
-            f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
-            )
-    else:
-        return (
-            f"{carrier['Name']}", 
-            f"{carrier['Callsign']}", 
-            f"{fuel_level}",
-            f"{location_system}", 
-            f"{location_body}", 
-            f"Idle",
-            f"", 
-            f"",
-            f"",
-            )
 
 if __name__ == '__main__':
     model = CarrierModel(getJournalPath())
