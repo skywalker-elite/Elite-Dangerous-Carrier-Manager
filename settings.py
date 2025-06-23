@@ -59,7 +59,8 @@ class Settings:
             for key, dval in dflt.items():
                 full = f"{path}{key}"
                 if key not in curr:
-                    self.validation_errors.append(f"Missing key: {full}")
+                    self.validation_warnings.append(f"Missing key: {full}, using default value")
+                    curr[key] = dval
                     continue
 
                 cval = curr[key]
@@ -108,6 +109,7 @@ class Settings:
 if __name__ == '__main__':
     from utility import getSettingsPath
     settings = Settings(getSettingsPath())
-    print(settings._settings)
+    print(*settings._settings.items(), sep='\n')
+    print(f'{"\n".join(settings.validation_warnings)}') if settings.validation_warnings else print('No warnings')
     # print(settings.get('post_format'))
     # print(settings.get('post_format', 'trade_post_string'))
