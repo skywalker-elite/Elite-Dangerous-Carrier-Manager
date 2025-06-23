@@ -4,7 +4,7 @@ import pyperclip
 import re
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta, date
 from os import makedirs, path
 from shutil import copyfile
 import traceback
@@ -28,6 +28,7 @@ class CarrierController:
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
+        self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
@@ -94,6 +95,7 @@ class CarrierController:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
             self.model.reset_ignore_list()
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+            self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
@@ -192,7 +194,7 @@ class CarrierController:
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
-            carrierID = self.model.sorted_ids()[selected_row]
+            carrierID = self.model.sorted_ids_display()[selected_row]
             carrier_name = self.model.get_name(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
@@ -205,7 +207,7 @@ class CarrierController:
 
     def button_click_post_trade(self):
         selected_row = self.get_selected_row()
-        self.handle_post_trade_logic(selected_row, self.model.sorted_ids(), self.view.sheet_jumps)
+        self.handle_post_trade_logic(selected_row, self.model.sorted_ids_display(), self.view.sheet_jumps)
 
     def button_click_post_trade_trade(self):
         selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
@@ -218,13 +220,13 @@ class CarrierController:
             system = self.model.get_current_or_destination_system(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
             if sheet.name == 'sheet_trade':
-                trade_type, amount, commodity = self.view.sheet_trade.data[selected_row][1:4]
+                trade_type, amount, commodity, price = self.view.sheet_trade.data[selected_row][1:5]
                 trade_type = trade_type.lower()
                 amount = float(amount.replace(',',''))
                 amount = round(amount / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
-                order = (trade_type, commodity, amount)
+                order = (trade_type, commodity, amount, price)
             elif sheet.name == 'sheet_jumps':
                 order = self.model.get_formated_largest_order(carrierID=carrierID)
             else:
@@ -232,7 +234,7 @@ class CarrierController:
 
             if system == 'HIP 58832':
                 if order is not None:
-                    trade_type, commodity, amount = order
+                    trade_type, commodity, amount, price = order
                     if trade_type == 'unloading' and commodity == 'Wine':
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
@@ -253,10 +255,16 @@ class CarrierController:
                     self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
             else:
                 if order is not None:
-                    trade_type, commodity, amount = order
-                    stations, pad_sizes = getStations(sys_name=system)
+                    trade_type, commodity, amount, price = order
+                    stations, pad_sizes, market_ids, market_updated = getStations(sys_name=system)
+                    L = [i for i, ps in enumerate(pad_sizes) if ps == 'L']
+                    M = [i for i, ps in enumerate(pad_sizes) if ps == 'M']
+                    stations = [stations[i] for i in L + M]
+                    pad_sizes = [pad_sizes[i] for i in L + M]
+                    market_ids = [market_ids[i] for i in L + M]
+                    market_updated = [market_updated[i] for i in L + M]
                     if len(stations) > 0:
-                        self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount)
+                        self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
                         self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, carrier_callsign=carrier_callsign, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
                     else:
                         self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
@@ -376,26 +384,45 @@ class CarrierController:
         else:
             self.view.show_message_box_info('Success!', 'Test message sent to discord with ping')
     
-    def button_click_manual_timer(self): # TODO
-        self.manual_timer_view = ManualTimerView(self.view.root)
-        reg = self.manual_timer_view.popup.register(checkTimerFormat)
-        self.manual_timer_view.entry_timer.configure(validate='focusout', validatecommand=(reg, '%s'))
-        self.manual_timer_view.button_post.configure(command=self.button_click_manual_timer_post)
-        # selected_row = self.get_selected_row()
-        # if selected_row is not None:
-        #     carrierID = self.model.sorted_ids()[selected_row]
+    def button_click_manual_timer(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            self.manual_timer_view = ManualTimerView(self.view.root, carrierID=carrierID)
+            reg = self.manual_timer_view.popup.register(checkTimerFormat)
+            self.manual_timer_view.entry_timer.configure(validate='focusout', validatecommand=(reg, '%s'))
+            self.manual_timer_view.button_post.configure(command=self.button_click_manual_timer_post)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
     
+    def button_click_clear_timer(self):
+        selected_rows = self.get_selected_row(allow_multiple=True)
+        if selected_rows is not None:
+            for row in selected_rows:
+                carrierID = self.model.sorted_ids_display()[row]
+                if carrierID in self.model.manual_timers:
+                    self.model.manual_timers.pop(carrierID)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select at least one carrier!')
+
     def button_click_manual_timer_post(self):
         if self.manual_timer_view.entry_timer.validate():
+            carrierID = self.manual_timer_view.carrierID
+            timer = self.manual_timer_view.entry_timer.get()
+            timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
+            timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
+            if timer < datetime.now(timezone.utc):
+                timer += timedelta(days=1)
+            assert timer > datetime.now(timezone.utc), f'Timer must be in the future, {timer}, {datetime.now(timezone.utc)}'
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
-            self.model.manual_timers.append(self.manual_timer_view.entry_timer.get())
+            self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False}
             self.manual_timer_view.popup.destroy()
     
     def button_click_post_departure(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
-            carrierID = self.model.sorted_ids()[selected_row]
+            carrierID = self.model.sorted_ids_display()[selected_row]
             system_current = self.model.get_current_system(carrierID=carrierID)
             system_dest = self.model.get_destination_system(carrier_ID=carrierID)
             carrier_name = self.model.get_name(carrierID)
@@ -418,13 +445,18 @@ class CarrierController:
     def check_manual_timer(self): # TODO: UI to show timers
         now = datetime.now(timezone.utc)
         in2min = (datetime.now(timezone.utc) + REMIND)
-        for timer in self.model.manual_timers:
-            m, s = divmod(REMIND.total_seconds(), 60)
-            if timer == now.strftime('%H:%M:%S'):
-                self.view.show_message_box_info('Plot now!', f'Plot now')
-                self.model.manual_timers.remove(timer)
-            elif timer == in2min.strftime('%H:%M:%S'):
-                self.view.show_message_box_info('Get ready!', f'Be ready to plot in {m:02.0f} m {s:02.0f} s')
+        m, s = divmod(REMIND.total_seconds(), 60)
+
+        for carrierID in self.model.sorted_ids():
+            timer = self.model.manual_timers.get(carrierID, None)
+            if timer is None:
+                continue
+            if timer['time'] <= now:
+                self.view.show_message_box_info('Plot now!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) now')
+                self.model.manual_timers.pop(carrierID)
+            elif timer['time'] <= in2min and not timer['reminded']:
+                timer['reminded'] = True
+                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     
@@ -458,10 +490,10 @@ class CarrierController:
             sheet = self.view.sheet_jumps
         selected_rows = sheet.get_selected_rows(get_cells=False, get_cells_as_rows=True, return_tuple=True)
         if selected_rows:
-            if len(selected_rows) == 1:
-                return selected_rows[0]
-            elif allow_multiple:
+            if allow_multiple:
                 return selected_rows
+            elif len(selected_rows) == 1:
+                return selected_rows[0]
             else:
                 return None
         else:

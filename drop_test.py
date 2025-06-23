@@ -34,7 +34,7 @@ if __name__ == '__main__':
         model.update_carriers(now)
         print(pd.DataFrame(model.get_data(now), columns=[
                 'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-                'Status', 'Destination System', 'Body', 'Timer'
+                'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer',
             ]))
         print(pd.DataFrame(model.get_data_finance(), columns=[
                 'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'

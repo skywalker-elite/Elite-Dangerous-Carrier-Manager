@@ -3,7 +3,9 @@ from tkinter import ttk
 from tkinter import messagebox
 from tksheet import Sheet
 from typing import Literal
-from config import WINDOW_SIZE_TIMER
+from config import WINDOW_SIZE_TIMER, font_sizes
+import tkinter.font as tkfont
+from station_parser import getStockPrice
 
 class CarrierView:
     def __init__(self, root):
@@ -58,7 +60,7 @@ class CarrierView:
         # Set column headers
         self.sheet_jumps.headers([
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-            'Status', 'Destination System', 'Body', 'Timer'
+            'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer',
         ])
 
         # Enable column resizing to match window resizing
@@ -81,6 +83,9 @@ class CarrierView:
         # Manual timer
         self.button_manual_timer = ttk.Button(self.bottom_bar, text='Enter Swap Timer')
         self.button_manual_timer.pack(side='left')
+        # Clear timer
+        self.button_clear_timer = ttk.Button(self.bottom_bar, text='Clear Timer')
+        self.button_clear_timer.pack(side='left')
         # Departure notice
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
@@ -185,12 +190,44 @@ class CarrierView:
         self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
+    def set_font_size(self, font_size:str, font_size_table:str):
+        size = font_sizes.get(font_size, font_sizes['normal'])
+        size_table = font_sizes.get(font_size_table, font_sizes['normal'])
+
+        # 1) resize all tksheets
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc]:
+            sheet.font(('Calibri', size_table, 'normal'))
+            sheet.header_font(('Calibri', size_table, 'normal'))
+
+        # 2) resize all Tk widgets via named‐fonts
+        for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
+            f = tkfont.nametofont(name)
+            f.configure(size=size)
+
+        # 3) resize all ttk widgets via style
+        style = ttk.Style(self.root)
+        # catch everything that uses the “.” fallback
+        style.configure(".", font=("Calibri", size, "normal"))
+        # explicitly re-configure the most common widget styles
+        for cls in (
+            "TButton", "TLabel", "TEntry", "TCombobox",
+            "TNotebook.Tab", "TLabelframe.Label", "TLabelframe"
+        ):
+            style.configure(cls, font=("Calibri", size, "normal"))
+
+        # 4) global default for any new tk/ttk widget
+        self.root.option_add("*Font", ("Calibri", size, "normal"))
+
+        # 5) some pure-tk popups (Combobox listbox, Menu) still need an option_add
+        self.root.option_add("*Listbox*Font", ("Calibri", size, "normal"))
+        self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
+
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        table.set_all_cell_sizes_to_text()
+        table.set_all_column_widths()
     
     def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_jumps, data, rows_pending_decomm)
@@ -236,9 +273,15 @@ class CarrierView:
         return response
 
 class TradePostView:
-    def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float):
+    def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
+                 market_ids:list[str], market_updated:list[str], price:str|int):
+        self.trade_type = trade_type
+        self.commodity = commodity
         self.pad_sizes = pad_sizes
-        
+        self.market_ids = market_ids
+        self.market_updated = market_updated
+        self.price = int(price.replace(',', '')) if isinstance(price, str) else price
+
         self.popup = tk.Toplevel(root)
         self.popup.rowconfigure(1, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
@@ -275,14 +318,33 @@ class TradePostView:
         self.label_amount.grid(row=0, column=12, padx=2)
         self.label_units = ttk.Label(self.popup, text='k units')
         self.label_units.grid(row=0, column=13, padx=2)
+        self.frame_market = ttk.Frame(self.popup)
+        self.frame_market.grid(row=1, column=5, columnspan=9, sticky='ew')
+        self.label_price = ttk.Label(self.frame_market, text='')
+        self.label_price.pack(side='left', padx=2)
+        self.label_stock = ttk.Label(self.frame_market, text='')
+        self.label_stock.pack(side='left', padx=2)
+        self.label_market_updated = ttk.Label(self.frame_market, text='')
+        self.label_market_updated.pack(side='left', padx=2)
         self.button_post = ttk.Button(self.popup, text='OK')
-        self.button_post.grid(row=1, column=0, columnspan=14, pady=10)
+        self.button_post.grid(row=2, column=0, columnspan=14, pady=10)
+        
+        self.station_selected(None)
     
     def station_selected(self, event):
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
+        stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
+        self.label_price.configure(text=f'Station price {price:,} cr' if price is not None else 'Station price unknown')
+        self.label_stock.configure(text=f'{"Supply" if self.trade_type == "loading" else "Demand"}' + (f' {stock:,} units' if stock is not None else ' unknown'))
+        self.label_market_updated.configure(text='Last updated: ' + (self.market_updated[self.cbox_stations.current()] if self.market_updated[self.cbox_stations.current()] is not None else ' unknown'))
+        if price is not None:
+            profit = self.price - price if self.trade_type == 'loading' else price - self.price
+            profit = int(profit / 1000)
+            self.cbox_profit.set(profit)
 
 class ManualTimerView:
-    def __init__(self, root):
+    def __init__(self, root, carrierID:str):
+        self.carrierID = carrierID
         self.popup = tk.Toplevel(root)
         self.popup.geometry(WINDOW_SIZE_TIMER)
         self.popup.focus_force()

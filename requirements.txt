@@ -4,7 +4,7 @@ tksheet==7.2.14
 sv_ttk==2.6.0
 pyperclip==1.9.0
 numpy==2.0.0
-requests==2.32.3
+requests==2.32.4
 humanize==4.12.2
 discord==2.3.2
 playsound3==3.2.3
