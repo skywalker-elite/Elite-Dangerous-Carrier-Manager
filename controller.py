@@ -28,6 +28,7 @@ class CarrierController:
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
+        self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
@@ -394,6 +395,16 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
     
+    def button_click_clear_timer(self):
+        selected_rows = self.get_selected_row(allow_multiple=True)
+        if selected_rows is not None:
+            for row in selected_rows:
+                carrierID = self.model.sorted_ids_display()[row]
+                if carrierID in self.model.manual_timers:
+                    self.model.manual_timers.pop(carrierID)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select at least one carrier!')
+
     def button_click_manual_timer_post(self):
         if self.manual_timer_view.entry_timer.validate():
             carrierID = self.manual_timer_view.carrierID
@@ -479,10 +490,10 @@ class CarrierController:
             sheet = self.view.sheet_jumps
         selected_rows = sheet.get_selected_rows(get_cells=False, get_cells_as_rows=True, return_tuple=True)
         if selected_rows:
-            if len(selected_rows) == 1:
-                return selected_rows[0]
-            elif allow_multiple:
+            if allow_multiple:
                 return selected_rows
+            elif len(selected_rows) == 1:
+                return selected_rows[0]
             else:
                 return None
         else:

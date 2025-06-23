@@ -83,6 +83,9 @@ class CarrierView:
         # Manual timer
         self.button_manual_timer = ttk.Button(self.bottom_bar, text='Enter Swap Timer')
         self.button_manual_timer.pack(side='left')
+        # Clear timer
+        self.button_clear_timer = ttk.Button(self.bottom_bar, text='Clear Timer')
+        self.button_clear_timer.pack(side='left')
         # Departure notice
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
