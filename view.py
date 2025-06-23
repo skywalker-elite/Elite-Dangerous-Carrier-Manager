@@ -188,8 +188,8 @@ class CarrierView:
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
     def set_font_size(self, font_size:str, font_size_table:str):
-        size = font_sizes[font_size]
-        size_table = font_sizes[font_size_table]
+        size = font_sizes.get(font_size, font_sizes['normal'])
+        size_table = font_sizes.get(font_size_table, font_sizes['normal'])
 
         # 1) resize all tksheets
         for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc]:
