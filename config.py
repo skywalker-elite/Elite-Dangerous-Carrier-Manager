@@ -8,7 +8,8 @@ CD = timedelta(minutes=4, seconds=50)
 CD_cancel = timedelta(minutes=1)
 PADLOCK = timedelta(minutes=3, seconds=20)
 JUMPLOCK = timedelta(minutes=10)
-REMIND = timedelta(minutes=2)
+PLOT_REMIND = timedelta(minutes=2)
+PLOT_WARN = timedelta(seconds=10)
 
 UPDATE_INTERVAL = 500
 REDRAW_INTERVAL_FAST = 250
