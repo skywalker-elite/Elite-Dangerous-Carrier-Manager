@@ -442,16 +442,16 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
         
-    def check_manual_timer(self): # TODO: UI to show timers
+    def check_manual_timer(self):
         now = datetime.now(timezone.utc)
-
         for carrierID in self.model.sorted_ids():
             timer = self.model.manual_timers.get(carrierID, None)
             if timer is None:
                 continue
             if timer['time'] <= now:
                 self.model.manual_timers.pop(carrierID)
-            if timer['time'] - PLOT_WARN <= now and not timer['plot_warned']:
+                continue
+            elif timer['time'] - PLOT_WARN <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
                 m, s = divmod(PLOT_WARN.total_seconds(), 60)
                 self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
