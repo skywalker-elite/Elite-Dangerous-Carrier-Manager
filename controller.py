@@ -451,6 +451,7 @@ class CarrierController:
                 continue
             if timer['time'] <= now:
                 self.model.manual_timers.pop(carrierID)
+                continue
             if timer['time'] - PLOT_WARN <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
                 m, s = divmod(PLOT_WARN.total_seconds(), 60)
