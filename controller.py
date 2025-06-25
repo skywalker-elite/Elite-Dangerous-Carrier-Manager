@@ -17,7 +17,7 @@ from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
 from discord_handler import DiscordWebhookHandler
-from config import UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, REMIND, ladder_systems
+from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
 
 class CarrierController:
     def __init__(self, root, model:CarrierModel):
@@ -416,7 +416,7 @@ class CarrierController:
             assert timer > datetime.now(timezone.utc), f'Timer must be in the future, {timer}, {datetime.now(timezone.utc)}'
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
-            self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False}
+            self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False, 'plot_warned': False}
             self.manual_timer_view.popup.destroy()
     
     def button_click_post_departure(self):
@@ -444,18 +444,20 @@ class CarrierController:
         
     def check_manual_timer(self): # TODO: UI to show timers
         now = datetime.now(timezone.utc)
-        in2min = (datetime.now(timezone.utc) + REMIND)
-        m, s = divmod(REMIND.total_seconds(), 60)
 
         for carrierID in self.model.sorted_ids():
             timer = self.model.manual_timers.get(carrierID, None)
             if timer is None:
                 continue
             if timer['time'] <= now:
-                self.view.show_message_box_info('Plot now!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) now')
                 self.model.manual_timers.pop(carrierID)
-            elif timer['time'] <= in2min and not timer['reminded']:
+            if timer['time'] - PLOT_WARN <= now and not timer['plot_warned']:
+                timer['plot_warned'] = True
+                m, s = divmod(PLOT_WARN.total_seconds(), 60)
+                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
+            elif timer['time'] - PLOT_REMIND <= now and not timer['reminded']:
                 timer['reminded'] = True
+                m, s = divmod(PLOT_REMIND.total_seconds(), 60)
                 self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
