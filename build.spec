@@ -19,7 +19,8 @@ splash = Splash('images/EDCM_Splash.png',
                 datas=a.datas,
                 text_pos=(150, 470),
                 text_size=12,
-                text_color='black')
+                text_color='black', 
+                always_on_top=False)
 
 pyz = PYZ(a.pure)
 
