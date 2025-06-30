@@ -78,6 +78,9 @@ def getSettingsDir() -> str:
     elif sys.platform == 'linux':
         user_path = os.path.expanduser('~')
         return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    elif sys.platform == 'darwin':
+        user_path = os.path.expanduser('~')
+        return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
     else:
         return None
 
