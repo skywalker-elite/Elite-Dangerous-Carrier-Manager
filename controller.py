@@ -430,8 +430,8 @@ class CarrierController:
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             if system_dest is not None:
                 if system_dest in ['HIP 57784','HD 104495','HD 105341','HIP 58832'] and system_current in ['HIP 57784','HD 104495','HD 105341','HIP 58832']:
-                    system_dest = ladder_systems[system_dest]
-                    system_current = ladder_systems[system_current]
+                    system_dest = f'{ladder_systems[system_dest]} ({system_dest})'
+                    system_current = f'{ladder_systems[system_current]} ({system_current})'
                     # /wine_carrier_departure carrier_id:xxx-xxx departure_location:Gali arrival_location:N2 departing_at:<t:1733359620>
                     s = f'/wine_carrier_departure carrier_id:{carrier_callsign} departure_location:{system_current} arrival_location:{system_dest} departing_at:{hammer_countdown}'
                     self.copy_to_clipboard(s, 'Success!', f'Departure command for {carrier_name} ({carrier_callsign}) going {system_current} -> {system_dest} copied!')
