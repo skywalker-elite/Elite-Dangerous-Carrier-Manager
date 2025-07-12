@@ -61,7 +61,7 @@ def isUpdateAvailable() -> bool:
 def getLatestVersion() -> str|None:
     try:
         response = requests.get('https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
-    except requests.HTTPError as e:
+    except requests.exceptions.RequestException as e:
         print(f'Error while checking update: {e}')
         return None
     latest_version = response.json()['name'].split()[1]
