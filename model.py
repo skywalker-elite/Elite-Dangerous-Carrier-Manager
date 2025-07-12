@@ -12,7 +12,7 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
-    def __init__(self, journal_path:str, dropout:bool=False):
+    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
         self.journal_path = journal_path
         self.journal_processed = []
         self.journal_latest = {}
@@ -30,11 +30,18 @@ class JournalReader:
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         self.items = []
         self.dropout = dropout
-        if self.dropout:
-            print('Dropout mode active, journal data is randomly dropped')
-            self.droplist = [i for i in range(10) if random() < 0.5]
-            for i in self.droplist:
-                print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+        self.droplist = droplist
+        if self.dropout == True:
+            if self.droplist is None:
+                print('Dropout mode active, journal data is randomly dropped')
+                self.droplist = [i for i in range(10) if random() < 0.5]
+                for i in self.droplist:
+                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+            else:
+                print('Dropout mode active, journal data is dropped')
+                self.droplist = [["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"].index(i) for i in self.droplist]
+                for i in self.droplist:
+                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -148,9 +155,10 @@ class JournalReader:
         return items + [self._carrier_owners]
 
 class CarrierModel:
-    def __init__(self, journal_path:str, dropout:bool=False):
-        self.journal_reader = JournalReader(journal_path, dropout=dropout)
+    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
+        self.journal_reader = JournalReader(journal_path, dropout=dropout, droplist=droplist)
         self.dropout = dropout
+        self.droplist = droplist
         self.carriers = {}
         self.carriers_updated = {}
         self.cmdr_balances = {}
