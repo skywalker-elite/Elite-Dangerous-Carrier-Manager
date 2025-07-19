@@ -95,6 +95,7 @@ class CarrierController:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
             self.model.reset_ignore_list()
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+            self.model.custom_order = self.settings.get('advanced', 'custom_order')
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):

@@ -65,6 +65,7 @@ table = "normal" # Font size for the tables
 [advanced]
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
 ignore_list = [] # List of carriers to ignore. This is a list of carrier callsigns (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
+custom_order = [] # Custom order of carriers. This is a list of carrier callsigns (example: ["FC0-001", "FC0-002"]). Carriers in this list appear first; all others are sorted by time bought (if available).
 
 [compatibility] # DO NOT EDIT THIS SECTION
 settings_version = 1 # Version of the settings file. Do not edit this line.
