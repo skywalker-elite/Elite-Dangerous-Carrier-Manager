@@ -295,10 +295,12 @@ class CarrierController:
                 trade_type = 'load'
                 trading_type = 'loading'
                 demand_supply = 'demand'
+                to_from = 'from'
             case 'unloading':
                 trade_type = 'unload'
                 trading_type = 'unloading'
                 demand_supply = 'supply'
+                to_from = 'to'
             case _:
                 raise RuntimeError(f'Unexpected trade_type: {trade_type}')
 
@@ -315,11 +317,12 @@ class CarrierController:
             pad_size=pad_size,
             pad_size_short=pad_size_short,
             demand_supply=demand_supply,
-            amount=amount
+            amount=amount,
+            to_from=to_from
         )
         self.copy_to_clipboard(post_string, None, None, on_success=lambda: self.trade_post_view.popup.destroy())
-    
-    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
+
+    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float, to_from:str) -> str:
         s = Template(self.settings.get('post_format', 'trade_post_string'))
         post_string = s.safe_substitute(
             trade_type=trade_type,
@@ -333,7 +336,8 @@ class CarrierController:
             pad_size=pad_size,
             pad_size_short=pad_size_short,
             demand_supply=demand_supply,
-            amount=amount
+            amount=amount,
+            to_from=to_from
         )
         return post_string
 
