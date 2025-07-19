@@ -169,6 +169,7 @@ class CarrierModel:
         self.journal_path = journal_path
         # self.read_counter = 0
         self._ignore_list = []
+        self.custom_order = []
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
@@ -737,8 +738,11 @@ class CarrierModel:
         return None
     
     def sorted_ids(self):
-        return sorted(self.get_carriers().keys(), key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
-    
+        ids = self.get_carriers().keys()
+        custom_ordered_ids = sorted([carrierID for carrierID in ids if self.get_callsign(carrierID) in self.custom_order], key=lambda x: self.custom_order.index(self.get_callsign(x)))
+        remaining_ids = [carrierID for carrierID in ids if carrierID not in custom_ordered_ids]
+        return custom_ordered_ids + sorted(remaining_ids, key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
+
     def sorted_ids_display(self):
         return [i for i in self.sorted_ids() if i not in self._ignore_list]
     
