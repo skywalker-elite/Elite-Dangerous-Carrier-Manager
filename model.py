@@ -219,12 +219,12 @@ class CarrierModel:
     def process_stats(self, stats, first_read:bool=True):
         for stat in stats:
             if not first_read or stat['CarrierID'] not in self.carriers.keys():
-                if first_read:
-                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None}
+                if stat['CarrierID'] not in self.carriers.keys():
+                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None)}
                 else:
                     self.carriers[stat['CarrierID']]['Callsign'] = stat['Callsign']
                     self.carriers[stat['CarrierID']]['Name'] = stat['Name']
-                    self.carriers[stat['CarrierID']]['CMDRName'] = self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None
+                    self.carriers[stat['CarrierID']]['CMDRName'] = self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None)
                 self.carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
                                                           'CmdrBalance': self.cmdr_balances[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_balances.keys() else None,
                                                           }
@@ -276,8 +276,9 @@ class CarrierModel:
             if first_read or last_cancel is not None:
                 self.carriers[carrierID]['last_cancel'] = last_cancel
             if len(fc_jumps) == 0:
-                if first_read:
+                if first_read or 'jumps' not in self.carriers[carrierID].keys():
                     self.carriers[carrierID]['jumps'] = pd.DataFrame(columns=['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']).copy()
+                    self.carriers[carrierID]['last_cancel'] = None
                 continue
             cancelled = []
             flag = False
@@ -831,7 +832,7 @@ if __name__ == '__main__':
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now), columns=[
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-            'Status', 'Destination System', 'Body', 'Timer'
+            'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer'
         ]))
     print(pd.DataFrame(model.get_data_finance(), columns=[
             'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
