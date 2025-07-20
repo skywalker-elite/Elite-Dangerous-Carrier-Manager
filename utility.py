@@ -4,6 +4,7 @@ import re
 from numpy import datetime64
 import requests
 from packaging import version
+import hashlib
 
 def getJournalPath() -> str:
     if sys.platform == 'win32':
@@ -72,7 +73,7 @@ def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
         return f.readline()
     
-def getSettingsDir() -> str:
+def getAppDir() -> str:
     if sys.platform == 'win32':
         user_path = os.environ.get('USERPROFILE')
         return os.path.join(user_path, 'AppData', 'Roaming', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
@@ -86,7 +87,7 @@ def getSettingsDir() -> str:
         return None
 
 def getSettingsPath() -> str:
-    settings_dir = getSettingsDir()
+    settings_dir = getAppDir()
     if settings_dir is None:
         return None
     else:
@@ -94,3 +95,15 @@ def getSettingsPath() -> str:
 
 def getSettingsDefaultPath() -> str:
     return getResourcePath('settings_default.toml')
+
+def getCachePath(journal_path:str) -> str:
+    cache_dir = getAppDir()
+    if cache_dir is None:
+        return None
+    else:
+        h = hashlib.md5()
+        h.update(getCurrentVersion().encode('utf-8'))
+        h.update(sys.platform.encode('utf-8'))
+        h.update(journal_path.encode('utf-8'))
+        h.update(open(getResourcePath('model.py'), 'rb').read())
+        return os.path.join(cache_dir, 'cache', f'journal_processor_{h.hexdigest()}.pkl')

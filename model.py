@@ -159,8 +159,8 @@ class JournalReader:
         return items + [self._carrier_owners]
 
 class CarrierModel:
-    def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
-        self.journal_reader = JournalReader(journal_paths, dropout=dropout, droplist=droplist)
+    def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
+        self.journal_reader = journal_reader if journal_reader else JournalReader(journal_paths, dropout=dropout, droplist=droplist)
         self.dropout = dropout
         self.droplist = droplist
         self.carriers = {}
@@ -897,3 +897,4 @@ if __name__ == '__main__':
             'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
+    

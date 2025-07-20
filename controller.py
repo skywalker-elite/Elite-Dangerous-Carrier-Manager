@@ -9,15 +9,16 @@ from os import makedirs, path
 from shutil import copyfile
 import traceback
 import tomllib
+import pickle
 from string import Template
 from playsound3 import playsound
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getAppDir, getCachePath
 from discord_handler import DiscordWebhookHandler
-from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
+from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
 
 class CarrierController:
     def __init__(self, root, model:CarrierModel):
@@ -51,6 +52,8 @@ class CarrierController:
         self.set_current_version()
         self.check_app_update()
 
+        self.save_cache()
+
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
     
@@ -69,7 +72,7 @@ class CarrierController:
                 raise e
             else:
                 if self.view.show_message_box_askyesno('Settings file not found', 'Do you want to create a new settings file?'):
-                    makedirs(getSettingsDir(), exist_ok=True)
+                    makedirs(getAppDir(), exist_ok=True)
                     copyfile(getSettingsDefaultPath(), settings_file)
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         open_new_tab(url=settings_file)
@@ -512,3 +515,17 @@ class CarrierController:
                 return None
         else:
             return None
+        
+    def save_cache(self):
+        cache_path = getCachePath(self.model.journal_reader.journal_path)
+        if cache_path is not None:
+            makedirs(path.dirname(cache_path), exist_ok=True)
+            try:
+                with open(cache_path, 'wb') as f:
+                    pickle.dump(self.model.journal_reader, f)
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while saving cache\n{traceback.format_exc()}')
+            else:
+                self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
+        else:
+            self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
