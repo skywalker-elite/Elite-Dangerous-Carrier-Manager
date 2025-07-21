@@ -16,7 +16,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getAppDir, getCachePath
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
 

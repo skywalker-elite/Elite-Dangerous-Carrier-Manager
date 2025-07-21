@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
 from controller import CarrierController
-from model import CarrierModel
+from model import CarrierModel, JournalReader
 import sys
 import pickle
 from utility import getResourcePath, getJournalPath, getCachePath
@@ -26,6 +26,23 @@ def apply_theme_to_titlebar(root):
     else:
         pass
 
+def load_journal_reader_from_cache(journal_path: str) -> JournalReader | None:
+    cache_path = getCachePath(journal_path)
+    if cache_path and os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'rb') as f:
+                jr = pickle.load(f)
+            # smoke‐test: try to read journals once
+            jr.read_journals()
+            return jr
+        except Exception:
+            # something went wrong, nuke the cache
+            try:
+                os.remove(cache_path)
+            except OSError:
+                pass
+    return None
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("-p", "--paths",
@@ -43,34 +60,19 @@ def main():
 
     # Update and close the splash screen
     if sys.platform == 'darwin':
-            if getCachePath(journal_path) is not None and os.path.exists(getCachePath(journal_path)):
-                with open(getCachePath(journal_path), 'rb') as f:
-                    model = pickle.load(f)
-            else:
-                model = CarrierModel(journal_paths)
+        jr = load_journal_reader_from_cache(journal_path)
+        model = CarrierModel(journal_path, journal_reader=jrs)
     else:
         try:
-            import pyi_splash # type: ignore
-            pyi_splash.update_text('Reading journals...')
-            try:
-                if getCachePath(journal_paths) is not None and os.path.exists(getCachePath(journal_paths)):
-                    with open(getCachePath(journal_paths), 'rb') as f:
-                        journal_reader = pickle.load(f)
-                    model = CarrierModel(journal_paths, journal_reader=journal_reader)
-                else:
-                    model = CarrierModel(journal_paths)
-            except Exception as e:
-                pyi_splash.close()
-                raise e
-            else:
-                pyi_splash.close()
+            import pyi_splash  # type: ignore
+            pyi_splash.update_text('Reading journals…')
+            jr = load_journal_reader_from_cache(journal_path)
+            model = CarrierModel(journal_path, journal_reader=jr)
+            pyi_splash.close()
         except ModuleNotFoundError:
-            if getCachePath(journal_paths) is not None and os.path.exists(getCachePath(journal_paths)):
-                with open(getCachePath(journal_paths), 'rb') as f:
-                    journal_reader = pickle.load(f)
-                model = CarrierModel(journal_paths, journal_reader=journal_reader)
-            else:
-                model = CarrierModel(journal_paths)
+            jr = load_journal_reader_from_cache(journal_path)
+            model = CarrierModel(journal_path, journal_reader=jr)
+
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()
