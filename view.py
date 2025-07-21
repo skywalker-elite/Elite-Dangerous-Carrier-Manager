@@ -178,6 +178,8 @@ class CarrierView:
         self.button_open_settings.grid(row=0, column=1, padx=10, pady=10, sticky='w')
         self.button_reset_settings = ttk.Button(self.labelframe_settings, text='Reset Settings to Defaults')
         self.button_reset_settings.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        self.button_open_settings_dir = ttk.Button(self.labelframe_settings, text='Open Settings Directory')
+        self.button_open_settings_dir.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
         self.labelframe_testing = ttk.Labelframe(self.tab_options, text='Testing')
         self.labelframe_testing.grid(row=2, column=0, padx=10, pady=10, sticky='w')
