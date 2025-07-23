@@ -3,14 +3,21 @@ import humanize
 from typing import Literal
 from datetime import datetime, timezone, timedelta
 
+class EDSMError(Exception):
+    """Custom exception for EDSM API errors."""
+    pass
+
 url = 'https://www.edsm.net/api-system-v1/stations'
 def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str], list[str], list[str|None]]:
     """
     Fetch station data from EDSM API.
     """
-    result = requests.get(url, {'systemName': sys_name})
+    try:
+        result = requests.get(url, {'systemName': sys_name})
+    except requests.exceptions.RequestException as e:
+        raise EDSMError(f"Error fetching station data: {e}")
     if result.status_code != 200:
-        raise Exception(f"Error fetching station data: {result.status_code}")
+            raise EDSMError(f"Error fetching station data: {result.status_code}")
     else:
         result = result.json()
     stations = [station for station in result['stations'] if station['type'] not in ['Fleet Carrier', 'Odyssey Settlement', 'Planetary Outpost', 'Planetary Port', 'Mega ship']]
@@ -32,12 +39,15 @@ def getMarketCommodityInfo(market_id:str=None, system_name:str=None, station_nam
     url = 'https://www.edsm.net/api-system-v1/stations/market'
     assert (market_id is not None) or (system_name is not None and station_name is not None), "Either market_id or system_name and station_name must be provided"
     assert commodity is not None or commodity_name is not None, "Either commodity or commodity_name must be provided"
-    if market_id is not None:
-        result_market = requests.get(url, {'marketId': market_id})
-    else:
-        result_market = requests.get(url, {'systemName': system_name, 'stationName': station_name})
+    try:
+        if market_id is not None:
+            result_market = requests.get(url, {'marketId': market_id})
+        else:
+            result_market = requests.get(url, {'systemName': system_name, 'stationName': station_name})
+    except requests.exceptions.RequestException as e:
+        raise EDSMError(f"Error fetching market data: {e}")
     if result_market.status_code != 200:
-        raise Exception(f"Error fetching market data: {result_market.status_code}")
+        raise EDSMError(f"Error fetching market data: {result_market.status_code}")
     else:
         result_market = result_market.json()
     if commodity is not None:

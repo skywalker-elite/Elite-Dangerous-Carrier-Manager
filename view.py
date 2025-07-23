@@ -333,7 +333,13 @@ class TradePostView:
     
     def station_selected(self, event):
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
-        stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
+        try:
+            stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
+        except Exception as e:
+            self.label_price.configure(text='Error fetching price')
+            self.label_stock.configure(text='Error fetching stock')
+            self.label_market_updated.configure(text='Error fetching market update')
+            return
         self.label_price.configure(text=f'Station price {price:,} cr' if price is not None else 'Station price unknown')
         self.label_stock.configure(text=f'{"Supply" if self.trade_type == "loading" else "Demand"}' + (f' {stock:,} units' if stock is not None else ' unknown'))
         self.label_market_updated.configure(text='Last updated: ' + (self.market_updated[self.cbox_stations.current()] if self.market_updated[self.cbox_stations.current()] is not None else ' unknown'))
