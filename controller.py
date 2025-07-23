@@ -14,7 +14,7 @@ from playsound3 import playsound
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
-from station_parser import getStations
+from station_parser import EDSMError, getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
@@ -258,7 +258,11 @@ class CarrierController:
             else:
                 if order is not None:
                     trade_type, commodity, amount, price = order
-                    stations, pad_sizes, market_ids, market_updated = getStations(sys_name=system)
+                    try:
+                        stations, pad_sizes, market_ids, market_updated = getStations(sys_name=system)
+                    except EDSMError as e:
+                        self.view.show_message_box_warning('Error', f'Error fetching station data: {e}')
+                        return
                     L = [i for i, ps in enumerate(pad_sizes) if ps == 'L']
                     M = [i for i, ps in enumerate(pad_sizes) if ps == 'M']
                     stations = [stations[i] for i in L + M]
