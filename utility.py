@@ -61,7 +61,8 @@ def isUpdateAvailable() -> bool:
 def getLatestVersion() -> str|None:
     try:
         response = requests.get('https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
-    except requests.HTTPError as e:
+        response.raise_for_status()
+    except requests.exceptions.RequestException as e:
         print(f'Error while checking update: {e}')
         return None
     latest_version = response.json()['name'].split()[1]
@@ -76,6 +77,9 @@ def getSettingsDir() -> str:
         user_path = os.environ.get('USERPROFILE')
         return os.path.join(user_path, 'AppData', 'Roaming', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
     elif sys.platform == 'linux':
+        user_path = os.path.expanduser('~')
+        return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    elif sys.platform == 'darwin':
         user_path = os.path.expanduser('~')
         return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
     else:

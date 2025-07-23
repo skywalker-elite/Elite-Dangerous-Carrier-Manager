@@ -178,6 +178,8 @@ class CarrierView:
         self.button_open_settings.grid(row=0, column=1, padx=10, pady=10, sticky='w')
         self.button_reset_settings = ttk.Button(self.labelframe_settings, text='Reset Settings to Defaults')
         self.button_reset_settings.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        self.button_open_settings_dir = ttk.Button(self.labelframe_settings, text='Open Settings Directory')
+        self.button_open_settings_dir.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
         self.labelframe_testing = ttk.Labelframe(self.tab_options, text='Testing')
         self.labelframe_testing.grid(row=2, column=0, padx=10, pady=10, sticky='w')
@@ -333,7 +335,13 @@ class TradePostView:
     
     def station_selected(self, event):
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
-        stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
+        try:
+            stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
+        except Exception as e:
+            self.label_price.configure(text='Error fetching price')
+            self.label_stock.configure(text='Error fetching stock')
+            self.label_market_updated.configure(text='Error fetching market update')
+            return
         self.label_price.configure(text=f'Station price {price:,} cr' if price is not None else 'Station price unknown')
         self.label_stock.configure(text=f'{"Supply" if self.trade_type == "loading" else "Demand"}' + (f' {stock:,} units' if stock is not None else ' unknown'))
         self.label_market_updated.configure(text='Last updated: ' + (self.market_updated[self.cbox_stations.current()] if self.market_updated[self.cbox_stations.current()] is not None else ' unknown'))

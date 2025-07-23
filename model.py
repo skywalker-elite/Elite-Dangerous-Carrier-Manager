@@ -12,7 +12,7 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
-    def __init__(self, journal_path:str, dropout:bool=False):
+    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
         self.journal_path = journal_path
         self.journal_processed = []
         self.journal_latest = {}
@@ -30,11 +30,18 @@ class JournalReader:
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         self.items = []
         self.dropout = dropout
-        if self.dropout:
-            print('Dropout mode active, journal data is randomly dropped')
-            self.droplist = [i for i in range(10) if random() < 0.5]
-            for i in self.droplist:
-                print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+        self.droplist = droplist
+        if self.dropout == True:
+            if self.droplist is None:
+                print('Dropout mode active, journal data is randomly dropped')
+                self.droplist = [i for i in range(10) if random() < 0.5]
+                for i in self.droplist:
+                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+            else:
+                print('Dropout mode active, journal data is dropped')
+                self.droplist = [["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"].index(i) for i in self.droplist]
+                for i in self.droplist:
+                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -148,9 +155,10 @@ class JournalReader:
         return items + [self._carrier_owners]
 
 class CarrierModel:
-    def __init__(self, journal_path:str, dropout:bool=False):
-        self.journal_reader = JournalReader(journal_path, dropout=dropout)
+    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
+        self.journal_reader = JournalReader(journal_path, dropout=dropout, droplist=droplist)
         self.dropout = dropout
+        self.droplist = droplist
         self.carriers = {}
         self.carriers_updated = {}
         self.cmdr_balances = {}
@@ -161,6 +169,7 @@ class CarrierModel:
         self.journal_path = journal_path
         # self.read_counter = 0
         self._ignore_list = []
+        self.custom_order = []
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
@@ -211,12 +220,12 @@ class CarrierModel:
     def process_stats(self, stats, first_read:bool=True):
         for stat in stats:
             if not first_read or stat['CarrierID'] not in self.carriers.keys():
-                if first_read:
-                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None}
+                if stat['CarrierID'] not in self.carriers.keys():
+                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None)}
                 else:
                     self.carriers[stat['CarrierID']]['Callsign'] = stat['Callsign']
                     self.carriers[stat['CarrierID']]['Name'] = stat['Name']
-                    self.carriers[stat['CarrierID']]['CMDRName'] = self.cmdr_names[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_names.keys() else None
+                    self.carriers[stat['CarrierID']]['CMDRName'] = self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None)
                 self.carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
                                                           'CmdrBalance': self.cmdr_balances[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_balances.keys() else None,
                                                           }
@@ -268,8 +277,9 @@ class CarrierModel:
             if first_read or last_cancel is not None:
                 self.carriers[carrierID]['last_cancel'] = last_cancel
             if len(fc_jumps) == 0:
-                if first_read:
+                if first_read or 'jumps' not in self.carriers[carrierID].keys():
                     self.carriers[carrierID]['jumps'] = pd.DataFrame(columns=['timestamp', 'event', 'SystemName', 'Body', 'BodyID', 'DepartureTime']).copy()
+                    self.carriers[carrierID]['last_cancel'] = None
                 continue
             cancelled = []
             flag = False
@@ -728,8 +738,15 @@ class CarrierModel:
         return None
     
     def sorted_ids(self):
-        return sorted(self.get_carriers().keys(), key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
-    
+        ids = self.get_carriers().keys()
+        custom_order_lookup = {callsign: idx for idx, callsign in enumerate(self.custom_order)}
+        custom_ordered_ids = sorted(
+            [carrierID for carrierID in ids if self.get_callsign(carrierID) in custom_order_lookup],
+            key=lambda x: custom_order_lookup[self.get_callsign(x)]
+        )
+        remaining_ids = [carrierID for carrierID in ids if carrierID not in custom_ordered_ids]
+        return custom_ordered_ids + sorted(remaining_ids, key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
+
     def sorted_ids_display(self):
         return [i for i in self.sorted_ids() if i not in self._ignore_list]
     
@@ -823,7 +840,7 @@ if __name__ == '__main__':
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now), columns=[
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-            'Status', 'Destination System', 'Body', 'Timer'
+            'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer'
         ]))
     print(pd.DataFrame(model.get_data_finance(), columns=[
             'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
