@@ -35,6 +35,7 @@ class CarrierController:
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_new_tab(url=getSettingsPath()))
         self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
+        self.view.button_open_settings_dir.configure(command=lambda: open_new_tab(url=getSettingsDir()))
         self.view.button_test_trade_post.configure(command=self.button_click_test_trade_post)
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
