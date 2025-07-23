@@ -107,6 +107,9 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
 - Balance updates
   - Carrier balances are updated everytime you open up your carrier management menu
   - CMDR balances only updates on log-in, if you just bought the carrier, you will need to log out and back in to see the CMDR balance
+- Carrier info updates
+  - Carrier info is updated every time you open up your carrier management menu
+  - If you just bought a carrier, you will need to open the carrier management menu to see the full carrier info
 ## Known Issues
 - Launching it takes a good while and may appear unresponsive or not show anything while it's loading, just give it some time, I promise it'll show up, *usually*. 
 - It may consume a bit more CPU and ram than you expected but shouldn't be *too* bad
