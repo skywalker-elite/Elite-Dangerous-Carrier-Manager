@@ -14,7 +14,7 @@ from playsound3 import playsound
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
-from station_parser import getStations
+from station_parser import EDSMError, getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
@@ -35,6 +35,7 @@ class CarrierController:
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_new_tab(url=getSettingsPath()))
         self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
+        self.view.button_open_settings_dir.configure(command=lambda: open_new_tab(url=getSettingsDir()))
         self.view.button_test_trade_post.configure(command=self.button_click_test_trade_post)
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
@@ -95,6 +96,7 @@ class CarrierController:
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
             self.model.reset_ignore_list()
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+            self.model.custom_order = self.settings.get('advanced', 'custom_order')
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):
@@ -256,7 +258,11 @@ class CarrierController:
             else:
                 if order is not None:
                     trade_type, commodity, amount, price = order
-                    stations, pad_sizes, market_ids, market_updated = getStations(sys_name=system)
+                    try:
+                        stations, pad_sizes, market_ids, market_updated = getStations(sys_name=system)
+                    except EDSMError as e:
+                        self.view.show_message_box_warning('Error', f'Error fetching station data: {e}')
+                        return
                     L = [i for i, ps in enumerate(pad_sizes) if ps == 'L']
                     M = [i for i, ps in enumerate(pad_sizes) if ps == 'M']
                     stations = [stations[i] for i in L + M]
@@ -295,10 +301,12 @@ class CarrierController:
                 trade_type = 'load'
                 trading_type = 'loading'
                 demand_supply = 'demand'
+                to_from = 'from'
             case 'unloading':
                 trade_type = 'unload'
                 trading_type = 'unloading'
                 demand_supply = 'supply'
+                to_from = 'to'
             case _:
                 raise RuntimeError(f'Unexpected trade_type: {trade_type}')
 
@@ -315,11 +323,12 @@ class CarrierController:
             pad_size=pad_size,
             pad_size_short=pad_size_short,
             demand_supply=demand_supply,
-            amount=amount
+            amount=amount,
+            to_from=to_from
         )
         self.copy_to_clipboard(post_string, None, None, on_success=lambda: self.trade_post_view.popup.destroy())
-    
-    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float) -> str:
+
+    def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float, to_from:str) -> str:
         s = Template(self.settings.get('post_format', 'trade_post_string'))
         post_string = s.safe_substitute(
             trade_type=trade_type,
@@ -333,7 +342,8 @@ class CarrierController:
             pad_size=pad_size,
             pad_size_short=pad_size_short,
             demand_supply=demand_supply,
-            amount=amount
+            amount=amount,
+            to_from=to_from
         )
         return post_string
 
@@ -430,8 +440,8 @@ class CarrierController:
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             if system_dest is not None:
                 if system_dest in ['HIP 57784','HD 104495','HD 105341','HIP 58832'] and system_current in ['HIP 57784','HD 104495','HD 105341','HIP 58832']:
-                    system_dest = ladder_systems[system_dest]
-                    system_current = ladder_systems[system_current]
+                    system_dest = f'{ladder_systems[system_dest]} ({system_dest})'
+                    system_current = f'{ladder_systems[system_current]} ({system_current})'
                     # /wine_carrier_departure carrier_id:xxx-xxx departure_location:Gali arrival_location:N2 departing_at:<t:1733359620>
                     s = f'/wine_carrier_departure carrier_id:{carrier_callsign} departure_location:{system_current} arrival_location:{system_dest} departing_at:{hammer_countdown}'
                     self.copy_to_clipboard(s, 'Success!', f'Departure command for {carrier_name} ({carrier_callsign}) going {system_current} -> {system_dest} copied!')
