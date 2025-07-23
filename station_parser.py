@@ -17,7 +17,7 @@ def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str],
     except requests.exceptions.RequestException as e:
         raise EDSMError(f"Error fetching station data: {e}")
     if result.status_code != 200:
-            raise EDSMError(f"Error fetching station data: {result.status_code}")
+        raise EDSMError(f"Error fetching station data: {result.status_code}")
     else:
         result = result.json()
     stations = [station for station in result['stations'] if station['type'] not in ['Fleet Carrier', 'Odyssey Settlement', 'Planetary Outpost', 'Planetary Port', 'Mega ship']]
