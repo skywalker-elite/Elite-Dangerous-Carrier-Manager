@@ -51,8 +51,6 @@ class CarrierController:
         self.set_current_version()
         self.check_app_update()
 
-        self.status_change(carrierID=3705582592, status_old='idle', status_new='jumping')  # For testing purposes, remove later)
-
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
     
@@ -106,7 +104,7 @@ class CarrierController:
         if status_new == 'jumping':
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
-            if True or self.settings.get('notifications', 'jump_plotted'):
+            if self.settings.get('notifications', 'jump_plotted'):
                 self.view.show_non_blocking_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications', 'jump_plotted_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))

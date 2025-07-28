@@ -277,7 +277,7 @@ class CarrierView:
     def show_non_blocking_info(self, title:str, message:str):
         self.info = tk.Toplevel(self.root)
         self.info.title(title)
-        self.info.transient(self.info.master) # Make it appear on top of the main window
+        self.info.transient(self.root) # Make it appear on top of the main window
         
         label = ttk.Label(self.info, text=message)
         label.pack()
