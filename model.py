@@ -3,6 +3,7 @@ from os import listdir, path
 import re
 import json
 import threading
+import locale
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
@@ -181,6 +182,7 @@ class CarrierModel:
         self.df_upkeeps = pd.DataFrame(
             {'Service': {0: 'Refuel', 1: 'Repair', 2: 'Rearm', 3: 'Shipyard', 4: 'Outfitting', 5: 'Exploration', 6: 'VistaGenomics', 7: 'PioneerSupplies', 8: 'Bartender', 9: 'VoucherRedemption', 10: 'BlackMarket'}, 'Active': {0: 1500000, 1: 1500000, 2: 1500000, 3: 6500000, 4: 5000000, 5: 1850000, 6: 1500000, 7: 5000000, 8: 1750000, 9: 1850000, 10: 2000000}, 'Paused': {0: 750000, 1: 750000, 2: 750000, 3: 1800000, 4: 1500000, 5: 700000, 6: 700000, 7: 1500000, 8: 1250000, 9: 850000, 10: 1250000}, 'Off': {0: 0, 1: 0, 2: 0, 3: 0, 4: 0, 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0}}
             ).set_index('Service')
+        locale.setlocale(locale.LC_ALL, '')
         self.read_journals()
         self.update_carriers(datetime.now(timezone.utc))
 
