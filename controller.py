@@ -51,6 +51,8 @@ class CarrierController:
         self.set_current_version()
         self.check_app_update()
 
+        self.status_change(carrierID=3705582592, status_old='idle', status_new='jumping')  # For testing purposes, remove later)
+
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
     
@@ -104,11 +106,11 @@ class CarrierController:
         if status_new == 'jumping':
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
-            if self.settings.get('notifications', 'jump_plotted'):
-                self.view.show_message_box_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
+            if True or self.settings.get('notifications', 'jump_plotted'):
+                self.view.show_non_blocking_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications', 'jump_plotted_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))
-            if self.settings.get('notifications', 'jump_plotted_discord'):
+            if True or self.settings.get('notifications', 'jump_plotted_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump plotted to **{self.model.get_destination_system(carrierID, use_custom_name=True)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
                 self.webhook_handler.send_message_with_embed(title=title, description=description, ping=self.settings.get('notifications', 'jump_plotted_discord_ping'))
@@ -116,7 +118,7 @@ class CarrierController:
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
             if self.settings.get('notifications', 'jump_completed'):
-                self.view.show_message_box_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
+                self.view.show_non_blocking_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
             if self.settings.get('notifications', 'jump_completed_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_completed_sound_file'))
             if self.settings.get('notifications', 'jump_completed_discord'):
@@ -127,7 +129,7 @@ class CarrierController:
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
             if self.settings.get('notifications', 'jump_cancelled'):
-                self.view.show_message_box_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
+                self.view.show_non_blocking_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
             if self.settings.get('notifications', 'jump_cancelled_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_cancelled_sound_file'))
             if self.settings.get('notifications', 'jump_cancelled_discord'):
@@ -138,7 +140,7 @@ class CarrierController:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
             if self.settings.get('notifications', 'cooldown_finished'):
-                self.view.show_message_box_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
+                self.view.show_non_blocking_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
             if self.settings.get('notifications', 'cooldown_finished_sound'):
                 self.play_sound(self.settings.get('notifications', 'cooldown_finished_sound_file'))
             if self.settings.get('notifications', 'cooldown_finished_discord'):
