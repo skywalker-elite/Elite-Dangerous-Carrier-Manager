@@ -275,14 +275,14 @@ class CarrierView:
         return response
 
     def show_non_blocking_info(self, title:str, message:str):
-        self.info = tk.Toplevel(self.root)
-        self.info.title(title)
-        self.info.transient(self.root) # Make it appear on top of the main window
+        info = tk.Toplevel(self.root)
+        info.title(title)
+        info.transient(self.root) # Make it appear on top of the main window
         
-        label = ttk.Label(self.info, text=message)
+        label = ttk.Label(info, text=message)
         label.pack()
         
-        ok_button = ttk.Button(self.info, text="OK", command=self.info.destroy)
+        ok_button = ttk.Button(info, text="OK", command=info.destroy)
         ok_button.pack(pady=10)
 
 class TradePostView:
