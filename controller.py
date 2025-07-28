@@ -108,7 +108,7 @@ class CarrierController:
                 self.view.show_non_blocking_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
             if self.settings.get('notifications', 'jump_plotted_sound'):
                 self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))
-            if True or self.settings.get('notifications', 'jump_plotted_discord'):
+            if self.settings.get('notifications', 'jump_plotted_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
                 description = f'Jump plotted to **{self.model.get_destination_system(carrierID, use_custom_name=True)}** body **{self.model.get_destination_body(carrierID)}**, arriving {self.model.get_departure_hammer_countdown(carrierID)}'
                 self.webhook_handler.send_message_with_embed(title=title, description=description, ping=self.settings.get('notifications', 'jump_plotted_discord_ping'))
