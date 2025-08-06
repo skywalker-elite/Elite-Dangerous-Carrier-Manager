@@ -815,7 +815,7 @@ class CarrierModel:
 def getLocation(system, body, body_id):
     if system == 'HIP 58832':
         result_system, result_body = system, {0: 'Star', 1: '1', 2: '2', 3: '3', 4: '4', 5: '5', 16: '6'}.get(body_id, 'Unknown') # Yes, the body_id of Planet 6 is 16, don't ask me why
-    elif body is None or type(body) is float:
+    elif body is None or isinstance(body, float):
         if body_id == 0:
             result_system, result_body = system, 'Star'
         else:
@@ -826,7 +826,7 @@ def getLocation(system, body, body_id):
         else:
             result_system, result_body = system, body
     else:
-        if system in body:
+        if isinstance(body, str) and system in body:
             result_system, result_body = system, body.replace(f'{system} ', '')
         else: 
             result_system, result_body = system, body
