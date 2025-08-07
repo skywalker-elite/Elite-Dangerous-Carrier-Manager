@@ -13,8 +13,8 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
-    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
-        self.journal_path = journal_path
+    def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
+        self.journal_paths = journal_paths
         self.journal_processed = []
         self.journal_latest = {}
         self.journal_latest_unknown_fid = {}
@@ -48,10 +48,13 @@ class JournalReader:
         latest_journal_info = {}
         for key, value in zip(self.journal_latest.keys(), self.journal_latest.values()):
             latest_journal_info[value['filename']] = {'fid': key, 'line_pos': value['line_pos'], 'is_active': value['is_active']}
-        files = listdir(self.journal_path)
-        r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
-        journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
-        assert len(journals) > 0, f'No journal files found in {self.journal_path}'
+        journals = []
+        for journal_path in self.journal_paths:
+            files = listdir(journal_path)
+            r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
+            journal_files = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
+            assert len(journal_files) > 0, f'No journal files found in {journal_path}'
+            journals += [path.join(journal_path, i) for i in journal_files]
         for journal in journals:
             if journal not in self.journal_processed:
                 self._read_journal(journal)
@@ -66,7 +69,7 @@ class JournalReader:
     def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
         # print(journal)
         items = []
-        with open(path.join(self.journal_path, journal), 'r', encoding='utf-8') as f:
+        with open(journal, 'r', encoding='utf-8') as f:
             lines = f.readlines()
             line_pos_new = len(lines)
             lines = lines[line_pos:]
@@ -156,8 +159,8 @@ class JournalReader:
         return items + [self._carrier_owners]
 
 class CarrierModel:
-    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
-        self.journal_reader = JournalReader(journal_path, dropout=dropout, droplist=droplist)
+    def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
+        self.journal_reader = JournalReader(journal_paths, dropout=dropout, droplist=droplist)
         self.dropout = dropout
         self.droplist = droplist
         self.carriers = {}
@@ -167,7 +170,7 @@ class CarrierModel:
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
-        self.journal_path = journal_path
+        self.journal_paths = journal_paths
         # self.read_counter = 0
         self._ignore_list = []
         self.custom_order = []

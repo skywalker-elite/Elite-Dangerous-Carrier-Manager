@@ -28,32 +28,33 @@ def apply_theme_to_titlebar(root):
 def main():
     parser = ArgumentParser()
     parser.add_argument("-p", "--path",
-                    action="store", dest="path", default=None,
+                    nargs='+', dest="path", default=None,
                     help="journal path: overrides journal path")
     args = parser.parse_args()
     if args.path:
-        journal_path = args.path
+        journal_paths = args.path
     else:
-        journal_path = getJournalPath()
-    assert journal_path is not None, f'No default journal path for platform {sys.platform}, please specify one with --path'
-    assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --path if the default is incorrect'
+        journal_paths = [getJournalPath()] if getJournalPath() else None
+    assert journal_paths is not None, f'No default journal path for platform {sys.platform}, please specify one with --path'
+    for journal_path in journal_paths:
+        assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --path if the default is incorrect'
 
     # Update and close the splash screen
     if sys.platform == 'darwin':
-            model = CarrierModel(journal_path)
+            model = CarrierModel(journal_paths)
     else:
         try:
             import pyi_splash # type: ignore
             pyi_splash.update_text('Reading journals...')
             try:
-                model = CarrierModel(journal_path)
+                model = CarrierModel(journal_paths)
             except Exception as e:
                 pyi_splash.close()
                 raise e
             else:
                 pyi_splash.close()
         except ModuleNotFoundError:
-            model = CarrierModel(journal_path)
+            model = CarrierModel(journal_paths)
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()
