@@ -34,7 +34,8 @@ def main():
     if args.path:
         journal_paths = args.path
     else:
-        journal_paths = [getJournalPath()] if getJournalPath() else None
+        journal_path = getJournalPath()
+        journal_paths = [journal_path] if journal_path else None
     assert journal_paths is not None, f'No default journal path for platform {sys.platform}, please specify one with --path'
     for journal_path in journal_paths:
         assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --path if the default is incorrect'
