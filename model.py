@@ -13,8 +13,8 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
-    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
-        self.journal_path = journal_path
+    def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
+        self.journal_paths = journal_paths
         self.journal_processed = []
         self.journal_latest = {}
         self.journal_latest_unknown_fid = {}
@@ -48,10 +48,13 @@ class JournalReader:
         latest_journal_info = {}
         for key, value in zip(self.journal_latest.keys(), self.journal_latest.values()):
             latest_journal_info[value['filename']] = {'fid': key, 'line_pos': value['line_pos'], 'is_active': value['is_active']}
-        files = listdir(self.journal_path)
-        r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
-        journals = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
-        assert len(journals) > 0, f'No journal files found in {self.journal_path}'
+        journals = []
+        for journal_path in self.journal_paths:
+            files = listdir(journal_path)
+            r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
+            journal_files = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
+            assert len(journal_files) > 0, f'No journal files found in {journal_path}'
+            journals += [path.join(journal_path, i) for i in journal_files]
         for journal in journals:
             if journal not in self.journal_processed:
                 self._read_journal(journal)
@@ -63,10 +66,10 @@ class JournalReader:
         self.items = self._get_parsed_items()
         assert len(self.items[4]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
     
-    def _read_journal(self, journal:str, line_pos:int|None=None, fid_last:str|None=None):
+    def _read_journal(self, journal_path:str, line_pos:int|None=None, fid_last:str|None=None):
         # print(journal)
         items = []
-        with open(path.join(self.journal_path, journal), 'r', encoding='utf-8') as f:
+        with open(journal_path, 'r', encoding='utf-8') as f:
             lines = f.readlines()
             line_pos_new = len(lines)
             lines = lines[line_pos:]
@@ -76,7 +79,7 @@ class JournalReader:
                 try:
                     items.append(json.loads(i))
                 except json.decoder.JSONDecodeError as e: # ignore ill-formated entries
-                    print(f'{journal} {e}')
+                    print(f'{journal_path} {e}')
                     continue
         
         parsed_fid, is_active = self._parse_items(items)
@@ -88,20 +91,20 @@ class JournalReader:
             fid = fid_last
         if is_active:
             if fid is None:
-                match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal)
+                match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal_path)
                 if datetime.now() - datetime.strptime(match.group(0), '%Y-%m-%dT%H%M%S') < timedelta(hours=1): # allows one hour for fid to show up
-                    self.journal_latest_unknown_fid[journal] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+                    self.journal_latest_unknown_fid[journal_path] = {'filename': journal_path, 'line_pos': line_pos_new, 'is_active': is_active}
                 else:
-                    self.journal_latest_unknown_fid.pop(journal, None)
+                    self.journal_latest_unknown_fid.pop(journal_path, None)
             else:
-                self.journal_latest_unknown_fid.pop(journal, None)
-                self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
+                self.journal_latest_unknown_fid.pop(journal_path, None)
+                self.journal_latest[fid] = {'filename': journal_path, 'line_pos': line_pos_new, 'is_active': is_active}
         else:
-            self.journal_latest_unknown_fid.pop(journal, None)
+            self.journal_latest_unknown_fid.pop(journal_path, None)
             if fid is not None:
-                self.journal_latest[fid] = {'filename': journal, 'line_pos': line_pos_new, 'is_active': is_active}
-        if journal not in self.journal_processed:
-            self.journal_processed.append(journal)
+                self.journal_latest[fid] = {'filename': journal_path, 'line_pos': line_pos_new, 'is_active': is_active}
+        if journal_path not in self.journal_processed:
+            self.journal_processed.append(journal_path)
 
 
     def _parse_items(self, items:list) -> tuple[str|None, bool]:
@@ -156,8 +159,8 @@ class JournalReader:
         return items + [self._carrier_owners]
 
 class CarrierModel:
-    def __init__(self, journal_path:str, dropout:bool=False, droplist:list[str]=None):
-        self.journal_reader = JournalReader(journal_path, dropout=dropout, droplist=droplist)
+    def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
+        self.journal_reader = JournalReader(journal_paths, dropout=dropout, droplist=droplist)
         self.dropout = dropout
         self.droplist = droplist
         self.carriers = {}
@@ -167,7 +170,7 @@ class CarrierModel:
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
-        self.journal_path = journal_path
+        self.journal_paths = journal_paths
         # self.read_counter = 0
         self._ignore_list = []
         self.custom_order = []
