@@ -40,6 +40,7 @@ class CarrierController:
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
+        self.view.button_load_archived_journals.configure(command=self.button_click_load_archived_journals)
 
         # Start the carrier update loop
         self.update_journals()
@@ -452,6 +453,9 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
         
+    def button_click_load_archived_journals(self):
+        
+    
     def check_manual_timer(self):
         now = datetime.now(timezone.utc)
         for carrierID in self.model.sorted_ids():

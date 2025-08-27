@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
+from tkinter import messagebox, filedialog
 from tksheet import Sheet
 from typing import Literal
 from config import WINDOW_SIZE_TIMER, font_sizes
@@ -192,6 +192,11 @@ class CarrierView:
         self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
+        self.labelframe_advanced = ttk.Labelframe(self.tab_options, text='Advanced')
+        self.labelframe_advanced.grid(row=3, column=0, padx=10, pady=10, sticky='w')
+        self.button_load_archived_journals = ttk.Button(self.labelframe_advanced, text='Load Archived Journals')
+        self.button_load_archived_journals.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+
     def set_font_size(self, font_size:str, font_size_table:str):
         size = font_sizes.get(font_size, font_sizes['normal'])
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
@@ -284,6 +289,13 @@ class CarrierView:
         
         ok_button = ttk.Button(info, text="OK", command=info.destroy)
         ok_button.pack(pady=10)
+    
+    def choose_directory(self) -> str|None:
+        directory = filedialog.askdirectory(parent=self.root, title='Select Directory')
+        if directory:
+            return directory
+        else:
+            return None
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
