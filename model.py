@@ -626,6 +626,7 @@ class CarrierModel:
     def get_data_services(self):
         df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids_display()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
         df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
+        df = df.fillna('Off')
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket']].values.tolist()
     
