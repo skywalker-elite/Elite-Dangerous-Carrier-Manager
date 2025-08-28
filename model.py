@@ -124,7 +124,7 @@ class JournalReader:
                 self._jump_cancels.append(item)
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
-                if fid is not None:
+                if fid is not None and ('CarrierType' not in item.keys() or item['CarrierType'] != 'SquadronCarrier'):
                     self._carrier_owners[item['CarrierID']] = fid
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
@@ -571,7 +571,7 @@ class CarrierModel:
         df.insert(4, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
         df = pd.concat([df, pd.DataFrame([['Total'] + [''] +[df.iloc[:,i].astype(int).sum() for i in range(2, 7)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
-        df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int else xi for xi in x])
+        df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int or type(xi) == float else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         return df.values.tolist()
     
@@ -843,7 +843,7 @@ def get_custom_system_name(system_name):
     return system_name
 
 if __name__ == '__main__':
-    model = CarrierModel(getJournalPath())
+    model = CarrierModel([getJournalPath()])
     now = datetime.now(timezone.utc)
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now), columns=[
