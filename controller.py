@@ -121,7 +121,7 @@ class CarrierController:
                 self.play_sound(self.settings.get('notifications', 'jump_completed_sound_file'))
             if self.settings.get('notifications', 'jump_completed_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
-                description = f'Jump completed at **{self.model.get_current_system(carrierID, use_custom_name=True)}** body **{self.model.get_current_body(carrierID)}**'
+                description = f'Jump completed at **{self.model.get_current_system(carrierID, use_custom_name=True)}** body **{self.model.get_current_body(carrierID)}**, cooldown finishes {self.model.get_cooldown_hammer_countdown(carrierID)}'
                 self.webhook_handler.send_message_with_embed(title=title, description=description, ping=self.settings.get('notifications', 'jump_completed_discord_ping'))
         elif status_new == 'cool_down_cancel':
             # jump cancelled
@@ -132,7 +132,7 @@ class CarrierController:
                 self.play_sound(self.settings.get('notifications', 'jump_cancelled_sound_file'))
             if self.settings.get('notifications', 'jump_cancelled_discord'):
                 title = f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})'
-                description = f'Jump cancelled'
+                description = f'Jump cancelled, cooldown finishes {self.model.get_cooldown_cancel_hammer_countdown(carrierID)}'
                 self.webhook_handler.send_message_with_embed(title=title, description=description, ping=self.settings.get('notifications', 'jump_cancelled_discord_ping'))
         elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
             # cool down complete
