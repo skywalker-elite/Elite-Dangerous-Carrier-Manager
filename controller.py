@@ -95,6 +95,8 @@ class CarrierController:
                 self.view.show_message_box_warning('Settings file warnings', f'{"\n".join(self.settings.validation_warnings)}')
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
             self.model.reset_ignore_list()
+            self.model.reset_sfc_whitelist()
+            self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
             self.model.custom_order = self.settings.get('advanced', 'custom_order')
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
