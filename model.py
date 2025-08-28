@@ -761,7 +761,15 @@ class CarrierModel:
     def get_departure_hammer_countdown(self, carrierID) -> str|None:
         latest_depart = self.get_carriers()[carrierID]['latest_depart']
         return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
+
+    def get_cooldown_hammer_countdown(self, carrierID) -> str|None:
+        latest_cooldown = self.get_carriers()[carrierID]['latest_depart'] + CD if self.get_carriers()[carrierID]['latest_depart'] is not None else None
+        return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
     
+    def get_cooldown_cancel_hammer_countdown(self, carrierID) -> str|None:
+        latest_cooldown = self.get_carriers()[carrierID]['last_cancel']['timestamp'] + CD_cancel if self.get_carriers()[carrierID]['last_cancel'] is not None else None
+        return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
+
     def get_formated_largest_order(self, carrierID) -> str|None:
         df_active_trades = self.generate_info_trade(carrierID=carrierID)
         if len(df_active_trades) == 0:
