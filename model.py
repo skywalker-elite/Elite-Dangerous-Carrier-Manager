@@ -600,7 +600,7 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['Finance']
     
     def generate_info_cmdr_name(self, carrierID) -> str:
-        cmdr_name = self.get_cmdr_name(carrierID=carrierID)
+        cmdr_name = self.get_cmdr_name(carrierID=carrierID) if not self.is_squadron_carrier(carrierID) else self.get_callsign(carrierID=carrierID)
         return cmdr_name if cmdr_name is not None else 'Unknown'
     
     def get_cmdr_name(self, carrierID) -> str|None:
@@ -613,7 +613,7 @@ class CarrierModel:
     
     def calculate_upkeep(self, carrierID) -> int:
         df = self.generate_info_services(carrierID=carrierID)
-        result = 5000000
+        result = 10000000 if self.is_squadron_carrier(carrierID) else 5000000
         for i in df.index:
             result += self.df_upkeeps.loc[i, df.loc[i]]
         return result
