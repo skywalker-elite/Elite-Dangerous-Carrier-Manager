@@ -124,7 +124,7 @@ class JournalReader:
                 self._jump_cancels.append(item)
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
-                if fid is not None:
+                if fid is not None and item.get('CarrierType', None) != 'SquadronCarrier':
                     self._carrier_owners[item['CarrierID']] = fid
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
@@ -173,6 +173,7 @@ class CarrierModel:
         self.journal_paths = journal_paths
         # self.read_counter = 0
         self._ignore_list = []
+        self._sfc_white_list = []
         self.custom_order = []
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
@@ -229,7 +230,8 @@ class CarrierModel:
         for stat in stats:
             if not first_read or stat['CarrierID'] not in self.carriers.keys():
                 if stat['CarrierID'] not in self.carriers.keys():
-                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None)}
+                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None), 
+                                                        'isSquadronCarrier': stat.get('CarrierType', None) == 'SquadronCarrier'}
                 else:
                     self.carriers[stat['CarrierID']]['Callsign'] = stat['Callsign']
                     self.carriers[stat['CarrierID']]['Name'] = stat['Name']
@@ -386,12 +388,21 @@ class CarrierModel:
             if 'active_trades' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
 
+    def add_sfc_whitelist(self, call_signs: list[str]):
+        for call_sign in call_signs:
+            carrierID = self.get_id_by_callsign(call_sign)
+            if carrierID is not None and call_sign not in self._sfc_white_list:
+                self._sfc_white_list.append(call_sign)
+
     def update_ignore_list(self):
         for carrierID in self.get_carriers_pending_decom():
             if carrierID in self._ignore_list:
                 continue
             now = datetime.now(timezone.utc)
             if self.get_stat_time(carrierID) is not None and now.astimezone() - self.get_stat_time(carrierID) > ASSUME_DECCOM_AFTER:
+                self._ignore_list.append(carrierID)
+        for carrierID in self.sorted_ids():
+            if self.is_squadron_carrier(carrierID) and self.get_callsign(carrierID) not in self._sfc_white_list:
                 self._ignore_list.append(carrierID)
 
     def add_ignore_list(self, call_signs:list[str]):
@@ -402,7 +413,10 @@ class CarrierModel:
     
     def reset_ignore_list(self):
         self._ignore_list = []
-    
+
+    def reset_sfc_whitelist(self):
+        self._sfc_white_list = []
+
     def update_carriers(self, now):
         carriers = self.carriers.copy()
         for carrierID in carriers.keys():
@@ -567,12 +581,14 @@ class CarrierModel:
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
+        idx_squadron_carriers = [i for i in range(len(self.sorted_ids_display())) if self.is_squadron_carrier(self.sorted_ids_display()[i])]
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
         df.insert(4, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
         df = pd.concat([df, pd.DataFrame([['Total'] + [''] +[df.iloc[:,i].astype(int).sum() for i in range(2, 7)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
-        df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int else xi for xi in x])
+        df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if type(xi) == int or type(xi) == float else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
+        df.loc[idx_squadron_carriers, 'CMDR Balance'] = 'N/A'
         return df.values.tolist()
     
     def generate_info_finance(self, carrierID):
@@ -586,7 +602,7 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['Finance']
     
     def generate_info_cmdr_name(self, carrierID) -> str:
-        cmdr_name = self.get_cmdr_name(carrierID=carrierID)
+        cmdr_name = self.get_cmdr_name(carrierID=carrierID) if not self.is_squadron_carrier(carrierID) else self.get_callsign(carrierID=carrierID)
         return cmdr_name if cmdr_name is not None else 'Unknown'
     
     def get_cmdr_name(self, carrierID) -> str|None:
@@ -599,7 +615,7 @@ class CarrierModel:
     
     def calculate_upkeep(self, carrierID) -> int:
         df = self.generate_info_services(carrierID=carrierID)
-        result = 5000000
+        result = 10000000 if self.is_squadron_carrier(carrierID) else 5000000
         for i in df.index:
             result += self.df_upkeeps.loc[i, df.loc[i]]
         return result
@@ -612,6 +628,7 @@ class CarrierModel:
     def get_data_services(self):
         df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids_display()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
         df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
+        df = df.fillna('Off')
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket']].values.tolist()
     
@@ -647,7 +664,10 @@ class CarrierModel:
         return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
-        docking_perm = self.get_docking_perm(carrierID=carrierID)
+        if self.is_squadron_carrier(carrierID):
+            docking_perm = {'DockingAccess': 'squadron', 'AllowNotorious': False}
+        else:
+            docking_perm = self.get_docking_perm(carrierID=carrierID)
         match docking_perm['DockingAccess']:
             case 'all':
                 docking = 'All'
@@ -758,6 +778,9 @@ class CarrierModel:
     def sorted_ids_display(self):
         return [i for i in self.sorted_ids() if i not in self._ignore_list]
     
+    def is_squadron_carrier(self, carrierID) -> bool:
+        return self.get_carriers()[carrierID]['isSquadronCarrier']
+    
     def get_departure_hammer_countdown(self, carrierID) -> str|None:
         latest_depart = self.get_carriers()[carrierID]['latest_depart']
         return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
@@ -851,7 +874,7 @@ def get_custom_system_name(system_name):
     return system_name
 
 if __name__ == '__main__':
-    model = CarrierModel(getJournalPath())
+    model = CarrierModel([getJournalPath()])
     now = datetime.now(timezone.utc)
     model.update_carriers(now)
     print(pd.DataFrame(model.get_data(now), columns=[
