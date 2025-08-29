@@ -664,7 +664,10 @@ class CarrierModel:
         return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
     
     def generate_info_docking_perm(self, carrierID):
-        docking_perm = self.get_docking_perm(carrierID=carrierID)
+        if self.is_squadron_carrier(carrierID):
+            docking_perm = {'DockingAccess': 'squadron', 'AllowNotorious': False}
+        else:
+            docking_perm = self.get_docking_perm(carrierID=carrierID)
         match docking_perm['DockingAccess']:
             case 'all':
                 docking = 'All'
