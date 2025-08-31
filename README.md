@@ -88,6 +88,10 @@ The settings file is a toml file that contains all the settings for EDCM. You ca
   - Set the Discord webhook URL to your webhook of an appropriate channel if you want to use the Discord notification feature
   - Set the userID to your discord user ID if you want to use the ping feature
 - It's recommended to test your settings in the options tab for the first time you set them up
+## Launch Arguments
+You can pass the following arguments when launching EDCM:
+- `-p <paths>`: Specify custom path(s) to the journal folder(s)
+  - example: `-p C:\Path\To\Journal1 C:\Path\To\Journal2`
 ## Limitations
 Some limitations may be addressed in later updates thoon, maybe, eventually... don't count on it
 - EDCM is currently English only
