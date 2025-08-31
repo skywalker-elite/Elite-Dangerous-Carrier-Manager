@@ -388,6 +388,9 @@ class CarrierModel:
             if 'active_trades' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
 
+            if 'isSquadronCarrier' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['isSquadronCarrier'] = False
+
     def add_sfc_whitelist(self, call_signs: list[str]):
         for call_sign in call_signs:
             carrierID = self.get_id_by_callsign(call_sign)
