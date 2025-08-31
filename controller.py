@@ -517,7 +517,7 @@ class CarrierController:
             return None
         
     def save_cache(self):
-        cache_path = getCachePath(self.model.journal_reader.journal_path)
+        cache_path = getCachePath(self.model.journal_reader.journal_paths)
         if cache_path is not None:
             makedirs(path.dirname(cache_path), exist_ok=True)
             try:

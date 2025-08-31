@@ -119,7 +119,7 @@ def hash_folder(folder_path:str, hash_obj) -> str:
                     hash_obj.update(chunk)
 
 
-def getCachePath(journal_path:str) -> str:
+def getCachePath(journal_paths:list[str]) -> str:
     cache_dir = getAppDir()
     if cache_dir is None:
         return None
@@ -128,7 +128,8 @@ def getCachePath(journal_path:str) -> str:
             h = hashlib.md5()
             h.update(getCurrentVersion().encode('utf-8'))
             h.update(sys.platform.encode('utf-8'))
-            h.update(journal_path.encode('utf-8'))
+            for journal_path in journal_paths:
+                h.update(journal_path.encode('utf-8'))
             hash_folder(getResourcePath(''), h)
             return os.path.join(cache_dir, 'cache', f'journal_processor_{h.hexdigest()}.pkl')
         except:

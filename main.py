@@ -26,8 +26,8 @@ def apply_theme_to_titlebar(root):
     else:
         pass
 
-def load_journal_reader_from_cache(journal_path: str) -> JournalReader | None:
-    cache_path = getCachePath(journal_path)
+def load_journal_reader_from_cache(journal_paths: list[str]) -> JournalReader | None:
+    cache_path = getCachePath(journal_paths)
     if cache_path and os.path.exists(cache_path):
         try:
             with open(cache_path, 'rb') as f:
@@ -66,12 +66,12 @@ def main():
         try:
             import pyi_splash  # type: ignore
             pyi_splash.update_text('Reading journals…')
-            jr = load_journal_reader_from_cache(journal_path)
-            model = CarrierModel(journal_path, journal_reader=jr)
+            jr = load_journal_reader_from_cache(journal_paths)
+            model = CarrierModel(journal_paths, journal_reader=jr)
             pyi_splash.close()
         except ModuleNotFoundError:
-            jr = load_journal_reader_from_cache(journal_path)
-            model = CarrierModel(journal_path, journal_reader=jr)
+            jr = load_journal_reader_from_cache(journal_paths)
+            model = CarrierModel(journal_paths, journal_reader=jr)
 
     root = tk.Tk()
     apply_theme_to_titlebar(root)
