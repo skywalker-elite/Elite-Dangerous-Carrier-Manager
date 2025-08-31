@@ -274,6 +274,17 @@ class CarrierView:
         self.root.attributes('-topmost', False)
         return response
 
+    def show_non_blocking_info(self, title:str, message:str):
+        info = tk.Toplevel(self.root)
+        info.title(title)
+        info.transient(self.root) # Make it appear on top of the main window
+        
+        label = ttk.Label(info, text=message)
+        label.pack()
+        
+        ok_button = ttk.Button(info, text="OK", command=info.destroy)
+        ok_button.pack(pady=10)
+
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
                  market_ids:list[str], market_updated:list[str], price:str|int):

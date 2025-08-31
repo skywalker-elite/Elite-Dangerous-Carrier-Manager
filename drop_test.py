@@ -29,7 +29,7 @@ def apply_theme_to_titlebar(root):
 
 if __name__ == '__main__':
     for _ in range(10):
-        model = CarrierModel(getJournalPath(), dropout=True)
+        model = CarrierModel([getJournalPath()], dropout=True)
         now = datetime.now(timezone.utc)
         model.update_carriers(now)
         print(pd.DataFrame(model.get_data(now), columns=[
@@ -49,7 +49,7 @@ if __name__ == '__main__':
                 'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
             ]))
     print('Carrier model test complete')
-    model = CarrierModel(getJournalPath(), dropout=True)
+    model = CarrierModel([getJournalPath()], dropout=True)
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()
