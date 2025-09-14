@@ -126,11 +126,11 @@ def getCachePath(journal_paths:list[str]) -> str:
     else:
         try:
             h = hashlib.md5()
-            h.update(getCurrentVersion().encode('utf-8'))
+            # h.update(getCurrentVersion().encode('utf-8'))
             h.update(sys.platform.encode('utf-8'))
             for journal_path in journal_paths:
                 h.update(journal_path.encode('utf-8'))
             hash_folder(getResourcePath(''), h)
-            return os.path.join(cache_dir, 'cache', f'journal_processor_{h.hexdigest()}.pkl')
+            return os.path.join(cache_dir, 'cache', f'journal_processor_{getCurrentVersion()}_{h.hexdigest()}.pkl')
         except:
             return None
