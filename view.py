@@ -169,6 +169,10 @@ class CarrierView:
         self.labelframe_EDCM.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
         self.button_check_updates.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_go_to_github = ttk.Button(self.labelframe_EDCM, text='Go to GitHub Repo')
+        self.button_go_to_github.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
+        self.button_clear_cache.grid(row=0, column=2, padx=10, pady=10, sticky='w')
 
         self.labelframe_settings = ttk.Labelframe(self.tab_options, text='Settings')
         self.labelframe_settings.grid(row=1, column=0, padx=10, pady=10, sticky='w')
@@ -181,13 +185,8 @@ class CarrierView:
         self.button_open_settings_dir = ttk.Button(self.labelframe_settings, text='Open Settings Directory')
         self.button_open_settings_dir.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
-        self.labelframe_cache = ttk.Labelframe(self.tab_options, text='Cache')
-        self.labelframe_cache.grid(row=2, column=0, padx=10, pady=10, sticky='w')
-        self.button_clear_cache = ttk.Button(self.labelframe_cache, text='Clear Cache and Reload')
-        self.button_clear_cache.grid(row=0, column=0, padx=10, pady=10, sticky='w')
-
         self.labelframe_testing = ttk.Labelframe(self.tab_options, text='Testing')
-        self.labelframe_testing.grid(row=3, column=0, padx=10, pady=10, sticky='w')
+        self.labelframe_testing.grid(row=2, column=0, padx=10, pady=10, sticky='w')
         self.button_test_trade_post = ttk.Button(self.labelframe_testing, text='Test Trade Post')
         self.button_test_trade_post.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.button_test_wine_unload = ttk.Button(self.labelframe_testing, text='Test Wine Unload')

@@ -43,6 +43,7 @@ class CarrierController:
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
+        self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
 
         # Start the carrier update loop
         self.update_journals()
