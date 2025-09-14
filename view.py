@@ -8,7 +8,7 @@ import tkinter.font as tkfont
 from station_parser import getStockPrice
 
 class CarrierView:
-    def __init__(self, root):
+    def __init__(self, root:tk.Tk):
         self.root = root
 
         # TopBar

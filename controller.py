@@ -8,6 +8,7 @@ from webbrowser import open_new_tab
 from datetime import datetime, timezone, timedelta, date
 from os import execl, makedirs, path, remove
 from shutil import copyfile
+from tkinter import Tk
 import traceback
 import tomllib
 import pickle
@@ -22,7 +23,7 @@ from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
 
 class CarrierController:
-    def __init__(self, root, model:CarrierModel):
+    def __init__(self, root:Tk, model:CarrierModel):
         self.model = model
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
@@ -55,7 +56,7 @@ class CarrierController:
         self.set_current_version()
         self.check_app_update()
 
-        self.save_cache()
+        threading.Thread(target=self.save_cache).start()
 
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
@@ -524,14 +525,19 @@ class CarrierController:
         if cache_path is not None:
             makedirs(path.dirname(cache_path), exist_ok=True)
             try:
-                with open(cache_path, 'wb') as f:
-                    pickle.dump(self.model.journal_reader, f)
+                self._save_cache(cache_path)
             except Exception as e:
                 self.view.show_message_box_warning('Error', f'Error while saving cache\n{traceback.format_exc()}')
             else:
                 self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
         else:
             self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
+
+    def _save_cache(self, cache_path:str):
+        if cache_path is not None:
+            makedirs(path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, 'wb') as f:
+                pickle.dump(self.model.journal_reader, f)
 
     def button_click_clear_cache(self):
         cache_path = getCachePath(self.model.journal_reader.journal_paths)
