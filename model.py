@@ -174,7 +174,7 @@ class CarrierModel:
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
-        self.journal_paths = journal_paths
+        self.journal_paths = journal_reader.journal_paths if journal_reader else journal_paths
         # self.read_counter = 0
         self._ignore_list = []
         self._sfc_white_list = []

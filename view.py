@@ -181,8 +181,13 @@ class CarrierView:
         self.button_open_settings_dir = ttk.Button(self.labelframe_settings, text='Open Settings Directory')
         self.button_open_settings_dir.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
+        self.labelframe_cache = ttk.Labelframe(self.tab_options, text='Cache')
+        self.labelframe_cache.grid(row=2, column=0, padx=10, pady=10, sticky='w')
+        self.button_clear_cache = ttk.Button(self.labelframe_cache, text='Clear Cache and Reload')
+        self.button_clear_cache.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+
         self.labelframe_testing = ttk.Labelframe(self.tab_options, text='Testing')
-        self.labelframe_testing.grid(row=2, column=0, padx=10, pady=10, sticky='w')
+        self.labelframe_testing.grid(row=3, column=0, padx=10, pady=10, sticky='w')
         self.button_test_trade_post = ttk.Button(self.labelframe_testing, text='Test Trade Post')
         self.button_test_trade_post.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.button_test_wine_unload = ttk.Button(self.labelframe_testing, text='Test Wine Unload')
@@ -284,6 +289,22 @@ class CarrierView:
         
         ok_button = ttk.Button(info, text="OK", command=info.destroy)
         ok_button.pack(pady=10)
+
+    def show_indeterminate_progress_bar(self, title:str, message:str) -> tuple[tk.Toplevel, ttk.Progressbar]:
+        progress_win = tk.Toplevel(self.root)
+        progress_win.title(title)
+        progress_win.transient(self.root) # Make it appear on top of the main window
+
+        label = ttk.Label(progress_win, text=message)
+        label.pack(pady=10, padx=10)
+        progress_win.update_idletasks()  # Ensure the window dimensions are calculated
+        print(f'{progress_win.winfo_width()=}')
+
+        progress_bar = ttk.Progressbar(progress_win, mode='indeterminate', length=progress_win.winfo_width()//2)
+        progress_bar.pack(pady=10, padx=10)
+        progress_bar.start(20)
+
+        return progress_win, progress_bar
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 

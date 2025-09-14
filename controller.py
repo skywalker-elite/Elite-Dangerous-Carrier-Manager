@@ -1,3 +1,4 @@
+import sys
 import threading
 import time
 import pyperclip
@@ -5,7 +6,7 @@ import re
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone, timedelta, date
-from os import makedirs, path
+from os import execl, makedirs, path, remove
 from shutil import copyfile
 import traceback
 import tomllib
@@ -41,6 +42,7 @@ class CarrierController:
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
+        self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
 
         # Start the carrier update loop
         self.update_journals()
@@ -529,3 +531,29 @@ class CarrierController:
                 self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
         else:
             self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
+
+    def button_click_clear_cache(self):
+        cache_path = getCachePath(self.model.journal_reader.journal_paths)
+        if cache_path is not None and path.exists(cache_path):
+            try:
+                remove(cache_path)
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while clearing cache\n{traceback.format_exc()}')
+            else:
+                self.view.show_message_box_info('Success!', 'Cache cleared, EDCM will reload all journals now')
+                self.reload()
+        else:
+            self.view.show_message_box_info('Info', 'No cache file found')
+
+    def reload(self):
+        progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Reloading', 'Reloading all journals, this may take a while depending on the size of your journals')
+        thread_reload = threading.Thread(target=self._reload)
+        thread_reload.start()
+        while thread_reload.is_alive():
+            progress_win.update()
+            time.sleep(0.0001)
+        progress_win.destroy()
+
+    def _reload(self):
+        self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
+        self.model.register_status_change_callback(self.status_change)
