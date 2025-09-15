@@ -8,3 +8,5 @@ requests==2.32.4
 humanize==4.12.2
 discord==2.3.2
 playsound3==3.2.3
+Pillow==11.3.0
+pystray==0.19.5
