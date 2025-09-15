@@ -1,7 +1,10 @@
 import os
+import threading                             # ← add
 from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
+from pystray import Icon, Menu, MenuItem     # ← add
+from PIL import Image
 from controller import CarrierController
 from model import CarrierModel
 import sys
@@ -40,9 +43,9 @@ def main():
     for journal_path in journal_paths:
         assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --paths if the default is incorrect'
 
-    # Update and close the splash screen
+    # build first, then splash, then tk root
     if sys.platform == 'darwin':
-            model = CarrierModel(journal_paths)
+        model = CarrierModel(journal_paths)
     else:
         try:
             import pyi_splash # type: ignore
@@ -62,9 +65,40 @@ def main():
     root.update()
     root.title("Elite Dangerous Carrier Manager")
     root.geometry(WINDOW_SIZE)
-    photo = tk.PhotoImage(file = getResourcePath(os.path.join('images','EDCM.png')))
+    photo = tk.PhotoImage(file=getResourcePath(os.path.join('images','EDCM.png')))
     root.wm_iconphoto(False, photo)
     root.update()
+
+    # --- tray icon setup ---
+    def on_show(icon, item):
+        root.after(0, root.deiconify)
+
+    def on_quit(icon, item):
+        icon.stop()
+        root.after(0, root.destroy)
+
+    def send_to_tray(*args):
+        root.withdraw()
+        tray_icon.visible = True
+
+    # create the menu and icon
+    tray_menu = Menu(
+        MenuItem('Show', on_show, default=True),
+        MenuItem('Quit', on_quit)
+    )
+    tray_icon = Icon(
+        'EDCM',
+        Image.open(getResourcePath(os.path.join('images','EDCM.png'))),
+        'Elite Dangerous Carrier Manager',
+        tray_menu,
+    )
+    # run the icon in its own thread
+    threading.Thread(target=tray_icon.run, daemon=True).start()
+
+    # send to tray when minimized
+    root.bind('<Unmap>', lambda e: send_to_tray() if root.state() == 'iconic' else None)
+    # --- end tray icon setup ---
+
     app = CarrierController(root, model=model)
     root.mainloop()
 
