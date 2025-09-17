@@ -1,9 +1,9 @@
 import os
-import threading                             # ← add
+import threading
 from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
-from pystray import Icon, Menu, MenuItem     # ← add
+from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from controller import CarrierController
 from model import CarrierModel
@@ -69,7 +69,6 @@ def main():
     root.wm_iconphoto(False, photo)
     root.update()
 
-    # --- tray icon setup ---
     def on_show(icon, item):
         root.after(0, root.deiconify)
 
@@ -81,7 +80,6 @@ def main():
         root.withdraw()
         tray_icon.visible = True
 
-    # create the menu and icon
     tray_menu = Menu(
         MenuItem('Show', on_show, default=True),
         MenuItem('Quit', on_quit)
@@ -92,12 +90,10 @@ def main():
         'Elite Dangerous Carrier Manager',
         tray_menu,
     )
-    # run the icon in its own thread
     threading.Thread(target=tray_icon.run, daemon=True).start()
 
     # send to tray when minimized
     root.bind('<Unmap>', lambda e: send_to_tray() if root.state() == 'iconic' else None)
-    # --- end tray icon setup ---
 
     app = CarrierController(root, model=model)
     root.mainloop()
