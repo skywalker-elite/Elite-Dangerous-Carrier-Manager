@@ -44,6 +44,7 @@ ladder_systems = {
 test_trade_data = {
     'trade_type': 'load',
     'trading_type': 'loading',
+    'to_from': 'from',
     'carrier_name': 'P.T.N. Carrier Name',
     'carrier_callsign': 'PTN-123',
     'commodity': 'Gold',
