@@ -3,8 +3,6 @@ import threading
 from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
-from pystray import Icon, Menu, MenuItem
-from PIL import Image
 from controller import CarrierController
 from model import CarrierModel
 import sys
@@ -62,47 +60,11 @@ def main():
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()
-    root.update()
     root.title("Elite Dangerous Carrier Manager")
     root.geometry(WINDOW_SIZE)
     photo = tk.PhotoImage(file=getResourcePath(os.path.join('images','EDCM.png')))
     root.wm_iconphoto(False, photo)
     root.update()
-
-    def on_show(icon, item):
-        root.after(0, root.deiconify)
-
-    def on_quit(icon, item):
-        icon.stop()
-        root.after(0, root.destroy)
-
-    def on_minimize():
-        if app.settings.get('advanced', 'minimize_to_tray'):
-            send_to_tray()
-
-    def send_to_tray(*args):
-        global notified
-        if tray_icon.HAS_NOTIFICATION and not notified:
-            tray_icon.notify('EDCM is still running. Click the tray icon to restore the window.', 'EDCM Minimized to Tray')
-            notified = True
-        root.withdraw()
-
-    tray_menu = Menu(
-        MenuItem('Show', on_show, default=True),
-        MenuItem('Quit', on_quit)
-    )
-    tray_icon = Icon(
-        'EDCM',
-        Image.open(getResourcePath(os.path.join('images','EDCM.png'))),
-        'Elite Dangerous Carrier Manager',
-        tray_menu,
-    )
-    if tray_icon.HAS_MENU: # only enable tray icon if the platform supports it
-        global notified
-        notified = False
-        threading.Thread(target=tray_icon.run, daemon=True).start()
-        # send to tray when minimized
-        root.bind('<Unmap>', lambda e: on_minimize() if root.state() == 'iconic' else None)
 
     app = CarrierController(root, model=model)
     root.mainloop()
