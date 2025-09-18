@@ -76,6 +76,10 @@ def main():
         icon.stop()
         root.after(0, root.destroy)
 
+    def on_minimize():
+        if app.settings.get('advanced', 'minimize_to_tray'):
+            send_to_tray()
+
     def send_to_tray(*args):
         global notified
         if tray_icon.HAS_NOTIFICATION and not notified:
@@ -98,7 +102,7 @@ def main():
         notified = False
         threading.Thread(target=tray_icon.run, daemon=True).start()
         # send to tray when minimized
-        root.bind('<Unmap>', lambda e: send_to_tray() if root.state() == 'iconic' else None)
+        root.bind('<Unmap>', lambda e: on_minimize() if root.state() == 'iconic' else None)
 
     app = CarrierController(root, model=model)
     root.mainloop()
