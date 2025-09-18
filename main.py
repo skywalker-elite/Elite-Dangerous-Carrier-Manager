@@ -90,10 +90,10 @@ def main():
         'Elite Dangerous Carrier Manager',
         tray_menu,
     )
-    threading.Thread(target=tray_icon.run, daemon=True).start()
-
-    # send to tray when minimized
-    root.bind('<Unmap>', lambda e: send_to_tray() if root.state() == 'iconic' else None)
+    if tray_icon.HAS_MENU: # only enable tray icon if the platform supports it
+        threading.Thread(target=tray_icon.run, daemon=True).start()
+        # send to tray when minimized
+        root.bind('<Unmap>', lambda e: send_to_tray() if root.state() == 'iconic' else None)
 
     app = CarrierController(root, model=model)
     root.mainloop()
