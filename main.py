@@ -77,8 +77,11 @@ def main():
         root.after(0, root.destroy)
 
     def send_to_tray(*args):
+        global notified
+        if tray_icon.HAS_NOTIFICATION and not notified:
+            tray_icon.notify('EDCM is still running. Click the tray icon to restore the window.', 'EDCM Minimized to Tray')
+            notified = True
         root.withdraw()
-        tray_icon.visible = True
 
     tray_menu = Menu(
         MenuItem('Show', on_show, default=True),
@@ -91,6 +94,8 @@ def main():
         tray_menu,
     )
     if tray_icon.HAS_MENU: # only enable tray icon if the platform supports it
+        global notified
+        notified = False
         threading.Thread(target=tray_icon.run, daemon=True).start()
         # send to tray when minimized
         root.bind('<Unmap>', lambda e: send_to_tray() if root.state() == 'iconic' else None)
