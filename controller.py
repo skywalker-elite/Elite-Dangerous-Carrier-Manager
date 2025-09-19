@@ -521,7 +521,7 @@ class CarrierController:
             return None
         
     def save_cache(self):
-        cache_path = getCachePath(self.model.journal_reader.journal_paths)
+        cache_path = getCachePath(self.model.journal_reader.version, self.model.journal_reader.journal_paths)
         if cache_path is not None:
             makedirs(path.dirname(cache_path), exist_ok=True)
             try:
@@ -540,7 +540,7 @@ class CarrierController:
                 pickle.dump(self.model.journal_reader, f)
 
     def button_click_clear_cache(self):
-        cache_path = getCachePath(self.model.journal_reader.journal_paths)
+        cache_path = getCachePath(self.model.journal_reader.version, self.model.journal_reader.journal_paths)
         if cache_path is not None and path.exists(cache_path):
             try:
                 remove(cache_path)

@@ -4,6 +4,8 @@ import re
 import json
 import threading
 import locale
+import inspect
+import hashlib
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
@@ -13,7 +15,14 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
+    @classmethod
+    def version_hash(cls) -> str:
+        src = inspect.getsource(cls)
+        return hashlib.md5(src.encode('utf-8')).hexdigest()
+
     def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
+        self.version = self.version_hash()
+        
         self.journal_paths = journal_paths
         self.journal_processed = []
         self.journal_latest = {}

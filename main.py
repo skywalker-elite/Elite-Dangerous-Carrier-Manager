@@ -26,12 +26,12 @@ def apply_theme_to_titlebar(root):
     else:
         pass
 
-def load_journal_reader_from_cache(journal_paths: list[str]) -> JournalReader | None:
-    cache_path = getCachePath(journal_paths)
+def load_journal_reader_from_cache(jr_version:str, journal_paths: list[str]) -> JournalReader | None:
+    cache_path = getCachePath(jr_version, journal_paths)
     if cache_path and os.path.exists(cache_path):
         try:
             with open(cache_path, 'rb') as f:
-                jr = pickle.load(f)
+                jr:JournalReader = pickle.load(f)
             # smoke‐test: try to read journals once
             jr.read_journals()
             return jr
@@ -60,17 +60,17 @@ def main():
 
     # Update and close the splash screen
     if sys.platform == 'darwin':
-        jr = load_journal_reader_from_cache(journal_path)
-        model = CarrierModel(journal_path, journal_reader=jrs)
+        jr = load_journal_reader_from_cache(jr_version=JournalReader.version_hash(), journal_paths=journal_paths)
+        model = CarrierModel(journal_path, journal_reader=jr)
     else:
         try:
             import pyi_splash  # type: ignore
             pyi_splash.update_text('Reading journals…')
-            jr = load_journal_reader_from_cache(journal_paths)
+            jr = load_journal_reader_from_cache(jr_version=JournalReader.version_hash(), journal_paths=journal_paths)
             model = CarrierModel(journal_paths, journal_reader=jr)
             pyi_splash.close()
         except ModuleNotFoundError:
-            jr = load_journal_reader_from_cache(journal_paths)
+            jr = load_journal_reader_from_cache(jr_version=JournalReader.version_hash(), journal_paths=journal_paths)
             model = CarrierModel(journal_paths, journal_reader=jr)
 
     root = tk.Tk()
