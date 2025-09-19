@@ -93,8 +93,6 @@ class CarrierController:
         self._journal_update_pending = False
         self.update_journals()
 
-        threading.Thread(target=self.save_cache).start()
-
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
     
@@ -596,10 +594,12 @@ class CarrierController:
             progress_win.update()
             time.sleep(0.0001)
         progress_win.destroy()
+        self.save_cache()
 
     def _reload(self):
         self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
         self.model.register_status_change_callback(self.status_change)
+        self.model.read_journals()
 
     def setup_tray_icon(self):
         if self.settings.get('advanced', 'minimize_to_tray'):
