@@ -1,4 +1,5 @@
 import os
+import sys
 import threading
 import time
 import pyperclip
@@ -8,10 +9,12 @@ from watchdog.events import FileSystemEventHandler             # ← new
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone, timedelta, date
-from os import makedirs, path
+from os import execl, makedirs, path, remove
 from shutil import copyfile
+from tkinter import Tk
 import traceback
 import tomllib
+import pickle
 from string import Template
 from playsound3 import playsound
 from tkinter import Tk
@@ -21,9 +24,9 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath
 from discord_handler import DiscordWebhookHandler
-from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
+from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
 
 class JournalEventHandler(FileSystemEventHandler):
     def __init__(self, controller: 'CarrierController'):
@@ -57,6 +60,8 @@ class CarrierController:
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
+        self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
+        self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
 
         # initial load
         self.update_journals()
@@ -88,6 +93,8 @@ class CarrierController:
         self._journal_update_pending = False
         self.update_journals()
 
+        threading.Thread(target=self.save_cache).start()
+
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
     
@@ -106,7 +113,7 @@ class CarrierController:
                 raise e
             else:
                 if self.view.show_message_box_askyesno('Settings file not found', 'Do you want to create a new settings file?'):
-                    makedirs(getSettingsDir(), exist_ok=True)
+                    makedirs(getAppDir(), exist_ok=True)
                     copyfile(getSettingsDefaultPath(), settings_file)
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         open_new_tab(url=settings_file)
@@ -550,6 +557,51 @@ class CarrierController:
                 return None
         else:
             return None
+        
+    def save_cache(self):
+        cache_path = getCachePath(self.model.journal_reader.version, self.model.journal_reader.journal_paths)
+        if cache_path is not None:
+            makedirs(path.dirname(cache_path), exist_ok=True)
+            try:
+                self._save_cache(cache_path)
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while saving cache\n{traceback.format_exc()}')
+            else:
+                self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
+        else:
+            self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
+
+    def _save_cache(self, cache_path:str):
+        if cache_path is not None:
+            makedirs(path.dirname(cache_path), exist_ok=True)
+            with open(cache_path, 'wb') as f:
+                pickle.dump(self.model.journal_reader, f)
+
+    def button_click_clear_cache(self):
+        cache_path = getCachePath(self.model.journal_reader.version, self.model.journal_reader.journal_paths)
+        if cache_path is not None and path.exists(cache_path):
+            try:
+                remove(cache_path)
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while clearing cache\n{traceback.format_exc()}')
+            else:
+                self.view.show_message_box_info('Success!', 'Cache cleared, EDCM will reload all journals now')
+                self.reload()
+        else:
+            self.view.show_message_box_info('Info', 'No cache file found')
+
+    def reload(self):
+        progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Reloading', 'Reloading all journals, this may take a while depending on the size of your journals')
+        thread_reload = threading.Thread(target=self._reload)
+        thread_reload.start()
+        while thread_reload.is_alive():
+            progress_win.update()
+            time.sleep(0.0001)
+        progress_win.destroy()
+
+    def _reload(self):
+        self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
+        self.model.register_status_change_callback(self.status_change)
 
     def setup_tray_icon(self):
         if self.settings.get('advanced', 'minimize_to_tray'):

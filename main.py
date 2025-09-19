@@ -4,9 +4,10 @@ from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
 from controller import CarrierController
-from model import CarrierModel
+from model import CarrierModel, JournalReader
 import sys
-from utility import getResourcePath, getJournalPath
+import pickle
+from utility import getResourcePath, getJournalPath, getCachePath
 from config import WINDOW_SIZE
 
 def apply_theme_to_titlebar(root):
@@ -26,6 +27,23 @@ def apply_theme_to_titlebar(root):
     else:
         pass
 
+def load_journal_reader_from_cache(jr_version:str, journal_paths: list[str]) -> JournalReader | None:
+    cache_path = getCachePath(jr_version, journal_paths)
+    if cache_path and os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'rb') as f:
+                jr:JournalReader = pickle.load(f)
+            # smoke‐test: try to read journals once
+            jr.read_journals()
+            return jr
+        except Exception:
+            # something went wrong, nuke the cache
+            try:
+                os.remove(cache_path)
+            except OSError:
+                pass
+    return None
+
 def main():
     parser = ArgumentParser()
     parser.add_argument("-p", "--paths",
@@ -43,20 +61,19 @@ def main():
 
     # build first, then splash, then tk root
     if sys.platform == 'darwin':
-        model = CarrierModel(journal_paths)
+        jr = load_journal_reader_from_cache(jr_version=JournalReader.version_hash(), journal_paths=journal_paths)
+        model = CarrierModel(journal_paths, journal_reader=jr)
     else:
         try:
-            import pyi_splash # type: ignore
-            pyi_splash.update_text('Reading journals...')
-            try:
-                model = CarrierModel(journal_paths)
-            except Exception as e:
-                pyi_splash.close()
-                raise e
-            else:
-                pyi_splash.close()
+            import pyi_splash  # type: ignore
+            pyi_splash.update_text('Reading journals…')
+            jr = load_journal_reader_from_cache(jr_version=JournalReader.version_hash(), journal_paths=journal_paths)
+            model = CarrierModel(journal_paths, journal_reader=jr)
+            pyi_splash.close()
         except ModuleNotFoundError:
-            model = CarrierModel(journal_paths)
+            jr = load_journal_reader_from_cache(jr_version=JournalReader.version_hash(), journal_paths=journal_paths)
+            model = CarrierModel(journal_paths, journal_reader=jr)
+
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()

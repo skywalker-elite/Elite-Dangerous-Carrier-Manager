@@ -4,6 +4,7 @@ import re
 from numpy import datetime64
 import requests
 from packaging import version
+import hashlib
 
 def getJournalPath() -> str:
     if sys.platform == 'win32':
@@ -72,6 +73,19 @@ def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
         return f.readline()
     
+def getAppDir() -> str:
+    if sys.platform == 'win32':
+        user_path = os.environ.get('USERPROFILE')
+        return os.path.join(user_path, 'AppData', 'Roaming', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    elif sys.platform == 'linux':
+        user_path = os.path.expanduser('~')
+        return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    elif sys.platform == 'darwin':
+        user_path = os.path.expanduser('~')
+        return os.path.join(user_path, '.config', 'Skywalker-Elite', 'Elite Dangerous Carrier Manager')
+    else:
+        return None
+
 def getSettingsDir() -> str:
     if sys.platform == 'win32':
         user_path = os.environ.get('USERPROFILE')
@@ -94,3 +108,27 @@ def getSettingsPath() -> str:
 
 def getSettingsDefaultPath() -> str:
     return getResourcePath('settings_default.toml')
+
+def hash_folder(folder_path:str, hash_obj) -> str:
+    """Generate a hash for the contents of a folder."""
+    for root, dirs, files in sorted(os.walk(folder_path)):
+        for file_name in sorted(files):
+            file_path = os.path.join(root, file_name)
+            with open(file_path, 'rb') as f:
+                while chunk := f.read(8192):  # Read file in chunks
+                    hash_obj.update(chunk)
+
+
+def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
+    cache_dir = getAppDir()
+    if cache_dir is None:
+        return None
+    else:
+        try:
+            h = hashlib.md5()
+            h.update(sys.platform.encode('utf-8'))
+            for journal_path in journal_paths:
+                h.update(journal_path.encode('utf-8'))
+            return os.path.join(cache_dir, 'cache', f'journal_reader_{jr_version}_{h.hexdigest()}.pkl')
+        except:
+            return None

@@ -4,6 +4,8 @@ import re
 import json
 import threading
 import locale
+import inspect
+import hashlib
 from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
@@ -13,7 +15,14 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 class JournalReader:
+    @classmethod
+    def version_hash(cls) -> str:
+        src = inspect.getsource(cls)
+        return hashlib.md5(src.encode('utf-8')).hexdigest()
+
     def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
+        self.version = self.version_hash()
+        
         self.journal_paths = journal_paths
         self.journal_processed = []
         self.journal_latest = {}
@@ -29,6 +38,7 @@ class JournalReader:
         self._carrier_owners = {}
         self._docking_perms = []
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         self.items = []
         self.dropout = dropout
         self.droplist = droplist
@@ -143,7 +153,7 @@ class JournalReader:
                 for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
     
     def get_items(self) -> list:
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         if self.dropout:
             items = self.items.copy()
             for i in self.droplist:
@@ -155,12 +165,15 @@ class JournalReader:
         items = []
         for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
         return items + [self._carrier_owners]
+    
+    def update_items_count(self):
+        self._last_items_count = self._last_items_count_pending.copy()
 
 class CarrierModel:
-    def __init__(self, journal_paths:list[str], dropout:bool=False, droplist:list[str]=None):
-        self.journal_reader = JournalReader(journal_paths, dropout=dropout, droplist=droplist)
+    def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
+        self.journal_reader = journal_reader if journal_reader else JournalReader(journal_paths, dropout=dropout, droplist=droplist)
         self.dropout = dropout
         self.droplist = droplist
         self.carriers = {}
@@ -170,7 +183,7 @@ class CarrierModel:
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
-        self.journal_paths = journal_paths
+        self.journal_paths = journal_reader.journal_paths if journal_reader else journal_paths
         # self.read_counter = 0
         self._ignore_list = []
         self._sfc_white_list = []
@@ -218,6 +231,8 @@ class CarrierModel:
         self.fill_missing_data()
 
         self.update_ignore_list()
+
+        self.journal_reader.update_items_count()
 
     def process_load_games(self, load_games, first_read:bool=True):
         for load_game in load_games:
@@ -897,3 +912,4 @@ if __name__ == '__main__':
             'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
+    
