@@ -73,6 +73,7 @@ whitelist = [] # List of squadron carriers to NOT ignore. This is a list of squa
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
 ignore_list = [] # List of carriers to ignore. This is a list of carrier IDs (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
 custom_order = [] # Custom order of carriers. This is a list of carrier IDs (example: ["FC0-001", "FC0-002"]). Carriers in this list appear first; all others are sorted by time bought (if available).
+minimize_to_tray = false # Whether to minimize to system tray instead of taskbar
 
 [compatibility] # DO NOT EDIT THIS SECTION
 settings_version = 1 # Version of the settings file. Do not edit this line.

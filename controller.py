@@ -14,11 +14,14 @@ import traceback
 import tomllib
 from string import Template
 from playsound3 import playsound
+from tkinter import Tk
+from pystray import Icon, Menu, MenuItem
+from PIL import Image
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
 
@@ -31,11 +34,14 @@ class JournalEventHandler(FileSystemEventHandler):
     on_created = on_modified
 
 class CarrierController:
-    def __init__(self, root, model:CarrierModel):
+    def __init__(self, root:Tk, model:CarrierModel):
+        self.root = root
         self.model = model
+        self.tray_icon = None
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
+        
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
@@ -69,6 +75,7 @@ class CarrierController:
         self.redraw_slow()
         self.set_current_version()
         self.check_app_update()
+        self.minimize_hint_sent = False
 
     def _schedule_journal_update(self):
         # coalesce rapid events
@@ -130,6 +137,7 @@ class CarrierController:
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
             self.model.custom_order = self.settings.get('advanced', 'custom_order')
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
+            self.setup_tray_icon()
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
@@ -542,3 +550,49 @@ class CarrierController:
                 return None
         else:
             return None
+
+    def setup_tray_icon(self):
+        if self.settings.get('advanced', 'minimize_to_tray'):
+            if self.tray_icon is None:
+                icon = Icon(
+                    'Elite Dangerous Carrier Manager',
+                    Image.open(getResourcePath(path.join('images','EDCM.png'))),
+                    'EDCM',
+                    Menu(
+                        MenuItem('Show', self._on_show, default=True),
+                        MenuItem('Quit', self._on_quit)
+                    )
+                )
+                self.tray_icon = icon
+            if self.tray_icon.HAS_MENU:
+                threading.Thread(target=self.tray_icon.run, daemon=True).start()
+                self.root.bind('<Unmap>', lambda e: self._on_minimize() if self.root.state() == 'iconic' else None)
+            else:
+                self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
+                                                   for more information, check the FAQ on the GitHub page.')
+                self.tray_icon = None
+        else:
+            if self.tray_icon is not None:
+                self.tray_icon.stop()
+                self.tray_icon = None
+            self.root.unbind('<Unmap>')
+            self.root.deiconify()
+
+    def _on_show(self, icon, item):
+        self.root.after(0, self.root.deiconify)
+
+    def _on_quit(self, icon, item):
+        icon.stop()
+        self.root.after(0, self.root.destroy)
+
+    def _on_minimize(self):
+        self._send_to_tray()
+
+    def _send_to_tray(self):
+        if self.tray_icon.HAS_NOTIFICATION and not self.minimize_hint_sent:
+            self.tray_icon.notify(
+                'EDCM is still running. Click the tray icon to restore the window.',
+                'EDCM Minimized to Tray'
+            )
+            self.minimize_hint_sent = True
+        self.root.withdraw()

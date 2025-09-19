@@ -1,4 +1,5 @@
 import os
+import threading
 from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
@@ -40,9 +41,9 @@ def main():
     for journal_path in journal_paths:
         assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --paths if the default is incorrect'
 
-    # Update and close the splash screen
+    # build first, then splash, then tk root
     if sys.platform == 'darwin':
-            model = CarrierModel(journal_paths)
+        model = CarrierModel(journal_paths)
     else:
         try:
             import pyi_splash # type: ignore
@@ -59,12 +60,12 @@ def main():
     root = tk.Tk()
     apply_theme_to_titlebar(root)
     sv_ttk.use_dark_theme()
-    root.update()
     root.title("Elite Dangerous Carrier Manager")
     root.geometry(WINDOW_SIZE)
-    photo = tk.PhotoImage(file = getResourcePath(os.path.join('images','EDCM.png')))
+    photo = tk.PhotoImage(file=getResourcePath(os.path.join('images','EDCM.png')))
     root.wm_iconphoto(False, photo)
     root.update()
+
     app = CarrierController(root, model=model)
     root.mainloop()
 
