@@ -297,7 +297,6 @@ class CarrierView:
         label = ttk.Label(progress_win, text=message)
         label.pack(pady=10, padx=10)
         progress_win.update_idletasks()  # Ensure the window dimensions are calculated
-        print(f'{progress_win.winfo_width()=}')
 
         progress_bar = ttk.Progressbar(progress_win, mode='indeterminate', length=progress_win.winfo_width()//2)
         progress_bar.pack(pady=10, padx=10)
