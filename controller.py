@@ -66,7 +66,6 @@ class CarrierController:
         # initial load
         self.update_journals()
 
-        # set up FS watcher instead of interval polling
         self._observer = Observer()
         handler = JournalEventHandler(self)
         for jp in self.model.journal_paths:
@@ -80,6 +79,8 @@ class CarrierController:
         self.set_current_version()
         self.check_app_update()
         self.minimize_hint_sent = False
+
+        threading.Thread(target=self.save_cache).start()
 
     def _schedule_journal_update(self):
         # coalesce rapid events
