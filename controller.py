@@ -603,23 +603,28 @@ class CarrierController:
 
     def setup_tray_icon(self):
         if self.settings.get('advanced', 'minimize_to_tray'):
-            if self.tray_icon is None:
-                icon = Icon(
-                    'Elite Dangerous Carrier Manager',
-                    Image.open(getResourcePath(path.join('images','EDCM.png'))),
-                    'EDCM',
-                    Menu(
-                        MenuItem('Show', self._on_show, default=True),
-                        MenuItem('Quit', self._on_quit)
+            if sys.platform in ['win32', 'linux']:
+                if self.tray_icon is None:
+                    icon = Icon(
+                        'Elite Dangerous Carrier Manager',
+                        Image.open(getResourcePath(path.join('images','EDCM.png'))),
+                        'EDCM',
+                        Menu(
+                            MenuItem('Show', self._on_show, default=True),
+                            MenuItem('Quit', self._on_quit)
+                        )
                     )
-                )
-                self.tray_icon = icon
-            if self.tray_icon.HAS_MENU:
-                threading.Thread(target=self.tray_icon.run, daemon=True).start()
-                self.root.bind('<Unmap>', lambda e: self._on_minimize() if self.root.state() == 'iconic' else None)
+                    self.tray_icon = icon
+                if self.tray_icon.HAS_MENU:
+                    threading.Thread(target=self.tray_icon.run, daemon=True).start()
+                    self.root.bind('<Unmap>', lambda e: self._on_minimize() if self.root.state() == 'iconic' else None)
+                else:
+                    self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
+                                                    for more information, check the FAQ on the GitHub page.')
+                    self.tray_icon = None
             else:
                 self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
-                                                   for more information, check the FAQ on the GitHub page.')
+                                                for more information, check the FAQ on the GitHub page.')
                 self.tray_icon = None
         else:
             if self.tray_icon is not None:
