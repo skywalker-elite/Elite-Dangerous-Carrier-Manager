@@ -4,8 +4,8 @@ import threading
 import time
 import pyperclip
 import re
-from watchdog.observers import Observer                         # ← new
-from watchdog.events import FileSystemEventHandler             # ← new
+from watchdog.observers import Observer
+from watchdog.events import FileSystemEventHandler
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone, timedelta, date
@@ -75,7 +75,6 @@ class CarrierController:
         self._observer.daemon = True
         self._observer.start()
 
-        # start your UI loops as before
         self.redraw_fast()
         self.redraw_slow()
         self.set_current_version()
@@ -237,8 +236,6 @@ class CarrierController:
                 self.view.root.after(UPDATE_INTERVAL, self.update_journals)
             else:
                 self.view.root.destroy()
-        # else:
-        #     self.view.root.after(UPDATE_INTERVAL, self.update_journals)
     
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
