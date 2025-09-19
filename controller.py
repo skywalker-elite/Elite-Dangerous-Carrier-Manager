@@ -1,7 +1,10 @@
+import os
 import threading
 import time
 import pyperclip
 import re
+from watchdog.observers import Observer                         # ← new
+from watchdog.events import FileSystemEventHandler             # ← new
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone, timedelta, date
@@ -18,6 +21,14 @@ from station_parser import EDSMError, getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, ladder_systems
+
+class JournalEventHandler(FileSystemEventHandler):
+    def __init__(self, controller: 'CarrierController'):
+        self.controller = controller
+    def on_modified(self, event):
+        if not event.is_directory and event.src_path.endswith('.log'):
+            self.controller._schedule_journal_update()
+    on_created = on_modified
 
 class CarrierController:
     def __init__(self, root, model:CarrierModel):
@@ -41,15 +52,34 @@ class CarrierController:
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
 
-        # Start the carrier update loop
+        # initial load
         self.update_journals()
 
-        # Start the UI update loop
+        # set up FS watcher instead of interval polling
+        self._observer = Observer()
+        handler = JournalEventHandler(self)
+        for jp in self.model.journal_paths:
+            watch_dir = jp if os.path.isdir(jp) else os.path.dirname(jp)
+            self._observer.schedule(handler, watch_dir, recursive=False)
+        self._observer.daemon = True
+        self._observer.start()
+
+        # start your UI loops as before
         self.redraw_fast()
         self.redraw_slow()
-
         self.set_current_version()
         self.check_app_update()
+
+    def _schedule_journal_update(self):
+        # coalesce rapid events
+        if getattr(self, '_journal_update_pending', False):
+            return
+        self._journal_update_pending = True
+        self.view.root.after(0, self._perform_journal_update)
+
+    def _perform_journal_update(self):
+        self._journal_update_pending = False
+        self.update_journals()
 
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
@@ -192,8 +222,8 @@ class CarrierController:
                 self.view.root.after(UPDATE_INTERVAL, self.update_journals)
             else:
                 self.view.root.destroy()
-        else:
-            self.view.root.after(UPDATE_INTERVAL, self.update_journals)
+        # else:
+        #     self.view.root.after(UPDATE_INTERVAL, self.update_journals)
     
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
