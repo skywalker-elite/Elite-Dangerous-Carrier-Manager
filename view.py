@@ -30,6 +30,7 @@ class CarrierView:
         self.tab_services = ttk.Frame(self.tab_controler)
         self.tab_misc = ttk.Frame(self.tab_controler)
         self.tab_options = ScrollableFrame(self.tab_controler)
+        self.tab_active_journals = ttk.Frame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
         self.tab_controler.add(self.tab_trade, text='Trade')
@@ -37,6 +38,7 @@ class CarrierView:
         self.tab_controler.add(self.tab_services, text='Services')
         self.tab_controler.add(self.tab_misc, text='Misc')
         self.tab_controler.add(self.tab_options, text='Options')
+        self.tab_controler.add(self.tab_active_journals, text='Active Journals')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
@@ -49,6 +51,8 @@ class CarrierView:
         self.tab_services.columnconfigure(0, pad=1, weight=1)
         self.tab_misc.rowconfigure(0, pad=1, weight=1)
         self.tab_misc.columnconfigure(0, pad=1, weight=1)
+        self.tab_active_journals.rowconfigure(0, pad=1, weight=1)
+        self.tab_active_journals.columnconfigure(0, pad=1, weight=1)
 
         self.tab_controler.pack(expand=True, fill='both')
 
@@ -196,6 +200,18 @@ class CarrierView:
         self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
 
+        # Active Journals tab
+        self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals')
+        self.sheet_active_journals.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_active_journals.change_theme('dark', redraw=False)
+
+        # Set column headers
+        self.sheet_active_journals.headers(['FID', 'CMDR Name', 'Carrier Name', 'Journal File'])
+        # self.sheet_active_journals['A:D'].align('left')
+        self.sheet_active_journals.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
+        self.sheet_active_journals.column_width_resize_enabled = False
+        self.sheet_active_journals.row_height_resize_enabled = False
+
     def set_font_size(self, font_size:str, font_size_table:str):
         size = font_sizes.get(font_size, font_sizes['normal'])
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
@@ -252,6 +268,9 @@ class CarrierView:
     
     def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_misc, data, rows_pending_decomm)
+
+    def update_table_active_journals(self, data):
+        self.update_table(self.sheet_active_journals, data)
 
     def show_message_box_info(self, title:str, message:str):
         self.root.attributes('-topmost', True)
