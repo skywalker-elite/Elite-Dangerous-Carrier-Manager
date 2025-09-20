@@ -10,7 +10,7 @@ from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
-from typing import Callable
+from typing import Callable, Literal
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
@@ -680,8 +680,8 @@ class CarrierModel:
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
-    
-    def generate_info_docking_perm(self, carrierID):
+
+    def generate_info_docking_perm(self, carrierID) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
         if self.is_squadron_carrier(carrierID):
             docking_perm = {'DockingAccess': 'squadron', 'AllowNotorious': False}
         else:

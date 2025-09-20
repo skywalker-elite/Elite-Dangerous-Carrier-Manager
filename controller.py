@@ -265,6 +265,12 @@ class CarrierController:
             carrier_name = self.model.get_name(carrierID)
             system = self.model.get_current_or_destination_system(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
+            docking, notorious = self.model.generate_info_docking_perm(carrierID)
+            if docking not in ['All', 'Unknown']:
+                self.view.show_message_box_warning('Warning', f'{carrier_name} ({carrier_callsign}) has docking permission set to {docking}, haulers may not be able to dock')
+            if notorious == 'No':
+                self.view.show_message_box_warning('Warning', f'{carrier_name} ({carrier_callsign}) does not allow notorious cmdrs, haulers may not be able to dock')
+            
             if sheet.name == 'sheet_trade':
                 trade_type, amount, commodity, price = self.view.sheet_trade.data[selected_row][1:5]
                 trade_type = trade_type.lower()
