@@ -314,22 +314,21 @@ class CarrierController:
                     market_ids = [market_ids[i] for i in L + M]
                     market_updated = [market_updated[i] for i in L + M]
                     if len(stations) > 0:
-                        self.trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
-                        self.trade_post_view.button_post.configure(command=lambda: self.button_click_post(carrier_name=carrier_name, carrier_callsign=carrier_callsign, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
+                        trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
+                        trade_post_view.button_post.configure(command=lambda: self.button_click_post(trade_post_view=trade_post_view, carrier_name=carrier_name, carrier_callsign=carrier_callsign, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
                     else:
                         self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
                 else:
                     self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
         else:
             self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
-    
-    def button_click_post(self, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
+
+    def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
         # s = '/cco {trade_type} carrier:{carrier_name} commodity:{commodity} system:{system} station:{station} profit:{profit} pads:{pad_size} {demand_supply}: {amount}'
-        s = Template(self.settings.get('post_format', 'trade_post_string'))
-        station = self.trade_post_view.cbox_stations.get()
-        profit = self.trade_post_view.cbox_profit.get()
-        pad_size = self.trade_post_view.cbox_pad_size.get()
+        station = trade_post_view.cbox_stations.get()
+        profit = trade_post_view.cbox_profit.get()
+        pad_size = trade_post_view.cbox_pad_size.get()
         match pad_size:
             case 'L':
                 pad_size = 'Large'
@@ -370,7 +369,7 @@ class CarrierController:
             amount=amount,
             to_from=to_from
         )
-        self.copy_to_clipboard(post_string, None, None, on_success=lambda: self.trade_post_view.popup.destroy())
+        self.copy_to_clipboard(post_string, None, None, on_success=lambda: trade_post_view.popup.destroy())
 
     def generate_trade_post_string(self, trade_type:str, trading_type:str, carrier_name:str, carrier_callsign:str, commodity:str, system:str, station:str, profit:str, pad_size:str, pad_size_short:str, demand_supply:str, amount:int|float, to_from:str) -> str:
         s = Template(self.settings.get('post_format', 'trade_post_string'))
