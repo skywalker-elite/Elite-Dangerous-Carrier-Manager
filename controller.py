@@ -24,7 +24,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
 
@@ -53,9 +53,9 @@ class CarrierController:
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
-        self.view.button_open_settings.configure(command=lambda: open_new_tab(url=getSettingsPath()))
+        self.view.button_open_settings.configure(command=lambda: open_file(getSettingsPath()))
         self.view.button_reset_settings.configure(command=self.button_click_reset_settings)
-        self.view.button_open_settings_dir.configure(command=lambda: open_new_tab(url=getSettingsDir()))
+        self.view.button_open_settings_dir.configure(command=lambda: open_file(getSettingsDir()))
         self.view.button_test_trade_post.configure(command=self.button_click_test_trade_post)
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
@@ -114,7 +114,10 @@ class CarrierController:
                     makedirs(getAppDir(), exist_ok=True)
                     copyfile(getSettingsDefaultPath(), settings_file)
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
-                        open_new_tab(url=settings_file)
+                        try:
+                            open_file(settings_file)
+                        except Exception as e:
+                            self.view.show_message_box_warning('Error', f'Could not open settings file:\n{e}')
                         self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
                     self.settings = Settings(settings_file=settings_file)
                 else:

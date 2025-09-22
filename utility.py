@@ -1,4 +1,6 @@
-import sys, os
+import sys
+import os
+import subprocess
 from datetime import datetime
 import re
 from numpy import datetime64
@@ -73,6 +75,13 @@ def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
         return f.readline()
     
+def open_file(filename):
+    if sys.platform == "win32":
+        os.startfile(filename)
+    else:
+        opener = "open" if sys.platform == "darwin" else "xdg-open"
+        subprocess.call([opener, filename])
+
 def getAppDir() -> str:
     if sys.platform == 'win32':
         user_path = os.environ.get('USERPROFILE')
