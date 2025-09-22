@@ -114,7 +114,10 @@ class CarrierController:
                     makedirs(getAppDir(), exist_ok=True)
                     copyfile(getSettingsDefaultPath(), settings_file)
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
-                        open_file(settings_file)
+                        try:
+                            open_file(settings_file)
+                        except Exception as e:
+                            self.view.show_message_box_warning('Error', f'Could not open settings file:\n{e}')
                         self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
                     self.settings = Settings(settings_file=settings_file)
                 else:
