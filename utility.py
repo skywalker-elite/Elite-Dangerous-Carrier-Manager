@@ -1,4 +1,6 @@
-import sys, os, subprocess
+import sys
+import os
+import subprocess
 from datetime import datetime
 import re
 from numpy import datetime64
