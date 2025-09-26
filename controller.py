@@ -284,7 +284,7 @@ class CarrierController:
         selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
         self.handle_post_trade_logic(selected_row, self.model.trade_carrierIDs, self.view.sheet_trade)
 
-    def handle_post_trade_logic(self, selected_row, carrier_ids, sheet):
+    def handle_post_trade_logic(self, selected_row: int, carrier_ids: list[int], sheet):
         if selected_row is not None:
             carrierID = carrier_ids[selected_row]
             carrier_name = self.model.get_name(carrierID)
@@ -303,7 +303,7 @@ class CarrierController:
                 amount = round(amount / 500) * 500 / 1000
                 if amount % 1 == 0:
                     amount = int(amount)
-                order = (trade_type, commodity, amount, price)
+                order: tuple[str, str, int | float, int] = (trade_type, commodity, amount, price)
             elif sheet.name == 'sheet_jumps':
                 order = self.model.get_formated_largest_order(carrierID=carrierID)
             else:
@@ -316,8 +316,8 @@ class CarrierController:
                         body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
                         planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
                         if planetary_body is not None:
-                            # post_string = f'/wine_unload carrier_id: {carrier_callsign} planetary_body: {body}'
-                            post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
+                            timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
+                            post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
                             try:
                                 pyperclip.copy(post_string)
                             except pyperclip.PyperclipException as e:
@@ -355,8 +355,6 @@ class CarrierController:
             self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
 
     def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
-        # /cco load carrier:P.T.N. Rocinante commodity:Agronomic Treatment system:Leesti station:George Lucas profit:11 pads:L demand:24
-        # s = '/cco {trade_type} carrier:{carrier_name} commodity:{commodity} system:{system} station:{station} profit:{profit} pads:{pad_size} {demand_supply}: {amount}'
         station = trade_post_view.cbox_stations.get()
         profit = trade_post_view.cbox_profit.get()
         pad_size = trade_post_view.cbox_pad_size.get()
@@ -384,7 +382,6 @@ class CarrierController:
             case _:
                 raise RuntimeError(f'Unexpected trade_type: {trade_type}')
 
-        # post_string = s.format(trade_type=trade_type.replace('ing', ''), carrier_name=carrier_name, commodity=commodity, system=system, station=station, profit=profit, pad_size=pad_size, demand_supply='demand' if trade_type=='loading'else 'supply', amount=amount)
         post_string = self.generate_trade_post_string(
             trade_type=trade_type,
             trading_type=trading_type,
@@ -421,9 +418,13 @@ class CarrierController:
         )
         return post_string
 
-    def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str) -> str:
-        s = Template(self.settings.get('post_format', 'wine_unload_string'))
-        post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
+    def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str, timed_unload:bool=False) -> str:
+        if not timed_unload:
+            s = Template(self.settings.get('post_format', 'wine_unload_string'))
+            post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
+        else:
+            s = Template(self.settings.get('post_format', 'wine_unload_timed_string'))
+            post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
         return post_string
     
     def copy_to_clipboard(self, text, success_title, success_message, on_success=None):
@@ -439,16 +440,19 @@ class CarrierController:
 
     def button_click_test_trade_post(self):
         from config import test_trade_data
-        post_string = self.generate_trade_post_string(**test_trade_data)
-        self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}')
+        try:
+            post_string = self.generate_trade_post_string(**test_trade_data)
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while generating trade post string\n{e}')
+        else:
+            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}')
 
     def button_click_test_wine_unload(self):
         from config import test_wine_unload_data
-        post_string = self.generate_wine_unload_post_string(**test_wine_unload_data)
         try:
-            pyperclip.copy(post_string)
-        except pyperclip.PyperclipException as e:
-            self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
+            post_string = self.generate_wine_unload_post_string(**test_wine_unload_data)
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while generating wine unload post string\n{e}')
         else:
             self.copy_to_clipboard(post_string, 'Generated!', f'This is what your wine unload post looks like:\n{post_string}')
 
