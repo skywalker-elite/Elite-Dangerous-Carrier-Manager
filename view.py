@@ -29,7 +29,7 @@ class CarrierView:
         self.tab_trade = ttk.Frame(self.tab_controler)
         self.tab_services = ttk.Frame(self.tab_controler)
         self.tab_misc = ttk.Frame(self.tab_controler)
-        self.tab_options = ttk.Frame(self.tab_controler)
+        self.tab_options = ScrollableFrame(self.tab_controler)
 
         self.tab_controler.add(self.tab_jumps, text='Jumps')
         self.tab_controler.add(self.tab_trade, text='Trade')
@@ -165,7 +165,7 @@ class CarrierView:
         self.sheet_misc.row_height_resize_enabled = False
 
         # Options tab
-        self.labelframe_EDCM = ttk.Labelframe(self.tab_options, text='EDCM')
+        self.labelframe_EDCM = ttk.Labelframe(self.tab_options.scrollable_frame, text='EDCM')
         self.labelframe_EDCM.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
         self.button_check_updates.grid(row=0, column=0, padx=10, pady=10, sticky='w')
@@ -174,7 +174,7 @@ class CarrierView:
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.grid(row=0, column=2, padx=10, pady=10, sticky='w')
 
-        self.labelframe_settings = ttk.Labelframe(self.tab_options, text='Settings')
+        self.labelframe_settings = ttk.Labelframe(self.tab_options.scrollable_frame, text='Settings')
         self.labelframe_settings.grid(row=1, column=0, padx=10, pady=10, sticky='w')
         self.button_reload_settings = ttk.Button(self.labelframe_settings, text='Reload Settings File')
         self.button_reload_settings.grid(row=0, column=0, padx=10, pady=10, sticky='w')
@@ -185,7 +185,7 @@ class CarrierView:
         self.button_open_settings_dir = ttk.Button(self.labelframe_settings, text='Open Settings Directory')
         self.button_open_settings_dir.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
-        self.labelframe_testing = ttk.Labelframe(self.tab_options, text='Testing')
+        self.labelframe_testing = ttk.Labelframe(self.tab_options.scrollable_frame, text='Testing')
         self.labelframe_testing.grid(row=2, column=0, padx=10, pady=10, sticky='w')
         self.button_test_trade_post = ttk.Button(self.labelframe_testing, text='Test Trade Post')
         self.button_test_trade_post.grid(row=0, column=0, padx=10, pady=10, sticky='w')
@@ -395,6 +395,58 @@ class ManualTimerView:
         self.entry_timer.pack(side='top')
         self.button_post = ttk.Button(self.popup, text='OK')
         self.button_post.pack(side='bottom')
+
+class ScrollableFrame(ttk.Frame):
+    """A scrollable frame that can contain other widgets."""
+    def __init__(self, container, *args, **kwargs):
+        super().__init__(container, *args, **kwargs)
+        self.canvas    = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame     = ttk.Frame(self.canvas)
+
+        self.canvas.create_window((0,0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        # whenever content or viewport changes, update scrollregion & bar‐visibility
+        self.scrollable_frame .bind("<Configure>", lambda e: self._update())
+        self.canvas.bind("<Configure>", lambda e: self._update())
+
+        # wheel‐scroll
+        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.canvas.bind("<Button-4>", self._on_mousewheel)  # For Linux with wheel scroll up
+        self.canvas.bind("<Button-5>", self._on_mousewheel)  # For Linux with wheel scroll down
+
+        # run once after idle to hide if unnecessary
+        self.after_idle(self._update)
+
+    def _update(self):
+        # 1) update scrollregion
+        self.canvas.configure(scrollregion=self.canvas.bbox("all") or (0,0,0,0))
+
+        # 2) show or hide the bar
+        bbox = self.canvas.bbox("all")
+        if not bbox:
+            self.scrollbar.pack_forget()
+            return
+
+        content_h = bbox[3] - bbox[1]
+        view_h    = self.canvas.winfo_height()
+        if content_h > view_h:
+            if not self.scrollbar.winfo_ismapped():
+                self.scrollbar.pack(side="right", fill="y")
+        else:
+            self.scrollbar.pack_forget()
+
+    def _on_mousewheel(self, e):
+        delta = int(-1 * (e.delta / 120))
+        # only scroll if there’s overflow
+        bbox = self.canvas.bbox("all")
+        if bbox and (bbox[3] - bbox[1]) > self.canvas.winfo_height():
+            self.canvas.yview_scroll(delta, "units")
+        return "break"
 
 if __name__ == '__main__':
     import sv_ttk
