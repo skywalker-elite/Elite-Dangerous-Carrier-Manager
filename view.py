@@ -178,7 +178,12 @@ class CarrierView:
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.grid(row=0, column=2, padx=10, pady=10, sticky='w')
         self.checkbox_show_active_journals_var = tk.BooleanVar()
-        self.checkbox_show_active_journals = ttk.Checkbutton(self.labelframe_EDCM, text='Show Active Journals Tab', variable=self.checkbox_show_active_journals_var, command=lambda: self.tab_controler.tab(self.tab_active_journals, state='normal' if self.checkbox_show_active_journals_var.get() else 'hidden'))
+        self.checkbox_show_active_journals = ttk.Checkbutton(
+            self.labelframe_EDCM,
+            text='Show Active Journals Tab',
+            variable=self.checkbox_show_active_journals_var,
+            command=self.toggle_active_journals_tab
+        )
         self.checkbox_show_active_journals.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
         self.labelframe_settings = ttk.Labelframe(self.tab_options.scrollable_frame, text='Settings')
@@ -220,7 +225,7 @@ class CarrierView:
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
 
         # 1) resize all tksheets
-        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc]:
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
 
@@ -325,6 +330,10 @@ class CarrierView:
         progress_bar.start(20)
 
         return progress_win, progress_bar
+
+    def toggle_active_journals_tab(self):
+        state = 'normal' if self.checkbox_show_active_journals_var.get() else 'hidden'
+        self.tab_controler.tab(self.tab_active_journals, state=state)
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 

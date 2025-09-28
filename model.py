@@ -10,7 +10,8 @@ from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
-from typing import Callable, Literal
+from typing import Callable, Literal, NamedTuple
+from collections import namedtuple
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
@@ -877,21 +878,26 @@ class CarrierModel:
                 return carrierID
         return None
     
-    def get_data_active_journals(self) -> list[list[str]]:
+    class ActiveJournalInfo(NamedTuple):
+        fid: str
+        cmdr_name: str
+        carrier_name: str
+        journal_file: str
+
+    def get_data_active_journals(self) -> list['CarrierModel.ActiveJournalInfo']:
         active = self.journal_reader.get_latest_active_journals()
         if active is None:
-            return [['N/A', 'N/A', 'N/A', 'No active journals detected']]
+            return [self.ActiveJournalInfo('N/A', 'N/A', 'N/A', 'No active journals detected')]
         fids, journals = active.keys(), active.values()
-        # Process the journals to extract account information
-        active_accounts = []
-        for fid, journal in zip(fids, journals):
-            active_accounts.append({
-                'FID': fid,
-                'CMDR Name': self.cmdr_names.get(fid, 'Unknown'),
-                'Carrier Name': self.get_name(self.get_owned_carrier(fid)) if self.get_owned_carrier(fid) is not None else 'N/A',
-                'Journal File': journal,
-            })
-        return pd.DataFrame(active_accounts).values.tolist()
+        return [
+            self.ActiveJournalInfo(
+                fid=fid,
+                cmdr_name=self.cmdr_names.get(fid, 'Unknown'),
+                carrier_name=self.get_name(self.get_owned_carrier(fid)) if self.get_owned_carrier(fid) is not None else 'N/A',
+                journal_file=journal,
+            )
+            for fid, journal in zip(fids, journals)
+        ]
 
 def getLocation(system, body, body_id):
     if system == 'HIP 58832':
