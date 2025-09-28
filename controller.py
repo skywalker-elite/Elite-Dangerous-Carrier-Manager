@@ -76,6 +76,7 @@ class CarrierController:
 
         self.redraw_fast()
         self.redraw_slow()
+        self.view.update_table_active_journals(self.model.get_data_active_journals())
         self.set_current_version()
         self.check_app_update()
         self.minimize_hint_sent = False
@@ -92,6 +93,7 @@ class CarrierController:
     def _perform_journal_update(self):
         self._journal_update_pending = False
         self.update_journals()
+        self.view.update_table_active_journals(self.model.get_data_active_journals())
 
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())

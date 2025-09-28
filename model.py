@@ -10,7 +10,8 @@ from copy import deepcopy
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
-from typing import Callable, Literal
+from typing import Callable, Literal, NamedTuple
+from collections import namedtuple
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
@@ -170,6 +171,13 @@ class JournalReader:
     
     def update_items_count(self):
         self._last_items_count = self._last_items_count_pending.copy()
+
+    def get_latest_active_journals(self) -> dict[str, str]|None:
+        results = {}
+        for fid, info in self.journal_latest.items():
+            if info['is_active']:
+                results[fid] = info['filename']
+        return results if results else None
 
 class CarrierModel:
     def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
@@ -863,6 +871,33 @@ class CarrierModel:
     
     def get_active_trades(self, carrierID) -> pd.DataFrame:
         return self.get_carriers()[carrierID]['active_trades'].copy()
+
+    def get_owned_carrier(self, fid: str) -> str|None:
+        for carrierID, owner_fid in self.carrier_owners.items():
+            if fid == owner_fid:
+                return carrierID
+        return None
+    
+    class ActiveJournalInfo(NamedTuple):
+        fid: str
+        cmdr_name: str
+        carrier_name: str
+        journal_file: str
+
+    def get_data_active_journals(self) -> list['CarrierModel.ActiveJournalInfo']:
+        active = self.journal_reader.get_latest_active_journals()
+        if active is None:
+            return [self.ActiveJournalInfo('N/A', 'N/A', 'N/A', 'No active journals detected')]
+        fids, journals = active.keys(), active.values()
+        return [
+            self.ActiveJournalInfo(
+                fid=fid,
+                cmdr_name=self.cmdr_names.get(fid, 'Unknown'),
+                carrier_name=self.get_name(self.get_owned_carrier(fid)) if self.get_owned_carrier(fid) is not None else 'N/A',
+                journal_file=journal,
+            )
+            for fid, journal in zip(fids, journals)
+        ]
 
 def getLocation(system, body, body_id):
     if system == 'HIP 58832':
