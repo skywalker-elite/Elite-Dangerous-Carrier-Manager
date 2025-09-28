@@ -22,7 +22,7 @@ class Settings:
         self.validate()
         self.fill_default_sound_files()
 
-        # 3) Load the programmatic overrides and merge them in
+        # 3) Load the config overrides and merge them in
         self.load_config()
         self.merge_config()
 
@@ -125,39 +125,39 @@ class Settings:
             if not exists(prog_file):
                 copy2(getConfigSettingsDefaultPath(), prog_file)
             with open(prog_file, 'r') as f:
-                self._programmatic = json.load(f)
+                self._config = json.load(f)
         except json.JSONDecodeError:
             with open(getConfigSettingsDefaultPath(), 'r') as f:
-                self._programmatic = json.load(f)
-            self.validation_warnings.append(f"Could not parse programmatic settings file {prog_file}, using defaults\n {prog_file} has been reset\n You should not edit this file manually!")
+                self._config = json.load(f)
+            self.validation_warnings.append(f"Could not parse config settings file {prog_file}, using defaults\n {prog_file} has been reset\n You should not edit this file manually!")
 
     def merge_config(self):
-        """Deep-merge programmatic settings on top of the loaded user settings."""
+        """Deep-merge config settings on top of the loaded user settings."""
         def _merge(src, dest):
             for k, v in src.items():
                 if isinstance(v, dict) and isinstance(dest.get(k), dict):
                     _merge(v, dest[k])
                 else:
                     dest[k] = v
-        _merge(self._programmatic, self._settings)
+        _merge(self._config, self._settings)
 
-    def set_programmatic(self, *keys, value):
+    def set_config(self, *keys, value):
         """
-        Update a programmatic setting (nested via multiple keys) and persist it.
-        Example: set_programmatic('notifications', 'cooldown', value='/…')
+        Update a config setting (nested via multiple keys) and persist it.
+        Example: set_config('notifications', 'cooldown', value='/…')
         """
-        d = self._programmatic
+        d = self._config
         for k in keys[:-1]:
             d = d.setdefault(k, {})
         d[keys[-1]] = value
-        self.save_programmatic()
+        self.save_config()
 
-    def save_programmatic(self, prog_file=None):
-        """Write out the programmatic overrides json so they persist."""
+    def save_config(self, prog_file=None):
+        """Write out the config overrides json so they persist."""
         if prog_file is None:
             prog_file = getConfigSettingsPath()
         with open(prog_file, 'w') as f:
-            json.dump(self._programmatic, f)
+            json.dump(self._config, f)
 
 if __name__ == '__main__':
     from utility import getSettingsPath

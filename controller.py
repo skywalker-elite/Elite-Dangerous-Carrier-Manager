@@ -674,4 +674,4 @@ class CarrierController:
     @debounce(10)
     def _on_configure(self, event):
         print('Saving window size:', f'{self.root.winfo_width()}x{self.root.winfo_height()}')
-        self.settings.set_programmatic('UI', 'window_size', value=f'{self.root.winfo_width()}x{self.root.winfo_height()}')
+        self.settings.set_config('UI', 'window_size', value=f'{self.root.winfo_width()}x{self.root.winfo_height()}')
