@@ -1,6 +1,9 @@
 import tomllib
-from utility import getResourcePath, getSettingsDefaultPath
+import json
+from utility import getConfigSettingsDefaultPath, getResourcePath, getSettingsDefaultPath
+from utility import getConfigSettingsPath
 from os.path import join, exists
+from shutil import copy2
 import re
 
 class SettingsValidationError(Exception):
@@ -11,9 +14,17 @@ class Settings:
         self.settings_file = settings_file
         self.validation_errors = []
         self.validation_warnings = []
+
+        # 1) Load the normal user-editable settings
         self.load()
+
+        # 2) Validate & fill defaults
         self.validate()
         self.fill_default_sound_files()
+
+        # 3) Load the programmatic overrides and merge them in
+        self.load_config()
+        self.merge_config()
 
     def set(self, key, value):
         self._settings[key] = value
@@ -105,6 +116,48 @@ class Settings:
         # if self.validation_warnings:
         #     print("Warnings:\n" + "\n".join(self.validation_warnings))
         # print("Settings validation passed")
+
+    def load_config(self, prog_file=None):
+        """Load UI-driven overrides (if present)."""
+        if prog_file is None:
+            prog_file = getConfigSettingsPath()
+        try:
+            if not exists(prog_file):
+                copy2(getConfigSettingsDefaultPath(), prog_file)
+            with open(prog_file, 'r') as f:
+                self._programmatic = json.load(f)
+        except json.JSONDecodeError:
+            with open(getConfigSettingsDefaultPath(), 'r') as f:
+                self._programmatic = json.load(f)
+            self.validation_warnings.append(f"Could not parse programmatic settings file {prog_file}, using defaults\n {prog_file} has been reset\n You should not edit this file manually!")
+
+    def merge_config(self):
+        """Deep-merge programmatic settings on top of the loaded user settings."""
+        def _merge(src, dest):
+            for k, v in src.items():
+                if isinstance(v, dict) and isinstance(dest.get(k), dict):
+                    _merge(v, dest[k])
+                else:
+                    dest[k] = v
+        _merge(self._programmatic, self._settings)
+
+    def set_programmatic(self, *keys, value):
+        """
+        Update a programmatic setting (nested via multiple keys) and persist it.
+        Example: set_programmatic('notifications', 'cooldown', value='/…')
+        """
+        d = self._programmatic
+        for k in keys[:-1]:
+            d = d.setdefault(k, {})
+        d[keys[-1]] = value
+        self.save_programmatic()
+
+    def save_programmatic(self, prog_file=None):
+        """Write out the programmatic overrides json so they persist."""
+        if prog_file is None:
+            prog_file = getConfigSettingsPath()
+        with open(prog_file, 'w') as f:
+            json.dump(self._programmatic, f)
 
 if __name__ == '__main__':
     from utility import getSettingsPath

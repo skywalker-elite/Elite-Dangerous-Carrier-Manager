@@ -3,10 +3,13 @@ import os
 import subprocess
 from datetime import datetime
 import re
+import threading
+import functools
 from numpy import datetime64
 import requests
 from packaging import version
 import hashlib
+from os.path import join
 
 def getJournalPath() -> str:
     if sys.platform == 'win32':
@@ -118,6 +121,16 @@ def getSettingsPath() -> str:
 def getSettingsDefaultPath() -> str:
     return getResourcePath('settings_default.toml')
 
+def getConfigSettingsPath() -> str:
+    """
+    Path to the json file where the app stores UI-driven (non-user-editable)
+    settings. 
+    """
+    return join(getSettingsDir(), '.do_not_edit_config.json')
+
+def getConfigSettingsDefaultPath() -> str:
+    return getResourcePath('config_settings_default.json')
+
 def hash_folder(folder_path:str, hash_obj) -> str:
     """Generate a hash for the contents of a folder."""
     for root, dirs, files in sorted(os.walk(folder_path)):
@@ -141,3 +154,39 @@ def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
             return os.path.join(cache_dir, 'cache', f'journal_reader_{jr_version}_{h.hexdigest()}.pkl')
         except:
             return None
+
+def debounce(wait_seconds):
+    """
+    Postpone a function’s execution until wait_seconds have elapsed since
+    the last call.  If the first arg has a .root, use root.after/after_cancel
+    so the callback won’t fire after the window is closed.
+    """
+    def decorator(fn):
+        @functools.wraps(fn)
+        def wrapped(*args, **kwargs):
+            self = args[0] if args else None
+            root = getattr(self, 'root', None)
+            # use a unique attr per instance+method:
+            after_attr = f'__debounce_after_id_{fn.__name__}'
+            if root and hasattr(root, 'after'):
+                # cancel previous
+                prev = getattr(self, after_attr, None)
+                if prev:
+                    try:
+                        root.after_cancel(prev)
+                    except Exception:
+                        pass
+                # schedule new
+                handle = root.after(int(wait_seconds * 1000), lambda: fn(*args, **kwargs))
+                setattr(self, after_attr, handle)
+            else:
+                # fallback to threading.Timer
+                timer_attr = f'__debounce_timer_{fn.__name__}'
+                prev_timer = getattr(self, timer_attr, None)
+                if prev_timer:
+                    prev_timer.cancel()
+                t = threading.Timer(wait_seconds, lambda: fn(*args, **kwargs))
+                setattr(self, timer_attr, t)
+                t.start()
+        return wrapped
+    return decorator

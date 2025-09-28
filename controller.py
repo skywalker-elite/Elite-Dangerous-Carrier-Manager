@@ -1,3 +1,4 @@
+import json
 import os
 import sys
 import threading
@@ -9,7 +10,7 @@ from watchdog.events import FileSystemEventHandler
 from webbrowser import open_new_tab
 # from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone, timedelta, date
-from os import execl, makedirs, path, remove
+from os import makedirs, path, remove
 from shutil import copyfile
 from tkinter import Tk
 import traceback
@@ -24,7 +25,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file
+from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, debounce
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
 
@@ -74,6 +75,7 @@ class CarrierController:
         self._observer.daemon = True
         self._observer.start()
 
+        self.set_current_version()
         self.redraw_fast()
         self.redraw_slow()
         self.view.update_table_active_journals(self.model.get_data_active_journals())
@@ -82,6 +84,8 @@ class CarrierController:
         self.minimize_hint_sent = False
 
         threading.Thread(target=self.save_cache).start()
+
+        self.save_window_size_on_resize()
 
     def _schedule_journal_update(self):
         # coalesce rapid events
@@ -149,6 +153,7 @@ class CarrierController:
             self.model.read_journals() # re-read journals to apply ignore list and custom order
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.setup_tray_icon()
+            self.root.geometry(self.settings.get('UI', 'window_size'))
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
@@ -662,3 +667,11 @@ class CarrierController:
             )
             self.minimize_hint_sent = True
         self.root.withdraw()
+
+    def save_window_size_on_resize(self):
+        self.root.bind('<Configure>', self._on_configure)
+
+    @debounce(10)
+    def _on_configure(self, event):
+        print('Saving window size:', f'{self.root.winfo_width()}x{self.root.winfo_height()}')
+        self.settings.set_programmatic('UI', 'window_size', value=f'{self.root.winfo_width()}x{self.root.winfo_height()}')
