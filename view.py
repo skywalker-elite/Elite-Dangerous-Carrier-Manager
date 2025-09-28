@@ -37,8 +37,8 @@ class CarrierView:
         self.tab_controler.add(self.tab_finance, text='Finance')
         self.tab_controler.add(self.tab_services, text='Services')
         self.tab_controler.add(self.tab_misc, text='Misc')
+        self.tab_controler.add(self.tab_active_journals, text='Active Journals', state='hidden')
         self.tab_controler.add(self.tab_options, text='Options')
-        self.tab_controler.add(self.tab_active_journals, text='Active Journals')
 
         # Make the grid expand when the window is resized
         self.tab_jumps.rowconfigure(0, pad=1, weight=1)
@@ -177,6 +177,9 @@ class CarrierView:
         self.button_go_to_github.grid(row=0, column=1, padx=10, pady=10, sticky='w')
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        self.checkbox_show_active_journals_var = tk.BooleanVar()
+        self.checkbox_show_active_journals = ttk.Checkbutton(self.labelframe_EDCM, text='Show Active Journals Tab', variable=self.checkbox_show_active_journals_var, command=lambda: self.tab_controler.tab(self.tab_active_journals, state='normal' if self.checkbox_show_active_journals_var.get() else 'hidden'))
+        self.checkbox_show_active_journals.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 
         self.labelframe_settings = ttk.Labelframe(self.tab_options.scrollable_frame, text='Settings')
         self.labelframe_settings.grid(row=1, column=0, padx=10, pady=10, sticky='w')
