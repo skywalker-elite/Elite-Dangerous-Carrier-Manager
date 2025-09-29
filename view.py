@@ -277,6 +277,13 @@ class CarrierView:
             variable=self.checkbox_show_active_journals_var,
         )
         self.checkbox_show_active_journals.pack(side='left', padx=10, pady=10, anchor='w')
+        self.checkbox_minimize_to_tray_var = tk.BooleanVar()
+        self.checkbox_minimize_to_tray = ttk.Checkbutton(
+            self.labelframe_EDCM,
+            text='Minimize to Tray',
+            variable=self.checkbox_minimize_to_tray_var,
+        )
+        self.checkbox_minimize_to_tray.pack(side='left', padx=10, pady=10, anchor='w')
 
         self.labelframe_timer_reporting = ttk.Labelframe(self.tab_options.scrollable_frame, text='Jump Timer Reporting')
         self.labelframe_timer_reporting.grid(row=1, column=0, padx=10, pady=10, sticky='w')
@@ -294,13 +301,6 @@ class CarrierView:
         self.hovertip_button_report_timer_history = Hovertip(self.button_report_timer_history, 'Report all jump timers in history.\nRequires having certain PTN roles, which you can verify using the button "Verify PTN Roles".', hover_delay=TOOLTIP_HOVER_DELAY, background=TOOLTIP_BACKGROUND, foreground=TOOLTIP_FOREGROUND)
         self.button_delete_account = ttk.Button(self.labelframe_timer_reporting, text='Delete Account', style='Danger.TButton')
         self.button_delete_account.pack(side='left', padx=10, pady=10, anchor='w')
-        self.checkbox_minimize_to_tray_var = tk.BooleanVar()
-        self.checkbox_minimize_to_tray = ttk.Checkbutton(
-            self.labelframe_EDCM,
-            text='Minimize to Tray',
-            variable=self.checkbox_minimize_to_tray_var,
-        )
-        self.checkbox_minimize_to_tray.pack(side='left', padx=10, pady=10, anchor='w')
 
         self.labelframe_settings = ttk.Labelframe(self.tab_options.scrollable_frame, text='Settings')
         self.labelframe_settings.grid(row=2, column=0, padx=10, pady=10, sticky='w')
