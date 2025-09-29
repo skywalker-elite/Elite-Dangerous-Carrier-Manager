@@ -2,12 +2,14 @@ import requests
 import humanize
 from typing import Literal
 from datetime import datetime, timezone, timedelta
+from utility import rate_limited
 
 class EDSMError(Exception):
     """Custom exception for EDSM API errors."""
     pass
 
 url = 'https://www.edsm.net/api-system-v1/stations'
+@rate_limited(max_calls=1, period=60)
 def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str], list[str], list[str|None]]:
     """
     Fetch station data from EDSM API.
@@ -32,6 +34,7 @@ def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str],
     # station_names = sorted(station_names, key=station_dist)
     return stations if details else station_names, station_pad_sizes, market_ids, market_updated
 
+@rate_limited(max_calls=10, period=30)
 def getMarketCommodityInfo(market_id:str=None, system_name:str=None, station_name:str=None, commodity:str=None, commodity_name:str=None) -> dict|None:
     """
     Get market information of a commodity from EDSM API.

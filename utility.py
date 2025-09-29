@@ -9,7 +9,12 @@ from numpy import datetime64
 import requests
 from packaging import version
 import hashlib
+from humanize import naturaltime
+import time
+from collections import deque
+from functools import wraps
 from os.path import join
+from pathlib import Path
 
 def getJournalPath() -> str:
     if sys.platform == 'win32':
@@ -154,6 +159,50 @@ def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
             return os.path.join(cache_dir, 'cache', f'journal_reader_{jr_version}_{h.hexdigest()}.pkl')
         except:
             return None
+        
+def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
+    h = hashlib.sha256()
+    h.update(journal_timestamp.isoformat().encode('utf-8'))
+    h.update(str(timer).encode('utf-8'))
+    h.update(str(carrierID).encode('utf-8'))
+    return h.hexdigest()[:40]
+
+def rate_limited(max_calls: int, period: float):
+    """
+    Decorator that allows up to max_calls per period (seconds),
+    caching and returning the last result in between bursts,
+    separately for each distinct (args, kwargs) combination.
+    """
+    state: dict = {}  # maps (args, sorted(kwargs)) -> {'times': deque, 'cache': result}
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            now = time.time()
+            # build a hashable key for this call
+            key = (args, tuple(sorted(kwargs.items())))
+            if key not in state:
+                state[key] = {'times': deque(), 'cache': None}
+
+            record = state[key]
+            times: deque[float] = record['times']
+
+            # drop timestamps older than our window
+            while times and now - times[0] > period:
+                times.popleft()
+
+            # if under limit, perform real call and update cache
+            if len(times) < max_calls:
+                times.append(now)
+                try:
+                    record['cache'] = func(*args, **kwargs)
+                except Exception:
+                    # on failure, keep last cache
+                    pass
+
+            return record['cache']
+        return wrapper
+    return decorator
 
 def debounce(wait_seconds):
     """
@@ -190,3 +239,35 @@ def debounce(wait_seconds):
                 t.start()
         return wrapped
     return decorator
+
+@rate_limited(max_calls=20, period=60)
+def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None]:
+    response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats')
+    if response.status_code == 200:
+        data = response.json()[0]
+        if data is None:
+            return None, None, None, None
+        avg_timer = data.get('avg', None)
+        count = data.get('cnt', None)
+        earliest = data.get('earliest', None)
+        latest = data.get('latest', None)
+        if avg_timer is not None:
+            h, m, s = getHMS(int(avg_timer))
+            avg_timer = f'{h:02} h {m:02} m {s:02} s'
+        return avg_timer, count, datetime.fromisoformat(earliest) if earliest else None, datetime.fromisoformat(latest) if latest else None
+    return None, None, None, None
+
+def getHumanizedExpectedJumpTimer() -> str:
+    avg_timer, count, earliest, latest = getExpectedJumpTimer()
+    return generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest)
+
+def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None) -> str:
+    if avg_timer is None:
+        return 'No recent timer reported'
+    else:
+        earliest_str = naturaltime(earliest) if earliest else 'N/A'
+        latest_str = naturaltime(latest) if latest else 'N/A'
+        return f'Average jump timer: {avg_timer} based on {count} sample(s) from {earliest_str} to {latest_str}'
+
+if __name__ == '__main__':
+    print(getHumanizedExpectedJumpTimer())
