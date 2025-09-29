@@ -2,7 +2,7 @@ import requests
 import humanize
 from typing import Literal
 from datetime import datetime, timezone, timedelta
-from utility import rate_limited
+from decos import rate_limited
 
 class EDSMError(Exception):
     """Custom exception for EDSM API errors."""

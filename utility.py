@@ -16,6 +16,8 @@ from functools import wraps
 from os.path import join
 from pathlib import Path
 
+from decos import rate_limited
+
 def getJournalPath() -> str:
     if sys.platform == 'win32':
         user_path = os.environ.get('USERPROFILE')
@@ -62,12 +64,16 @@ def checkTimerFormat(timer:str) -> bool:
     return True
 
 def isUpdateAvailable() -> bool:
+    version_current = getCurrentVersion()      
     version_latest = getLatestVersion()
-    version_current = getCurrentVersion()
-    if version_latest is None or version.parse(version_latest) <= version.parse(version_current):
-        return False
-    else:
+    if version_latest is not None and version.parse(version_latest) > version.parse(version_current):
         return True
+    # if on a prerelease, look for newer prereleases
+    elif version.parse(version_current).is_prerelease:
+        version_latest = getLatestPrereleaseVersion()
+        if version_latest is not None and version.parse(version_latest) > version.parse(version_current):
+            return True
+    return False
 
 def getLatestVersion() -> str|None:
     try:
@@ -79,10 +85,55 @@ def getLatestVersion() -> str|None:
     latest_version = response.json()['name'].split()[1]
     return latest_version
 
+def isOnPrerelease() -> bool:
+    current = getCurrentVersion()
+    parsed_current = version.parse(current)
+    return parsed_current.is_prerelease
+
+@rate_limited(max_calls=1, period=60)
+def getLatestPrereleaseVersion() -> str|None:
+    """
+    Fetch all prerelease tags of the same major.minor as the current version
+    and return the highest prerelease.
+    """
+    try:
+        resp = requests.get(
+            'https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases'
+        )
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f'Error checking prerelease updates: {e}')
+        return None
+
+    # determine target major.minor
+    current = getCurrentVersion()
+    parsed_current = version.parse(current)
+    target_major = parsed_current.major
+    target_minor = parsed_current.minor
+
+    pre_versions = []
+    for rel in resp.json():
+        if rel.get('prerelease'):
+            name = rel.get('name', '')
+            tag = name.split()[1] if ' ' in name else name
+            clean = tag
+            try:
+                parsed = version.parse(clean)
+            except Exception:
+                continue
+            if parsed.is_prerelease and parsed.major == target_major and parsed.minor == target_minor:
+                pre_versions.append(tag)
+
+    if not pre_versions:
+        return None
+
+    # return the highest semver prerelease of the same major.minor
+    return max(pre_versions, key=lambda t: version.parse(t))
+
 def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
-        return f.readline()
-    
+        return f.readline().strip()
+
 def open_file(filename):
     if sys.platform == "win32":
         os.startfile(filename)
@@ -166,79 +217,6 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
     h.update(str(timer).encode('utf-8'))
     h.update(str(carrierID).encode('utf-8'))
     return h.hexdigest()[:40]
-
-def rate_limited(max_calls: int, period: float):
-    """
-    Decorator that allows up to max_calls per period (seconds),
-    caching and returning the last result in between bursts,
-    separately for each distinct (args, kwargs) combination.
-    """
-    state: dict = {}  # maps (args, sorted(kwargs)) -> {'times': deque, 'cache': result}
-
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            now = time.time()
-            # build a hashable key for this call
-            key = (args, tuple(sorted(kwargs.items())))
-            if key not in state:
-                state[key] = {'times': deque(), 'cache': None}
-
-            record = state[key]
-            times: deque[float] = record['times']
-
-            # drop timestamps older than our window
-            while times and now - times[0] > period:
-                times.popleft()
-
-            # if under limit, perform real call and update cache
-            if len(times) < max_calls:
-                times.append(now)
-                try:
-                    record['cache'] = func(*args, **kwargs)
-                except Exception:
-                    # on failure, keep last cache
-                    pass
-
-            return record['cache']
-        return wrapper
-    return decorator
-
-def debounce(wait_seconds):
-    """
-    Postpone a function’s execution until wait_seconds have elapsed since
-    the last call.  If the first arg has a .root, use root.after/after_cancel
-    so the callback won’t fire after the window is closed.
-    """
-    def decorator(fn):
-        @functools.wraps(fn)
-        def wrapped(*args, **kwargs):
-            self = args[0] if args else None
-            root = getattr(self, 'root', None)
-            # use a unique attr per instance+method:
-            after_attr = f'__debounce_after_id_{fn.__name__}'
-            if root and hasattr(root, 'after'):
-                # cancel previous
-                prev = getattr(self, after_attr, None)
-                if prev:
-                    try:
-                        root.after_cancel(prev)
-                    except Exception:
-                        pass
-                # schedule new
-                handle = root.after(int(wait_seconds * 1000), lambda: fn(*args, **kwargs))
-                setattr(self, after_attr, handle)
-            else:
-                # fallback to threading.Timer
-                timer_attr = f'__debounce_timer_{fn.__name__}'
-                prev_timer = getattr(self, timer_attr, None)
-                if prev_timer:
-                    prev_timer.cancel()
-                t = threading.Timer(wait_seconds, lambda: fn(*args, **kwargs))
-                setattr(self, timer_attr, t)
-                t.start()
-        return wrapped
-    return decorator
 
 @rate_limited(max_calls=20, period=60)
 def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None]:
