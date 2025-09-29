@@ -10,7 +10,7 @@ from typing import Literal, Callable
 from supabase import create_client, Client
 from supabase_auth import UserResponse
 from config import SUPABASE_URL, SUPABASE_KEY, LOCAL_PORT, REDIRECT_URL
-from utility import rate_limited
+from decos import rate_limited
 
 # An event to signal when the authentication is complete
 auth_complete = threading.Event()
