@@ -52,6 +52,7 @@ class CarrierController:
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_file(getSettingsPath()))
@@ -510,7 +511,19 @@ class CarrierController:
                 self.view.show_message_box_warning('Warning', f'{carrier_name} ({carrier_callsign}) doesn\'t have a jump plotted')
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
-        
+
+    def button_click_open_journal(self):
+        selected_row = self.get_selected_row(sheet=self.view.sheet_active_journals)
+        if selected_row is not None:
+            active_journal_paths = self.model.get_active_journal_paths()
+            if not active_journal_paths:
+                self.view.show_message_box_warning('Warning', 'No active journals found')
+            else:
+                journal_file = active_journal_paths[selected_row]
+                open_file(journal_file)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row.')
+
     def check_manual_timer(self):
         now = datetime.now(timezone.utc)
         for carrierID in self.model.sorted_ids():

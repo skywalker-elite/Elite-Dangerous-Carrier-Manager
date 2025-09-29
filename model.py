@@ -898,6 +898,11 @@ class CarrierModel:
             )
             for fid, journal in zip(fids, journals)
         ]
+    
+    def get_active_journal_paths(self) -> list[str]:
+        active = self.journal_reader.get_latest_active_journals()
+        return list(active.values()) if active is not None else None
+        
 
 def getLocation(system, body, body_id):
     if system == 'HIP 58832':

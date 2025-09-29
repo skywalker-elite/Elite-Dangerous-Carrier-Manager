@@ -168,6 +168,26 @@ class CarrierView:
         self.sheet_misc.column_width_resize_enabled = False
         self.sheet_misc.row_height_resize_enabled = False
 
+        
+        # Active Journals tab
+        self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals')
+        self.sheet_active_journals.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.sheet_active_journals.change_theme('dark', redraw=False)
+
+        # Set column headers
+        self.sheet_active_journals.headers(['FID', 'CMDR Name', 'Carrier Name', 'Journal File'])
+        # self.sheet_active_journals['A:D'].align('left')
+        self.sheet_active_journals.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
+        self.sheet_active_journals.column_width_resize_enabled = False
+        self.sheet_active_journals.row_height_resize_enabled = False
+
+        self.bottom_bar_active_journals = ttk.Frame(self.tab_active_journals)
+        self.bottom_bar_active_journals.grid(row=1, column=0, columnspan=3, sticky='ew')
+        self.tab_active_journals.grid_rowconfigure(1, weight=0)
+        # Buttons
+        self.button_open_journal = ttk.Button(self.bottom_bar_active_journals, text='Open Journal File')
+        self.button_open_journal.pack(side='left')
+
         # Options tab
         self.labelframe_EDCM = ttk.Labelframe(self.tab_options.scrollable_frame, text='EDCM')
         self.labelframe_EDCM.grid(row=0, column=0, padx=10, pady=10, sticky='w')
@@ -207,18 +227,6 @@ class CarrierView:
         self.button_test_discord.grid(row=1, column=0, padx=10, pady=10, sticky='w')
         self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
-
-        # Active Journals tab
-        self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals')
-        self.sheet_active_journals.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_active_journals.change_theme('dark', redraw=False)
-
-        # Set column headers
-        self.sheet_active_journals.headers(['FID', 'CMDR Name', 'Carrier Name', 'Journal File'])
-        # self.sheet_active_journals['A:D'].align('left')
-        self.sheet_active_journals.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_active_journals.column_width_resize_enabled = False
-        self.sheet_active_journals.row_height_resize_enabled = False
 
     def set_font_size(self, font_size:str, font_size_table:str):
         size = font_sizes.get(font_size, font_sizes['normal'])
