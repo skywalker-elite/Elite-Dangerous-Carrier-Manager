@@ -151,8 +151,13 @@ class Settings:
         try:
             if not exists(prog_file):
                 copy2(getConfigSettingsDefaultPath(), prog_file)
-            with open(prog_file, 'r') as f:
-                self._config = json.load(f)
+                print(f"Created config file: {prog_file}")
+                with open(prog_file, 'r') as f:
+                    self._config = json.load(f)
+                self.save_config(prog_file)
+            else:
+                with open(prog_file, 'r') as f:
+                    self._config = json.load(f)
         except json.JSONDecodeError:
             with open(getConfigSettingsDefaultPath(), 'r') as f:
                 self._config = json.load(f)
