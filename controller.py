@@ -31,7 +31,8 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, debounce, generateHumanizedExpectedJumpTimer, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from utility import checkTimerFormat, generateHumanizedExpectedJumpTimer, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
 
@@ -132,10 +133,20 @@ class CarrierController:
     
     def check_app_update(self, notify_is_latest:bool=False):
         if isUpdateAvailable():
-            if self.view.show_message_box_askyesno('Update Available', f'New version available: {getLatestVersion()}\n Go to download?'):
-                open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
+            if isOnPrerelease():
+                version_latest = getLatestPrereleaseVersion()
+            else:
+                version_latest = getLatestVersion()
+            prompt = f'New version available: {version_latest}\nGo to download?'
+            if self.view.show_message_box_askyesno('Update Available', prompt):
+                if isOnPrerelease():
+                    url = f'https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/tag/{version_latest}'
+                else:
+                    url = 'https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest'
+                open_new_tab(url=url)
         elif notify_is_latest:
-            self.view.show_message_box_info('No update available', f'You are using the latest version: {getCurrentVersion()}')
+            version_current = getCurrentVersion()
+            self.view.show_message_box_info('No update available', f'You are using the latest version: {version_current}')
     
     def load_settings(self, settings_file:str):
         try:
