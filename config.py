@@ -73,3 +73,14 @@ font_sizes = {
     'colossal': 19 if platform != 'darwin' else 21,
     'capital class signature detected': 21 if platform != 'darwin' else 23,
 }
+
+# --- Tooltip Configuration ---
+TOOLTIP_HOVER_DELAY = 500
+TOOLTIP_BACKGROUND = "#1c1c1c"
+TOOLTIP_FOREGROUND = '#ffffff'
+
+# --- Supabase Configuration ---
+SUPABASE_URL = "https://ujpdxqvevfxjivvnlzds.supabase.co"
+SUPABASE_KEY = "sb_publishable_W7XhQ246tT6rJipPKDMekQ_fOmMoIi2"
+LOCAL_PORT = 58832
+REDIRECT_URL = f"http://localhost:{LOCAL_PORT}/callback"
