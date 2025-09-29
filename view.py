@@ -198,11 +198,11 @@ class CarrierView:
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.grid(row=0, column=2, padx=10, pady=10, sticky='w')
         self.checkbox_show_active_journals_var = tk.BooleanVar()
+        self.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.toggle_active_journals_tab())
         self.checkbox_show_active_journals = ttk.Checkbutton(
             self.labelframe_EDCM,
             text='Show Active Journals Tab',
             variable=self.checkbox_show_active_journals_var,
-            command=self.toggle_active_journals_tab
         )
         self.checkbox_show_active_journals.grid(row=0, column=3, padx=10, pady=10, sticky='w')
 

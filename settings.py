@@ -34,8 +34,27 @@ class Settings:
         result = self._settings
         for key in keys:
             if result is None:
-                return None
+                break
             result = result.get(key, None)
+        if result is None:
+            # check if key exists in default settings, if so, persist it into user config
+            try:
+                with open(getConfigSettingsDefaultPath(), 'r') as f:
+                    default_cfg = json.load(f)
+                default_val = default_cfg
+                for key in keys:
+                    default_val = default_val.get(key, None)
+                    if default_val is None:
+                        break
+                if default_val is not None:
+                    # persist this default into the user config
+                    self.set_config(*keys, value=default_val)
+                    # merge it back into in-memory settings
+                    self.merge_config()
+                    return default_val
+            except Exception:
+                pass
+            return None
         return result
 
     def load(self, settings_file=None):
