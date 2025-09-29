@@ -65,6 +65,8 @@ class CarrierController:
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
         self.view.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'show_active_journals_tab', value=self.view.checkbox_show_active_journals_var.get()))
+        self.view.checkbox_minimize_to_tray_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'minimize_to_tray', value=self.view.checkbox_minimize_to_tray_var.get()))
+        self.view.checkbox_minimize_to_tray.configure(command=lambda: self.setup_tray_icon())
 
         # initial load
         self.update_journals()
@@ -154,9 +156,10 @@ class CarrierController:
             self.model.custom_order = self.settings.get('advanced', 'custom_order')
             self.model.read_journals() # re-read journals to apply ignore list and custom order
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
-            self.setup_tray_icon()
             self.root.geometry(self.settings.get('UI', 'window_size'))
             self.view.checkbox_show_active_journals_var.set(self.settings.get('UI', 'show_active_journals_tab'))
+            self.view.checkbox_minimize_to_tray_var.set(self.settings.get('UI', 'minimize_to_tray'))
+            self.setup_tray_icon()
 
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
@@ -633,7 +636,7 @@ class CarrierController:
         self.model.read_journals()
 
     def setup_tray_icon(self):
-        if self.settings.get('advanced', 'minimize_to_tray'):
+        if self.view.checkbox_minimize_to_tray_var.get():
             if sys.platform in ['win32', 'linux']:
                 if self.tray_icon is None:
                     icon = Icon(
@@ -646,17 +649,22 @@ class CarrierController:
                         )
                     )
                     self.tray_icon = icon
-                if self.tray_icon.HAS_MENU:
-                    threading.Thread(target=self.tray_icon.run, daemon=True).start()
-                    self.root.bind('<Unmap>', lambda e: self._on_minimize() if self.root.state() == 'iconic' else None)
+                    if self.tray_icon.HAS_MENU:
+                        threading.Thread(target=self.tray_icon.run, daemon=True).start()
+                        self.root.bind('<Unmap>', lambda e: self._on_minimize() if self.root.state() == 'iconic' else None)
+                    else:
+                        self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
+                                                        for more information, check the FAQ on the GitHub page.')
+                        self.tray_icon = None
                 else:
-                    self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
-                                                    for more information, check the FAQ on the GitHub page.')
-                    self.tray_icon = None
+                    # tray icon already exists
+                    pass
             else:
                 self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
                                                 for more information, check the FAQ on the GitHub page.')
                 self.tray_icon = None
+                self.view.checkbox_minimize_to_tray_var.set(False)
+                self.view.checkbox_minimize_to_tray.config(state='disabled')
         else:
             if self.tray_icon is not None:
                 self.tray_icon.stop()

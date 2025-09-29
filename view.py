@@ -205,6 +205,13 @@ class CarrierView:
             variable=self.checkbox_show_active_journals_var,
         )
         self.checkbox_show_active_journals.grid(row=0, column=3, padx=10, pady=10, sticky='w')
+        self.checkbox_minimize_to_tray_var = tk.BooleanVar()
+        self.checkbox_minimize_to_tray = ttk.Checkbutton(
+            self.labelframe_EDCM,
+            text='Minimize to Tray',
+            variable=self.checkbox_minimize_to_tray_var,
+        )
+        self.checkbox_minimize_to_tray.grid(row=0, column=4, padx=10, pady=10, sticky='w')
 
         self.labelframe_settings = ttk.Labelframe(self.tab_options.scrollable_frame, text='Settings')
         self.labelframe_settings.grid(row=1, column=0, padx=10, pady=10, sticky='w')

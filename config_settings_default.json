@@ -1,6 +1,7 @@
 {
   "UI": {
     "window_size": "1080x420", 
-    "show_active_journals_tab": false
+    "show_active_journals_tab": false,
+    "minimize_to_tray": false
   }
 }
