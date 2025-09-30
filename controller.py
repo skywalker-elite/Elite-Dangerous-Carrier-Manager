@@ -110,6 +110,8 @@ class CarrierController:
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in()
+        else:
+            self.on_sign_out()
 
         self.auth_handler.register_auth_event_callback('SIGNED_IN', self.on_sign_in)
         self.auth_handler.register_auth_event_callback('SIGNED_OUT', self.on_sign_out)
