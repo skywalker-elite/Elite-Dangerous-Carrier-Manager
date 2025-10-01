@@ -220,7 +220,7 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
 
 @rate_limited(max_calls=20, period=60)
 def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None]:
-    response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats')
+    response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats-v2')
     if response.status_code == 200:
         data = response.json()[0]
         if data is None:
