@@ -34,7 +34,7 @@ from station_parser import EDSMError, getStations
 from utility import checkTimerFormat, generateHumanizedExpectedJumpTimer, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
-from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
+from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
 
 if TYPE_CHECKING: 
     import tksheet
@@ -99,8 +99,7 @@ class CarrierController:
         self.set_current_version()
         self.redraw_fast()
         self.redraw_slow()
-        self.update_timer_stat()
-        self.redraw_timer_stat()
+        self.update_timer_stat_loop()
         self.view.update_table_active_journals(self.model.get_data_active_journals())
         self._start_realtime_listener()
         self.check_app_update()
@@ -293,6 +292,10 @@ class CarrierController:
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
 
+    def update_timer_stat_loop(self):
+        self.update_timer_stat()
+        self.view.root.after(UPDATE_INTERVAL_TIMER_STATS, self.update_timer_stat_loop)
+    
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
         print('Updating timer stats')
         self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"] = getExpectedJumpTimer()
@@ -634,8 +637,6 @@ class CarrierController:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def redraw_timer_stat(self):
-        if self.timer_stats["latest"] is not None and datetime.now(timezone.utc) > self.timer_stats["latest"] + timedelta(hours=3):
-            self.update_timer_stat()
         self.view.update_timer_stat(generateHumanizedExpectedJumpTimer(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"]))
 
     def _start_realtime_listener(self):
