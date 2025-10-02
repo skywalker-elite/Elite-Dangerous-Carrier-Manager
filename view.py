@@ -11,6 +11,18 @@ class CarrierView:
     def __init__(self, root:tk.Tk):
         self.root = root
 
+        self.sheet_colors = {
+            'table_bg':    '#1c1c1e',  # main window surface
+            'header_bg':   '#2c2c2e',  # secondary surface
+            'header_fg':   '#f3f3f5',  # light text
+            'index_bg':    '#2c2c2e',  # secondary surface
+            'index_fg':    '#f3f3f5',  # light text
+            'cell_bg':     '#1c1c1e',  # main window surface
+            'cell_fg':     '#f3f3f5',  # light text
+            'selected_bg': '#0a84ff',  # Fluent accent blue
+            'selected_fg': '#ffffff',  # white text on selection
+        }
+
         # TopBar
         self.top_bar = ttk.Frame(self.root)
         self.top_bar.pack(side='top', fill='x')
@@ -58,8 +70,6 @@ class CarrierView:
 
         # Initialize the tksheet.Sheet widget
         self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps')
-        self.sheet_jumps.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_jumps.change_theme('dark', redraw=False)
 
         # Set column headers
         self.sheet_jumps.headers([
@@ -67,10 +77,7 @@ class CarrierView:
             'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer',
         ])
 
-        # Enable column resizing to match window resizing
-        self.sheet_jumps.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_jumps.column_width_resize_enabled = False
-        self.sheet_jumps.row_height_resize_enabled = False
+        self.configure_sheet(self.sheet_jumps)
         
         self.bottom_bar = ttk.Frame(self.tab_jumps)
         self.bottom_bar.grid(row=1, column=0, columnspan=3, sticky='ew')
@@ -96,8 +103,6 @@ class CarrierView:
 
         # Trade tab
         self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade')
-        self.sheet_trade.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_trade.change_theme('dark', redraw=False)
 
         # Set column headers
         self.sheet_trade.headers([
@@ -105,11 +110,8 @@ class CarrierView:
         ])
         self.sheet_trade['C'].align('right')
         self.sheet_trade['E'].align('right')
-        
-        # Enable column resizing to match window resizing
-        self.sheet_trade.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_trade.column_width_resize_enabled = False
-        self.sheet_trade.row_height_resize_enabled = False
+
+        self.configure_sheet(self.sheet_trade)
 
         self.bottom_bar_trade = ttk.Frame(self.tab_trade)
         self.bottom_bar_trade.grid(row=1, column=0, columnspan=3, sticky='ew')
@@ -122,8 +124,6 @@ class CarrierView:
 
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance, name='sheet_finance')
-        self.sheet_finance.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_finance.change_theme('dark', redraw=False)
 
         # Set column headers
         self.sheet_finance.headers([
@@ -131,15 +131,10 @@ class CarrierView:
         ])
         self.sheet_finance['C:K'].align('right')
 
-        # Enable column resizing to match window resizing
-        self.sheet_finance.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_finance.column_width_resize_enabled = False
-        self.sheet_finance.row_height_resize_enabled = False
+        self.configure_sheet(self.sheet_finance)
 
         # services tab
         self.sheet_services = Sheet(self.tab_services, name='sheet_services')
-        self.sheet_services.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_services.change_theme('dark', redraw=False)
 
         # Set column headers
         self.sheet_services.headers([
@@ -147,15 +142,10 @@ class CarrierView:
         ])
         self.sheet_services['B:L'].align('right')
 
-        # Enable column resizing to match window resizing
-        self.sheet_services.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_services.column_width_resize_enabled = False
-        self.sheet_services.row_height_resize_enabled = False
+        self.configure_sheet(self.sheet_services)
 
         # Misc tab
         self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc')
-        self.sheet_misc.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_misc.change_theme('dark', redraw=False)
 
         # Set column headers
         self.sheet_misc.headers([
@@ -163,23 +153,15 @@ class CarrierView:
         ])
         self.sheet_misc['B:J'].align('right')
 
-        # Enable column resizing to match window resizing
-        self.sheet_misc.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_misc.column_width_resize_enabled = False
-        self.sheet_misc.row_height_resize_enabled = False
-
+        self.configure_sheet(self.sheet_misc)
         
         # Active Journals tab
         self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals')
-        self.sheet_active_journals.grid(row=0, column=0, columnspan=3, sticky='nswe')
-        self.sheet_active_journals.change_theme('dark', redraw=False)
 
         # Set column headers
         self.sheet_active_journals.headers(['FID', 'CMDR Name', 'Carrier Name', 'Journal File'])
-        # self.sheet_active_journals['A:D'].align('left')
-        self.sheet_active_journals.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
-        self.sheet_active_journals.column_width_resize_enabled = False
-        self.sheet_active_journals.row_height_resize_enabled = False
+        
+        self.configure_sheet(self.sheet_active_journals)
 
         self.bottom_bar_active_journals = ttk.Frame(self.tab_active_journals)
         self.bottom_bar_active_journals.grid(row=1, column=0, columnspan=3, sticky='ew')
@@ -234,6 +216,15 @@ class CarrierView:
         self.button_test_discord.grid(row=1, column=0, padx=10, pady=10, sticky='w')
         self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
         self.button_test_discord_ping.grid(row=1, column=1, padx=10, pady=10, sticky='w')
+
+    def configure_sheet(self, sheet:Sheet):
+        sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        sheet.change_theme('dark', redraw=False)
+        sheet.set_options(**self.sheet_colors)
+        # Enable column resizing to match window resizing
+        sheet.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
+        sheet.column_width_resize_enabled = False
+        sheet.row_height_resize_enabled = False
 
     def set_font_size(self, font_size:str, font_size_table:str):
         size = font_sizes.get(font_size, font_sizes['normal'])
@@ -503,4 +494,9 @@ if __name__ == '__main__':
     root.geometry(WINDOW_SIZE)
     apply_theme_to_titlebar(root)
     view = CarrierView(root)
+    view.update_table_jumps([
+        ['P.T.N. Carrier', 'PTN-123', '1000', 'Sol', 'Earth', 'Idle', 'Alpha Centauri', 'Proxima b', '00:15:00', ''],
+        ['N.A.C. Carrier', 'NAC-456', '800', 'Lave', 'Lave Station', 'Traveling', 'Achenar', 'Achenar I', '00:05:00', ''],
+        ['E.D.C. Carrier', 'EDC-789', '500', 'Achenar', 'Achenar I', 'Idle', 'Sol', 'Earth', '', ''],
+    ])
     root.mainloop()
