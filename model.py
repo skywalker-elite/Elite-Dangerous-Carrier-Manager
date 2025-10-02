@@ -845,7 +845,7 @@ class CarrierModel:
         latest_cooldown = self.get_carriers()[carrierID]['last_cancel']['timestamp'] + CD_cancel if self.get_carriers()[carrierID]['last_cancel'] is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
-    def get_formated_largest_order(self, carrierID: int) -> str|None:
+    def get_formatted_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
         df_active_trades = self.generate_info_trade(carrierID=carrierID)
         if len(df_active_trades) == 0:
             return None
@@ -873,7 +873,7 @@ class CarrierModel:
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
         trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids_display()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
-        self.trade_carrierIDs = df['CarrierID']
+        self.trade_carrierIDs: list[int] = df['CarrierID'].to_list()
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
