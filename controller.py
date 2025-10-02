@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+from typing import Callable
 import pyperclip
 import re
 from watchdog.observers import Observer
@@ -310,26 +311,7 @@ class CarrierController:
                 raise RuntimeError(f'Unexpected sheet name: {sheet.name}')
 
             if system == 'HIP 58832':
-                if order is not None:
-                    trade_type, commodity, amount, price = order
-                    if trade_type == 'unloading' and commodity == 'Wine':
-                        body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
-                        planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
-                        if planetary_body is not None:
-                            timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
-                            post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
-                            try:
-                                pyperclip.copy(post_string)
-                            except pyperclip.PyperclipException as e:
-                                self.view.show_message_box_warning('Error', f'Error while copying to clipboard\n{e}')
-                            else:
-                                self.view.show_message_box_info('Wine o\'clock', 'Wine unload command copied')
-                        else:
-                            self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {planetary_body=}')
-                    else:
-                        self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
-                else:
-                    self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
+                self.handle_peak_trade_logic(carrierID, carrier_name, system, carrier_callsign, order)
             else:
                 if order is not None:
                     trade_type, commodity, amount, price = order
@@ -353,6 +335,26 @@ class CarrierController:
                     self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
         else:
             self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
+
+    def handle_peak_trade_logic(self, carrierID, carrier_name, system, carrier_callsign, order):
+        if order is not None:
+            trade_type, commodity, _, price = order
+            if trade_type == 'unloading' and commodity == 'Wine':
+                if not 21500 < price < 22500:
+                    if not self.view.show_message_box_askyesno('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\n Are you sure you want to post this?'):
+                        return
+                body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
+                planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
+                if planetary_body is not None:
+                    timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
+                    post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
+                    self.copy_to_clipboard(post_string, 'It\'s wine o\'clock', 'Wine unload command copied')
+                else:
+                    self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {planetary_body=}')
+            else:
+                self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
+        else:
+            self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
 
     def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         station = trade_post_view.cbox_stations.get()
@@ -426,8 +428,8 @@ class CarrierController:
             s = Template(self.settings.get('post_format', 'wine_unload_timed_string'))
             post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
         return post_string
-    
-    def copy_to_clipboard(self, text, success_title, success_message, on_success=None):
+
+    def copy_to_clipboard(self, text: str, success_title: str|None, success_message: str|None, on_success: Callable[[], None]|None=None):
         try:
             pyperclip.copy(text)
         except pyperclip.PyperclipException as e:
