@@ -845,7 +845,7 @@ class CarrierModel:
         latest_cooldown = self.get_carriers()[carrierID]['last_cancel']['timestamp'] + CD_cancel if self.get_carriers()[carrierID]['last_cancel'] is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
-    def get_formated_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
+    def get_formatted_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
         df_active_trades = self.generate_info_trade(carrierID=carrierID)
         if len(df_active_trades) == 0:
             return None

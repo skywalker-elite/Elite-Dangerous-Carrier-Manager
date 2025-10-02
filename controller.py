@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 import time
-from typing import Callable
+from typing import Callable, TYPE_CHECKING
 import pyperclip
 import re
 from watchdog.observers import Observer
@@ -29,6 +29,9 @@ from station_parser import EDSMError, getStations
 from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, debounce
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
+
+if TYPE_CHECKING: 
+    import tksheet
 
 class JournalEventHandler(FileSystemEventHandler):
     def __init__(self, controller: 'CarrierController'):
@@ -285,7 +288,7 @@ class CarrierController:
         selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
         self.handle_post_trade_logic(selected_row, self.model.trade_carrierIDs, self.view.sheet_trade)
 
-    def handle_post_trade_logic(self, selected_row: int, carrier_ids: list[int], sheet):
+    def handle_post_trade_logic(self, selected_row: int, carrier_ids: list[int], sheet: tksheet.Sheet):
         if selected_row is not None:
             carrierID = carrier_ids[selected_row]
             carrier_name = self.model.get_name(carrierID)
@@ -306,7 +309,7 @@ class CarrierController:
                     amount = int(amount)
                 order: tuple[str, str, int | float, int] = (trade_type, commodity, amount, price)
             elif sheet.name == 'sheet_jumps':
-                order = self.model.get_formated_largest_order(carrierID=carrierID)
+                order = self.model.get_formatted_largest_order(carrierID=carrierID)
             else:
                 raise RuntimeError(f'Unexpected sheet name: {sheet.name}')
 
