@@ -178,6 +178,13 @@ class JournalReader:
             if info['is_active']:
                 results[fid] = info['filename']
         return results if results else None
+        
+    def get_active_unknown_fid_journals(self) -> dict[str, dict]|None:
+        results = {}
+        for journal, info in self.journal_latest_unknown_fid.items():
+            if info['is_active']:
+                results[journal] = info['filename']
+        return results if results else None
 
 class CarrierModel:
     def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
