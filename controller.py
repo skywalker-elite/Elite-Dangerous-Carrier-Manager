@@ -288,7 +288,7 @@ class CarrierController:
         selected_row = self.get_selected_row(sheet=self.view.sheet_trade)
         self.handle_post_trade_logic(selected_row, self.model.trade_carrierIDs, self.view.sheet_trade)
 
-    def handle_post_trade_logic(self, selected_row: int, carrier_ids: list[int], sheet: tksheet.Sheet):
+    def handle_post_trade_logic(self, selected_row: int, carrier_ids: list[int], sheet: 'tksheet.Sheet'):
         if selected_row is not None:
             carrierID = carrier_ids[selected_row]
             carrier_name = self.model.get_name(carrierID)
