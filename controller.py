@@ -187,7 +187,7 @@ class CarrierController:
                 self.webhook_handler.send_jump_status_embed(
                     status='jump_completed', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
-                    other_system=None, other_body=None,
+                    other_system=self.model.get_previous_system(carrierID, use_custom_name=True), other_body=self.model.get_previous_body(carrierID),
                     timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_completed_discord_ping'))
         elif status_new == 'cool_down_cancel':
             # jump cancelled
@@ -201,7 +201,7 @@ class CarrierController:
                     status='jump_cancelled', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=None, other_body=None,
-                    timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_cancelled_discord_ping'))
+                    timestamp=self.model.get_cooldown_cancel_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_cancelled_discord_ping'))
         elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
@@ -214,7 +214,8 @@ class CarrierController:
                     status='cooldown_finished', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=None, other_body=None,
-                    timestamp='', ping=self.settings.get('notifications', 'cooldown_finished_discord_ping'))
+                    timestamp=self.model.get_cooldown_hammer_countdown(carrierID) if status_old == 'cool_down' else self.model.get_cooldown_cancel_hammer_countdown(carrierID) if status_old == 'cool_down_cancel' else None, 
+                    ping=self.settings.get('notifications', 'cooldown_finished_discord_ping'))
 
     def play_sound(self, sound_file:str, block:bool=False):
         if path.exists(sound_file):

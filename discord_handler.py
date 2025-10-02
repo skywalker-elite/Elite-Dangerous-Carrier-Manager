@@ -41,8 +41,8 @@ class DiscordWebhookHandler:
             raise self.UserIDNotSetError("User ID is not set")
 
     def send_jump_status_embed(self, status: Literal['jump_plotted', 'jump_completed', 'jump_cancelled', 'cooldown_finished'], 
-                                name: str, callsign: str, current_system: str, current_body: str,
-                                other_system: str|None, other_body: str|None, timestamp: str|None, ping: bool = False) -> None:
+                                name: str, callsign: str, current_system: str|None, current_body: str|None,
+                                other_system: str|None, other_body: str|None, timestamp: str, ping: bool = False) -> None:
         
         color_map = {
             'jump_plotted': 4218367,
@@ -54,8 +54,10 @@ class DiscordWebhookHandler:
             'jump_plotted': f"Jump plotted to **{other_system}** body **{other_body}**, arriving {timestamp}",
             'jump_completed': f"Jump completed at **{current_system}** body **{current_body}**, cooldown finishes {timestamp}",
             'jump_cancelled': f"Jump cancelled, cooldown finishes {timestamp}",
-            'cooldown_finished': "Cooldown complete, ready to jump",
+            'cooldown_finished': f"Cooldown complete {timestamp}, ready to jump",
         }
+
+        current_system, current_body, other_system, other_body = current_system or 'Unknown', current_body or 'Unknown', other_system or 'Unknown', other_body or 'Unknown'
 
         embed = discord.Embed(
             color=color_map[status],
