@@ -508,7 +508,7 @@ class CarrierController:
         if selected_row is not None:
             carrierID = self.model.sorted_ids_display()[selected_row]
             system_current = self.model.get_current_system(carrierID=carrierID)
-            system_dest = self.model.get_destination_system(carrier_ID=carrierID)
+            system_dest = self.model.get_destination_system(carrierID=carrierID)
             carrier_name = self.model.get_name(carrierID)
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
