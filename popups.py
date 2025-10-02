@@ -28,7 +28,9 @@ def center_window(win: tk.Toplevel):
         win.geometry(f"+{x}+{y}")
 
 def center_window_relative_to_parent(win: tk.Toplevel, parent: tk.Tk):
+    def _do_center():
         win.update_idletasks()
+        parent.update_idletasks()
         w = win.winfo_width()
         h = win.winfo_height()
         pw = parent.winfo_width()
@@ -38,6 +40,8 @@ def center_window_relative_to_parent(win: tk.Toplevel, parent: tk.Tk):
         x = px + (pw - w) // 2
         y = py + (ph - h) // 2
         win.geometry(f"+{x}+{y}")
+    # wait until the window is actually mapped and all geometry is done
+    win.after_idle(_do_center)
 
 def create_dialog(root: tk.Tk, title: str) -> tuple[tk.Toplevel, ttk.Frame]:
     dialog = tk.Toplevel(root)
