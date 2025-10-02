@@ -1,14 +1,14 @@
 import tkinter as tk
 from tkinter import ttk
-from tkinter import messagebox
 from tksheet import Sheet
 from typing import Literal
 from config import WINDOW_SIZE_TIMER, font_sizes
 import tkinter.font as tkfont
+from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar
 from station_parser import getStockPrice
 
 class CarrierView:
-    def __init__(self, root:tk.Tk):
+    def __init__(self, root: tk.Tk):
         self.root = root
 
         self.sheet_colors = {
@@ -286,60 +286,30 @@ class CarrierView:
     def update_table_active_journals(self, data):
         self.update_table(self.sheet_active_journals, data)
 
-    def show_message_box_info(self, title:str, message:str):
-        self.root.attributes('-topmost', True)
-        messagebox.showinfo(title=title, message=message)
-        self.root.attributes('-topmost', False)
-
-    def show_message_box_info_no_topmost(self, title:str, message:str):
-        messagebox.showinfo(title=title, message=message)
-    
-    def show_message_box_warning(self, title:str, message:str):
-        self.root.attributes('-topmost', True)
-        messagebox.showwarning(title=title, message=message)
-        self.root.attributes('-topmost', False)
-
-    def show_message_box_askyesno(self, title:str, message:str) -> bool:
-        self.root.attributes('-topmost', True)
-        response = messagebox.askyesno(title=title, message=message)
-        self.root.attributes('-topmost', False)
-        return response
-    
-    def show_message_box_askretrycancel(self, title:str, message:str) -> bool:
-        self.root.attributes('-topmost', True)
-        response = messagebox.askretrycancel(title=title, message=message)
-        self.root.attributes('-topmost', False)
-        return response
-
-    def show_non_blocking_info(self, title:str, message:str):
-        info = tk.Toplevel(self.root)
-        info.title(title)
-        info.transient(self.root) # Make it appear on top of the main window
-        
-        label = ttk.Label(info, text=message)
-        label.pack()
-        
-        ok_button = ttk.Button(info, text="OK", command=info.destroy)
-        ok_button.pack(pady=10)
-
-    def show_indeterminate_progress_bar(self, title:str, message:str) -> tuple[tk.Toplevel, ttk.Progressbar]:
-        progress_win = tk.Toplevel(self.root)
-        progress_win.title(title)
-        progress_win.transient(self.root) # Make it appear on top of the main window
-
-        label = ttk.Label(progress_win, text=message)
-        label.pack(pady=10, padx=10)
-        progress_win.update_idletasks()  # Ensure the window dimensions are calculated
-
-        progress_bar = ttk.Progressbar(progress_win, mode='indeterminate', length=progress_win.winfo_width()//2)
-        progress_bar.pack(pady=10, padx=10)
-        progress_bar.start(20)
-
-        return progress_win, progress_bar
-
     def toggle_active_journals_tab(self):
         state = 'normal' if self.checkbox_show_active_journals_var.get() else 'hidden'
         self.tab_controler.tab(self.tab_active_journals, state=state)
+
+    def show_message_box_info(self, title:str, message:str):
+        show_message_box_info(self.root, title, message)
+
+    def show_message_box_info_no_topmost(self, title:str, message:str):
+        show_message_box_info_no_topmost(self.root, title, message)
+
+    def show_non_blocking_info(self, title: str, message: str):
+        show_non_blocking_info(self.root, title, message)
+    
+    def show_message_box_warning(self, title:str, message:str):
+        show_message_box_warning(self.root, title, message)
+    
+    def show_message_box_askyesno(self, title: str, message: str) -> bool:
+        return show_message_box_askyesno(self.root, title, message)
+    
+    def show_message_box_askretrycancel(self, title: str, message: str) -> bool:
+        return show_message_box_askretrycancel(self.root, title, message)
+
+    def show_indeterminate_progress_bar(self, title: str, message: str):
+        return show_indeterminate_progress_bar(self.root, title, message)
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
@@ -354,6 +324,8 @@ class TradePostView:
         self.popup = tk.Toplevel(root)
         self.popup.rowconfigure(1, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
+
+        apply_theme_to_titlebar(self.popup)
         
         self.label_carrier_name = ttk.Label(self.popup, text=carrier_name)
         self.label_carrier_name.grid(row=0, column=0, padx=2)
@@ -399,6 +371,10 @@ class TradePostView:
         self.button_post.grid(row=2, column=0, columnspan=14, pady=10)
         
         self.station_selected(None)
+        
+        self.popup.attributes('-topmost', True)
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
     
     def station_selected(self, event):
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
@@ -426,12 +402,18 @@ class ManualTimerView:
         self.popup.rowconfigure(1, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
 
+        apply_theme_to_titlebar(self.popup)
+
         self.label_timer_desp = ttk.Label(self.popup, text='Enter timer:')
         self.label_timer_desp.pack(side='top')
         self.entry_timer = ttk.Entry(self.popup)
         self.entry_timer.pack(side='top')
         self.button_post = ttk.Button(self.popup, text='OK')
         self.button_post.pack(side='bottom')
+
+        self.popup.attributes('-topmost', True)
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
 
 class ScrollableFrame(ttk.Frame):
     """A scrollable frame that can contain other widgets."""

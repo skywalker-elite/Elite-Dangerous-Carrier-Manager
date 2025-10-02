@@ -1,5 +1,4 @@
 import os
-import threading
 from argparse import ArgumentParser
 import tkinter as tk
 import sv_ttk
@@ -9,23 +8,7 @@ import sys
 import pickle
 from utility import getResourcePath, getJournalPath, getCachePath
 from config import WINDOW_SIZE
-
-def apply_theme_to_titlebar(root):
-    if sys.platform == 'win32':
-        import pywinstyles
-        version = sys.getwindowsversion()
-
-        if version.major == 10 and version.build >= 22000:
-            # Set the title bar color to the background color on Windows 11 for better appearance
-            pywinstyles.change_header_color(root, "#1c1c1c")# if sv_ttk.get_theme() == "dark" else "#fafafa")
-        elif version.major == 10:
-            pywinstyles.apply_style(root, "dark")# if sv_ttk.get_theme() == "dark" else "normal")
-
-            # A hacky way to update the title bar's color on Windows 10 (it doesn't update instantly like on Windows 11)
-            root.wm_attributes("-alpha", 0.99)
-            root.wm_attributes("-alpha", 1)
-    else:
-        pass
+from popups import apply_theme_to_titlebar
 
 def load_journal_reader_from_cache(jr_version:str, journal_paths: list[str]) -> JournalReader | None:
     cache_path = getCachePath(jr_version, journal_paths)
@@ -80,7 +63,7 @@ def main():
     root.title("Elite Dangerous Carrier Manager")
     root.geometry(WINDOW_SIZE)
     photo = tk.PhotoImage(file=getResourcePath(os.path.join('images','EDCM.png')))
-    root.wm_iconphoto(False, photo)
+    root.wm_iconphoto(True, photo)
     root.update()
 
     app = CarrierController(root, model=model)
