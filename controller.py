@@ -863,31 +863,45 @@ class CarrierController:
         return None, None, None
 
     def button_click_report_timer_history(self):
-        if self.auth_handler.is_logged_in():
-            if self.auth_handler.is_PTN_elevated():
-                if self.view.show_message_box_askyesno('Report timer history', 'Caution: This will report every jump you have ever made, do you want to continue?'):
-                    try:
-                        submitted, inserted, skipped = self.report_timer_history()
-                        if submitted is None:
-                            self.view.show_message_box_warning('Error', 'Error reporting jump timer history, please try again later')
-                        elif submitted > 0:
-                            self.view.show_message_box_info('Success', f'Submitted {submitted} jump timers, {inserted} were accepted, {skipped} were skipped.')
-                        elif submitted == 0:
-                            self.view.show_message_box_info('No Data', 'No jump timers to report.')
-                    except FunctionsHttpError as e:
-                        if e.status == 429:
-                            self.view.show_message_box_warning('Rate limited', 'You are being rate limited, please try again later')
-                        else:
-                            print(f"Error reporting jump timer history: {e.name} {e.status}: {e.message}")
-                            self.view.show_message_box_warning('Error', f'Error reporting jump timer history\n{e.name} {e.status}: {e.message}')
-                    except Exception as e:
-                        print(f"Error reporting jump timer history: {traceback.format_exc()}")
-                        self.view.show_message_box_warning('Error', f'Error reporting jump timer history\n{traceback.format_exc()}')
+        if not self.auth_handler.is_logged_in():
+            return self.view.show_message_box_warning('Not logged in', 'You need to be logged in to report timer history')
+        if not self.auth_handler.is_PTN_elevated():
+            return self.view.show_message_box_warning(
+                'Permission denied',
+                'You need an elevated PTN role to report jump timer history.\n'
+                'Use "Verify PTN Roles" to refresh your roles if you think this is wrong.'
+            )
+        if not self.view.show_message_box_askyesno(
+            'Report timer history',
+            'Caution: This will report every jump you have ever made, do you want to continue?'
+        ):
+            return
+
+        # spawn a background thread so the UI stays responsive
+        thread_report_history = threading.Thread(target=self._run_report_timer_history, daemon=True)
+        thread_report_history.start()
+
+    def _run_report_timer_history(self):
+        try:
+            submitted, inserted, skipped = self.report_timer_history()
+            if submitted is None:
+                box = 'warning'; title = 'Error'; msg = 'Error reporting jump timer history, please try again later'
+            elif submitted > 0:
+                box = 'info'; title = 'Success'; msg = f'Submitted {submitted} jump timers, {inserted} accepted, {skipped} skipped.'
             else:
-                self.view.show_message_box_warning('Permission denied', 'You need to have a elevated PTN role to report jump timer history\n' \
-                                                   'If you have elevated role(s), you can use the "Verify PTN Roles" button to refresh your roles.')
-        else:
-            self.view.show_message_box_warning('Not logged in', 'You need to be logged in to report timer history')
+                box = 'info'; title = 'No Data'; msg = 'No jump timers to report.'
+        except FunctionsHttpError as e:
+            if e.status == 429:
+                box = 'warning'; title = 'Rate limited'; msg = 'You are being rate limited, please try again later'
+            else:
+                box = 'warning'; title = 'Error'; msg = f'Error reporting jump timer history\n{e.name} {e.status}: {e.message}'
+        except Exception:
+            box = 'warning'; title = 'Error'; msg = f'Error reporting jump timer history\n{traceback.format_exc()}'
+
+        # back onto the Tk event loop to show the dialog
+        self.view.root.after(0, lambda:
+            getattr(self.view, f'show_message_box_{box}')(title, msg)
+        )
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():
