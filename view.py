@@ -13,10 +13,11 @@ class CarrierView:
 
         self.sheet_colors = {
             'table_bg':    '#1c1c1e',  # main window surface
-            'header_bg':   '#2c2c2e',  # secondary surface
+            'header_bg':   "#202021",  # secondary surface
             'header_fg':   '#f3f3f5',  # light text
-            'index_bg':    '#2c2c2e',  # secondary surface
-            'index_fg':    '#f3f3f5',  # light text
+            'index_bg':    '#202021',  # secondary surface
+            'index_fg':    "#C2C2C4",  # dim light text
+            'top_left_bg':  '#202021',  # secondary surface
             'cell_bg':     '#1c1c1e',  # main window surface
             'cell_fg':     '#f3f3f5',  # light text
             'selected_bg': '#0a84ff',  # Fluent accent blue
