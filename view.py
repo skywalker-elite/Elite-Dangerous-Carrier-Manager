@@ -398,18 +398,19 @@ class ManualTimerView:
         self.carrierID = carrierID
         self.popup = tk.Toplevel(root)
         self.popup.geometry(WINDOW_SIZE_TIMER)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Timer')
         self.popup.focus_force()
         self.popup.rowconfigure(1, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
 
-        apply_theme_to_titlebar(self.popup)
-
         self.label_timer_desp = ttk.Label(self.popup, text='Enter timer:')
-        self.label_timer_desp.pack(side='top')
+        self.label_timer_desp.pack(side='top', pady=4, padx=8)
         self.entry_timer = ttk.Entry(self.popup)
-        self.entry_timer.pack(side='top')
+        self.entry_timer.pack(side='top', pady=4, padx=8)
         self.button_post = ttk.Button(self.popup, text='OK')
-        self.button_post.pack(side='bottom')
+        self.button_post.pack(side='bottom', ipadx=8, ipady=2, pady=4)
 
         self.popup.attributes('-topmost', True)
         center_window_relative_to_parent(self.popup, root)
