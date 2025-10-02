@@ -451,6 +451,9 @@ class CarrierModel:
                 data['latest_depart'] = None
                 latest_body = None
                 latest_body_id = None
+                pre_system = None
+                pre_body = None
+                pre_body_id = None
                 if data['CarrierLocation']['timestamp'] is not None:
                     latest_system = data['CarrierLocation']['SystemName']
                     latest_body = data['CarrierLocation']['Body']
@@ -486,6 +489,9 @@ class CarrierModel:
                 data['destination_system'] = latest_system
                 data['destination_body'] = latest_body
                 data['destination_body_id'] = latest_body_id
+                data['previous_system'] = None
+                data['previous_body'] = None
+                data['previous_body_id'] = None
             elif time_diff is not None and time_diff < CD:
                 self.active_timer = True
                 data['status'] = 'cool_down'
@@ -495,6 +501,9 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                data['previous_system'] = pre_system
+                data['previous_body'] = pre_body
+                data['previous_body_id'] = pre_body_id
             elif time_diff_cancel is not None and time_diff_cancel < CD_cancel:
                 self.active_timer = True
                 data['status'] = 'cool_down_cancel'
@@ -504,6 +513,9 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                data['previous_system'] = pre_system
+                data['previous_body'] = pre_body
+                data['previous_body_id'] = pre_body_id
             else:
                 self.active_timer = False
                 data['status'] = 'idle'
@@ -517,6 +529,9 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                data['previous_system'] = pre_system
+                data['previous_body'] = pre_body
+                data['previous_body_id'] = pre_body_id
             carriers[carrierID] = data
                   
         old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
@@ -762,6 +777,10 @@ class CarrierModel:
         system_name = self.get_carriers()[carrier_ID]['destination_system']
         return get_custom_system_name(system_name) if use_custom_name else system_name
 
+    def get_previous_system(self, carrierID, use_custom_name:bool=False) -> str|None:
+        system_name = self.get_carriers()[carrierID]['previous_system']
+        return get_custom_system_name(system_name) if use_custom_name else system_name
+
     def get_current_or_destination_system(self, carrierID, use_custom_name:bool=False) -> str:
         return self.get_destination_system(carrier_ID=carrierID, use_custom_name=use_custom_name) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_system(carrierID=carrierID, use_custom_name=use_custom_name)
 
@@ -773,6 +792,10 @@ class CarrierModel:
         _, body = getLocation(self.get_carriers()[carrierID]['destination_system'], self.get_carriers()[carrierID]['destination_body'], self.get_carriers()[carrierID]['destination_body_id'])
         return body
     
+    def get_previous_body(self, carrierID) -> str|None:
+        _, body = getLocation(self.get_carriers()[carrierID]['previous_system'], self.get_carriers()[carrierID]['previous_body'], self.get_carriers()[carrierID]['previous_body_id'])
+        return body
+    
     def get_current_or_destination_body(self, carrierID) -> str:
         return self.get_destination_body(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body(carrierID=carrierID)
     
@@ -781,6 +804,9 @@ class CarrierModel:
     
     def get_destination_body_id(self, carrierID) -> int|None:
         return self.get_carriers()[carrierID]['destination_body_id']
+    
+    def get_previous_body_id(self, carrierID) -> int|None:
+        return self.get_carriers()[carrierID]['previous_body_id']
     
     def get_current_or_destination_body_id(self, carrierID) -> int:
         return self.get_destination_body_id(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body_id(carrierID=carrierID)
