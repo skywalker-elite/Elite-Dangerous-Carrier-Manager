@@ -53,18 +53,12 @@ class CarrierView:
         self.tab_controler.add(self.tab_options, text='Options')
 
         # Make the grid expand when the window is resized
-        self.tab_jumps.rowconfigure(0, pad=1, weight=1)
-        self.tab_jumps.columnconfigure(0, pad=1, weight=1)
-        self.tab_trade.rowconfigure(0, pad=1, weight=1)
-        self.tab_trade.columnconfigure(0, pad=1, weight=1)
-        self.tab_finance.rowconfigure(0, pad=1, weight=1)
-        self.tab_finance.columnconfigure(0, pad=1, weight=1)
-        self.tab_services.rowconfigure(0, pad=1, weight=1)
-        self.tab_services.columnconfigure(0, pad=1, weight=1)
-        self.tab_misc.rowconfigure(0, pad=1, weight=1)
-        self.tab_misc.columnconfigure(0, pad=1, weight=1)
-        self.tab_active_journals.rowconfigure(0, pad=1, weight=1)
-        self.tab_active_journals.columnconfigure(0, pad=1, weight=1)
+        def configure_tab_grid(tab):
+            tab.rowconfigure(0, pad=1, weight=1)
+            tab.columnconfigure(0, pad=1, weight=1)
+
+        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_misc, self.tab_active_journals]:
+            configure_tab_grid(tab)
 
         self.tab_controler.pack(expand=True, fill='both')
 
