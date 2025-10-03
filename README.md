@@ -1,7 +1,7 @@
 # Elite Dangerous Carrier Manager (EDCM)
 ![GitHub Release](https://img.shields.io/github/v/release/skywalker-elite/Elite-Dangerous-Carrier-Manager) ![GitHub Release Date](https://img.shields.io/github/release-date/skywalker-elite/Elite-Dangerous-Carrier-Manager) ![GitHub License](https://img.shields.io/github/license/skywalker-elite/Elite-Dangerous-Carrier-Manager) ![GitHub Download Count](https://img.shields.io/github/downloads/skywalker-elite/Elite-Dangerous-Carrier-Manager/total) ![GitHub Repo stars](https://img.shields.io/github/stars/skywalker-elite/Elite-Dangerous-Carrier-Manager)
 ![Banner](images_readme/EDCM_Banner.png)
-EDCM is a third-party tool that helps you keep track of all your carriers in Elite Dangerous. The tool also provides some auxiliary functions to help with your daily trading and financial management.
+EDCM is a third-party tool that helps you keep track of all your carriers (yes, plural!) in Elite Dangerous. The tool also provides some auxiliary functions to help with your daily trading and financial management. EDCM is from the ground up designed to support multiple carriers and multi-boxing (running multiple instances of the game at once) If you have more than one carrier, this is the tool for you. 
 
 
 ![Jumps tab](images_readme/ss_jump.png)
@@ -20,7 +20,12 @@ Sees all services available on your carriers
 Miscellaneous information about your carriers
 
 ![Trade post](images_readme/ss_trade_post.png)
-Easy trade posting
+Easy trade posting with auto populated information
+| ![Discord jump plotted notification](images_readme/ss_discord_jump_plotted.png) | ![Discord jump completed notification](images_readme/ss_discord_jump_completed.png) |
+|:--:|:--:|
+| ![Discord cooldown finished notification](images_readme/ss_discord_cooldown_finish.png) | ![Discord jump cancelled notification](images_readme/ss_discord_jump_cancelled.png) |
+
+Discord notifications for jump events
 
 ## Supported Game Versions
 EDCM is designed to work with the **Live** version of the game. 

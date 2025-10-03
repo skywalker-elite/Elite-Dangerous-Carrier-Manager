@@ -458,6 +458,9 @@ class CarrierModel:
                 data['latest_depart'] = None
                 latest_body = None
                 latest_body_id = None
+                pre_system = None
+                pre_body = None
+                pre_body_id = None
                 if data['CarrierLocation']['timestamp'] is not None:
                     latest_system = data['CarrierLocation']['SystemName']
                     latest_body = data['CarrierLocation']['Body']
@@ -493,6 +496,9 @@ class CarrierModel:
                 data['destination_system'] = latest_system
                 data['destination_body'] = latest_body
                 data['destination_body_id'] = latest_body_id
+                data['previous_system'] = None
+                data['previous_body'] = None
+                data['previous_body_id'] = None
             elif time_diff is not None and time_diff < CD:
                 self.active_timer = True
                 data['status'] = 'cool_down'
@@ -502,6 +508,9 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                data['previous_system'] = pre_system
+                data['previous_body'] = pre_body
+                data['previous_body_id'] = pre_body_id
             elif time_diff_cancel is not None and time_diff_cancel < CD_cancel:
                 self.active_timer = True
                 data['status'] = 'cool_down_cancel'
@@ -511,6 +520,9 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                data['previous_system'] = pre_system
+                data['previous_body'] = pre_body
+                data['previous_body_id'] = pre_body_id
             else:
                 self.active_timer = False
                 data['status'] = 'idle'
@@ -524,6 +536,9 @@ class CarrierModel:
                 data['destination_system'] = None
                 data['destination_body'] = None
                 data['destination_body_id'] = None
+                data['previous_system'] = pre_system
+                data['previous_body'] = pre_body
+                data['previous_body_id'] = pre_body_id
             carriers[carrierID] = data
                   
         old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
@@ -540,11 +555,11 @@ class CarrierModel:
     
     def get_carriers(self):
         return self.carriers_updated.copy()
-    
-    def get_data(self, now):
+
+    def get_data(self, now: datetime):
         return [self.generateInfo(carrierID, now) for carrierID in self.sorted_ids_display()]
 
-    def generateInfo(self, carrierID, now):
+    def generateInfo(self, carrierID: int, now: datetime):
         carrier = self.get_carriers()[carrierID]
         location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
         fuel_level = carrier['Fuel']['FuelLevel']
@@ -623,37 +638,37 @@ class CarrierModel:
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         df.loc[idx_squadron_carriers, 'CMDR Balance'] = 'N/A'
         return df.values.tolist()
-    
-    def generate_info_finance(self, carrierID):
+
+    def generate_info_finance(self, carrierID: int):
         finance = [n for n in self.get_finance(carrierID).values()]
         upkeep = self.calculate_upkeep(carrierID=carrierID)
         jump_cost = self.calculate_average_jump_costs(carrierID=carrierID)
         afloat_time = self.calculate_afloat_time(carrierID=carrierID, carrier_balance=finance[0], upkeep=upkeep, jump_cost=jump_cost)
         return (self.get_name(carrierID=carrierID), self.generate_info_cmdr_name(carrierID), *finance, upkeep, jump_cost, afloat_time)
-    
-    def get_finance(self, carrierID):
+
+    def get_finance(self, carrierID: int):
         return self.get_carriers()[carrierID]['Finance']
-    
-    def generate_info_cmdr_name(self, carrierID) -> str:
+
+    def generate_info_cmdr_name(self, carrierID: int) -> str:
         cmdr_name = self.get_cmdr_name(carrierID=carrierID) if not self.is_squadron_carrier(carrierID) else self.get_callsign(carrierID=carrierID)
         return cmdr_name if cmdr_name is not None else 'Unknown'
-    
-    def get_cmdr_name(self, carrierID) -> str|None:
+
+    def get_cmdr_name(self, carrierID: int) -> str|None:
         return self.get_carriers()[carrierID]['CMDRName']
 
-    def calculate_afloat_time(self, carrierID, carrier_balance:int, upkeep:int, jump_cost:int) -> str:
+    def calculate_afloat_time(self, carrierID: int, carrier_balance: int, upkeep: int, jump_cost: int) -> str:
         stat_time = self.get_stat_time(carrierID=carrierID)
         stat_time = stat_time if stat_time is not None else datetime.now().astimezone()
-        return naturaltime(stat_time + timedelta(weeks=carrier_balance / (upkeep+jump_cost)))
-    
-    def calculate_upkeep(self, carrierID) -> int:
+        return naturaltime(stat_time + timedelta(weeks=carrier_balance / (upkeep + jump_cost)))
+
+    def calculate_upkeep(self, carrierID: int) -> int:
         df = self.generate_info_services(carrierID=carrierID)
         result = 10000000 if self.is_squadron_carrier(carrierID) else 5000000
         for i in df.index:
             result += self.df_upkeeps.loc[i, df.loc[i]]
         return result
-    
-    def calculate_average_jump_costs(self, carrierID) -> int:
+
+    def calculate_average_jump_costs(self, carrierID: int) -> int:
         df = self.get_carriers()[carrierID]['jumps']
         df = df[datetime.now().astimezone() - df['timestamp'] < timedelta(weeks=AVG_JUMP_CAL_WINDOW)]
         return int(round(len(df) / AVG_JUMP_CAL_WINDOW, 2) * 100000)
@@ -664,8 +679,8 @@ class CarrierModel:
         df = df.fillna('Off')
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket']].values.tolist()
-    
-    def generate_info_services(self, carrierID) -> pd.Series:
+
+    def generate_info_services(self, carrierID: int) -> pd.Series:
         df = self.get_services(carrierID=carrierID)
         status = []
         for i in range(len(df)):
@@ -677,8 +692,8 @@ class CarrierModel:
                 status.append('Active')
         df['Status'] = status
         return df['Status'].T
-    
-    def get_services(self, carrierID):
+
+    def get_services(self, carrierID: int):
         return self.get_carriers()[carrierID]['Services']
     
     def get_data_misc(self):
@@ -696,7 +711,7 @@ class CarrierModel:
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
-    def generate_info_docking_perm(self, carrierID) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
+    def generate_info_docking_perm(self, carrierID: int) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
         if self.is_squadron_carrier(carrierID):
             docking_perm = {'DockingAccess': 'squadron', 'AllowNotorious': False}
         else:
@@ -717,29 +732,29 @@ class CarrierModel:
         notorious = 'Yes' if docking_perm['AllowNotorious'] else 'No' if docking_perm['AllowNotorious'] is not None else 'Unknown'
         return (docking, notorious)
     
-    def get_docking_perm(self, carrierID):
+    def get_docking_perm(self, carrierID: int):
         return self.get_carriers()[carrierID]['DockingPerm']
-    
-    def generate_info_space_usage(self, carrierID):
+
+    def generate_info_space_usage(self, carrierID: int):
         space_usage = self.get_space_usage(carrierID=carrierID)
         return (f"{int(space_usage['Services'])}t", f"{int(space_usage['Cargo'])}t", f"{int(space_usage['BuyOrder'])}t", f"{int(space_usage['ShipPacks'])}t", f"{int(space_usage['ModulePacks'])}t", 
                 f"{int(space_usage['FreeSpace'])}t") if space_usage['Services'] is not None else ('Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')
-    
-    def get_space_usage(self, carrierID):
+
+    def get_space_usage(self, carrierID: int):
         return self.get_carriers()[carrierID]['SpaceUsage']
     
-    def generate_info_stat_time(self, carrierID) -> str:
+    def generate_info_stat_time(self, carrierID: int) -> str:
         stat_time = self.get_stat_time(carrierID=carrierID)
         return naturaltime(stat_time) if stat_time is not None else 'Never'
     
-    def get_stat_time(self, carrierID) -> datetime|None:
+    def get_stat_time(self, carrierID: int) -> datetime|None:
         return self.get_carriers()[carrierID]['StatTime']
-    
-    def generate_info_time_bought(self, carrierID):
+
+    def generate_info_time_bought(self, carrierID: int) -> str:
         time_bought = self.get_time_bought(carrierID=carrierID)
         return time_bought.astimezone().strftime('%x %X') if time_bought is not None else 'Unknown'
     
-    def get_time_bought(self, carrierID) -> datetime|None:
+    def get_time_bought(self, carrierID: int) -> datetime|None:
         return self.get_carriers()[carrierID]['TimeBought']
     
     def get_carriers_pending_decom(self) -> list[str]:
@@ -748,57 +763,68 @@ class CarrierModel:
     def get_rows_pending_decom(self) -> list[int]|None:
         decomming = [i for i, carrierID in enumerate(self.sorted_ids_display()) if self.get_pending_decom(carrierID)]
         return decomming if len(decomming) > 0 else None
-    
-    def get_pending_decom(self, carrierID) -> bool:
+
+    def get_pending_decom(self, carrierID: int) -> bool:
         return self.get_carriers()[carrierID]['PendingDecom']
     
-    def get_name(self, carrierID) -> str:
+    def get_name(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['Name']
     
-    def get_callsign(self, carrierID) -> str:
+    def get_callsign(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['Callsign']
     
-    def get_status(self, carrierID) -> str:
+    def get_status(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['status']
 
-    def get_current_system(self, carrierID, use_custom_name:bool=False) -> str:
+    def get_current_system(self, carrierID: int, use_custom_name:bool=False) -> str:
         system_name = self.get_carriers()[carrierID]['current_system']
         return get_custom_system_name(system_name) if use_custom_name else system_name
 
-    def get_destination_system(self, carrier_ID, use_custom_name:bool=False) -> str|None:
-        system_name = self.get_carriers()[carrier_ID]['destination_system']
+    def get_destination_system(self, carrierID: int, use_custom_name:bool=False) -> str|None:
+        system_name = self.get_carriers()[carrierID]['destination_system']
         return get_custom_system_name(system_name) if use_custom_name else system_name
 
-    def get_current_or_destination_system(self, carrierID, use_custom_name:bool=False) -> str:
-        return self.get_destination_system(carrier_ID=carrierID, use_custom_name=use_custom_name) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_system(carrierID=carrierID, use_custom_name=use_custom_name)
+    def get_previous_system(self, carrierID: int, use_custom_name:bool=False) -> str|None:
+        system_name = self.get_carriers()[carrierID]['previous_system']
+        return get_custom_system_name(system_name) if use_custom_name else system_name
 
-    def get_current_body(self, carrierID) -> str:
+    def get_current_or_destination_system(self, carrierID: int, use_custom_name:bool=False) -> str:
+        return self.get_destination_system(carrierID=carrierID, use_custom_name=use_custom_name) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_system(carrierID=carrierID, use_custom_name=use_custom_name)
+
+    def get_current_body(self, carrierID: int) -> str:
         _, body = getLocation(self.get_carriers()[carrierID]['current_system'], self.get_carriers()[carrierID]['current_body'], self.get_carriers()[carrierID]['current_body_id'])
         return body
-    
-    def get_destination_body(self, carrierID) -> str|None:
+
+    def get_destination_body(self, carrierID: int) -> str|None:
         _, body = getLocation(self.get_carriers()[carrierID]['destination_system'], self.get_carriers()[carrierID]['destination_body'], self.get_carriers()[carrierID]['destination_body_id'])
         return body
-    
-    def get_current_or_destination_body(self, carrierID) -> str:
+
+    def get_previous_body(self, carrierID: int) -> str|None:
+        _, body = getLocation(self.get_carriers()[carrierID]['previous_system'], self.get_carriers()[carrierID]['previous_body'], self.get_carriers()[carrierID]['previous_body_id'])
+        return body
+
+    def get_current_or_destination_body(self, carrierID: int) -> str:
         return self.get_destination_body(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body(carrierID=carrierID)
-    
-    def get_current_body_id(self, carrierID) -> int:
+
+    def get_current_body_id(self, carrierID: int) -> int:
         return self.get_carriers()[carrierID]['current_body_id']
-    
-    def get_destination_body_id(self, carrierID) -> int|None:
+
+    def get_destination_body_id(self, carrierID: int) -> int|None:
         return self.get_carriers()[carrierID]['destination_body_id']
-    
-    def get_current_or_destination_body_id(self, carrierID) -> int:
+
+    def get_previous_body_id(self, carrierID: int) -> int|None:
+        return self.get_carriers()[carrierID]['previous_body_id']
+
+    def get_current_or_destination_body_id(self, carrierID: int) -> int:
         return self.get_destination_body_id(carrierID=carrierID) if self.get_status(carrierID=carrierID) == 'jumping' else self.get_current_body_id(carrierID=carrierID)
-    
-    def get_id_by_callsign(self, callsign) -> str|None:
+
+    def get_id_by_callsign(self, callsign: str) -> int|None:
         for carrierID in self.get_carriers().keys():
             if self.get_callsign(carrierID) == callsign:
                 return carrierID
         return None
-    
-    def sorted_ids(self):
+
+    def sorted_ids(self) -> list[int]:
         ids = self.get_carriers().keys()
         custom_order_lookup = {callsign: idx for idx, callsign in enumerate(self.custom_order)}
         custom_ordered_ids = sorted(
@@ -808,25 +834,25 @@ class CarrierModel:
         remaining_ids = [carrierID for carrierID in ids if carrierID not in custom_ordered_ids]
         return custom_ordered_ids + sorted(remaining_ids, key=lambda x: self.get_time_bought(x) if self.get_time_bought(x) is not None else datetime(year=2020, month=6, day=9).replace(tzinfo=timezone.utc), reverse=False) # Assumes carrier bought at release if no buy event found
 
-    def sorted_ids_display(self):
+    def sorted_ids_display(self) -> list[int]:
         return [i for i in self.sorted_ids() if i not in self._ignore_list]
-    
-    def is_squadron_carrier(self, carrierID) -> bool:
+
+    def is_squadron_carrier(self, carrierID: int) -> bool:
         return self.get_carriers()[carrierID]['isSquadronCarrier']
-    
-    def get_departure_hammer_countdown(self, carrierID) -> str|None:
+
+    def get_departure_hammer_countdown(self, carrierID: int) -> str|None:
         latest_depart = self.get_carriers()[carrierID]['latest_depart']
         return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
 
-    def get_cooldown_hammer_countdown(self, carrierID) -> str|None:
+    def get_cooldown_hammer_countdown(self, carrierID: int) -> str|None:
         latest_cooldown = self.get_carriers()[carrierID]['latest_depart'] + CD if self.get_carriers()[carrierID]['latest_depart'] is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
-    
-    def get_cooldown_cancel_hammer_countdown(self, carrierID) -> str|None:
+
+    def get_cooldown_cancel_hammer_countdown(self, carrierID: int) -> str|None:
         latest_cooldown = self.get_carriers()[carrierID]['last_cancel']['timestamp'] + CD_cancel if self.get_carriers()[carrierID]['last_cancel'] is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
-    def get_formated_largest_order(self, carrierID) -> str|None:
+    def get_formatted_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
         df_active_trades = self.generate_info_trade(carrierID=carrierID)
         if len(df_active_trades) == 0:
             return None
@@ -854,12 +880,12 @@ class CarrierModel:
     def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
         trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids_display()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
-        self.trade_carrierIDs = df['CarrierID']
+        self.trade_carrierIDs: list[int] = df['CarrierID'].to_list()
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
-    
-    def generate_info_trade(self, carrierID) -> pd.DataFrame:
+
+    def generate_info_trade(self, carrierID: int) -> pd.DataFrame:
         carrier_name = self.get_name(carrierID)
         active_trades = self.get_active_trades(carrierID)
         if len(active_trades) == 0:
@@ -875,8 +901,8 @@ class CarrierModel:
             active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
             active_trades['Pending Decom'] = self.get_pending_decom(carrierID=carrierID)
             return active_trades[['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom']]
-    
-    def get_active_trades(self, carrierID) -> pd.DataFrame:
+
+    def get_active_trades(self, carrierID: int) -> pd.DataFrame:
         return self.get_carriers()[carrierID]['active_trades'].copy()
 
     def get_owned_carrier(self, fid: str) -> str|None:
