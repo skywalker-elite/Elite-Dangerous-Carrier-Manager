@@ -179,7 +179,7 @@ class JournalReader:
                 results[fid] = info['filename']
         return results if results else None
         
-    def get_active_unknown_fid_journals(self) -> dict[str, dict]|None:
+    def get_active_unknown_fid_journals(self) -> dict[str, str]|None:
         results = {}
         for journal, info in self.journal_latest_unknown_fid.items():
             if info['is_active']:
