@@ -178,6 +178,13 @@ class JournalReader:
             if info['is_active']:
                 results[fid] = info['filename']
         return results if results else None
+        
+    def get_active_unknown_fid_journals(self) -> dict[str, str]|None:
+        results = {}
+        for journal, info in self.journal_latest_unknown_fid.items():
+            if info['is_active']:
+                results[journal] = info['filename']
+        return results if results else None
 
 class CarrierModel:
     def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
@@ -910,10 +917,10 @@ class CarrierModel:
         carrier_name: str
         journal_file: str
 
-    def get_data_active_journals(self) -> list['CarrierModel.ActiveJournalInfo']:
+    def generate_info_active_journals(self) -> list['CarrierModel.ActiveJournalInfo']|None:
         active = self.journal_reader.get_latest_active_journals()
         if active is None:
-            return [self.ActiveJournalInfo('N/A', 'N/A', 'N/A', 'No active journals detected')]
+            return None
         fids, journals = active.keys(), active.values()
         return [
             self.ActiveJournalInfo(
@@ -924,6 +931,33 @@ class CarrierModel:
             )
             for fid, journal in zip(fids, journals)
         ]
+
+    def generate_info_active_unknown_fid_journals(self) -> list['CarrierModel.ActiveJournalInfo']|None:
+        active = self.journal_reader.get_active_unknown_fid_journals()
+        if active is None:
+            return None
+        _, journals = active.keys(), active.values()
+        return [
+            self.ActiveJournalInfo(
+                fid='Unknown (journal corrupted)',
+                cmdr_name='Unknown',
+                carrier_name='Unknown',
+                journal_file=journal,
+            )
+            for journal in journals
+        ]
+    
+    def get_data_active_journals(self) -> list['CarrierModel.ActiveJournalInfo']:
+        active_journals = self.generate_info_active_journals()
+        unknown_fid_journals = self.generate_info_active_unknown_fid_journals()
+        if active_journals is None and unknown_fid_journals is None:
+            return [self.ActiveJournalInfo('N/A', 'N/A', 'N/A', 'No active journals detected')]
+        elif unknown_fid_journals is None:
+            return active_journals
+        elif active_journals is None:
+            return unknown_fid_journals
+        else:
+            return active_journals + unknown_fid_journals
     
     def get_active_journal_paths(self) -> list[str]:
         active = self.journal_reader.get_latest_active_journals()
