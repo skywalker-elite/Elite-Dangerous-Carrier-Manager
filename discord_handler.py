@@ -85,13 +85,13 @@ if __name__ == "__main__":
     webhook_handler.send_jump_status_embed(
         status='jump_completed', name='P.T.N. Carrier', callsign='PTN-123', 
         current_system='Sol', current_body='Earth',
-        other_system='Alpha Centauri', other_body='Proxima Centauri B', timestamp=f'<t:{(datetime.now(timezone.utc) + timedelta(minutes=20)).timestamp():.0f}:R>', ping=False
+        other_system='Alpha Centauri', other_body='Proxima Centauri B', timestamp=f'<t:{(datetime.now(timezone.utc) + timedelta(minutes=5)).timestamp():.0f}:R>', ping=False
     )
     webhook_handler.send_jump_status_embed(
         status='cooldown_finished', name='P.T.N. Carrier', callsign='PTN-123', 
-        current_system='Sol', current_body='Earth', other_system=None, other_body=None, timestamp=None, ping=True
+        current_system='Sol', current_body='Earth', other_system='Alpha Centauri', other_body='Proxima Centauri B', timestamp=f'<t:{(datetime.now(timezone.utc) - timedelta(minutes=1)).timestamp():.0f}:R>', ping=True
     )
     webhook_handler.send_jump_status_embed(
         status='jump_cancelled', name='P.T.N. Carrier', callsign='PTN-123', 
-        current_system='Sol', current_body='Earth', other_system=None, other_body=None, timestamp=f'<t:{(datetime.now(timezone.utc) + timedelta(minutes=25)).timestamp():.0f}:R>', ping=False
+        current_system='Sol', current_body='Earth', other_system=None, other_body=None, timestamp=f'<t:{(datetime.now(timezone.utc) + timedelta(minutes=1)).timestamp():.0f}:R>', ping=False
     )
