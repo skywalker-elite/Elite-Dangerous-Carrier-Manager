@@ -38,6 +38,7 @@ class JournalReader:
         self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
+        self._squadron_startup = {}
         self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
@@ -146,13 +147,16 @@ class JournalReader:
                 self._carrier_buys.append(item)
             if item['event'] == 'CarrierDockingPermission':
                 self._docking_perms.append(item)
+            if item['event'] == 'SquadronStartup':
+                if fid is not None:
+                    self._squadron_startup[fid] = item['SquadronName']
                 
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid, is_active
     
     def _get_parsed_items(self):
         return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
+                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._squadron_startup, self._carrier_owners]
     
     def get_items(self) -> list:
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
@@ -168,7 +172,7 @@ class JournalReader:
         for item_type in self.tracked_items:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
-        return items + [self._carrier_owners]
+        return items + [self._squadron_startup,self._carrier_owners]
     
     def update_items_count(self):
         self._last_items_count = self._last_items_count_pending.copy()
@@ -225,7 +229,7 @@ class CarrierModel:
     def read_journals(self):
         self.journal_reader.read_journals()
         first_read = self.carriers == {}
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, squadrons, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
         # print(self.read_counter, first_read, len(load_games), len(carrier_locations), len(jump_requests), len(jump_cancels), len(stats), len(trade_orders), len(carrier_buys), len(trit_deposits), len(docking_perms))
         # self.read_counter += 1
         self.process_load_games(load_games, first_read)
@@ -243,6 +247,8 @@ class CarrierModel:
         self.process_jumps(jump_requests, jump_cancels, first_read)
 
         self.process_trade_orders(trade_orders, first_read)
+
+        self.process_squadrons(squadrons, first_read)
 
         self.fill_missing_data()
 
@@ -373,6 +379,10 @@ class CarrierModel:
                             fc_active_trades[commodity] = order
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
                 
+    def process_squadrons(self, squadrons, first_read:bool=True):
+        for carrierID in self.carriers.keys():
+            if self.carriers[carrierID].get('SquadronName', None) is None:
+                self.carriers[carrierID]['SquadronName'] = squadrons.get(self.carrier_owners.get(carrierID, None), None)
 
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
@@ -421,6 +431,9 @@ class CarrierModel:
 
             if 'isSquadronCarrier' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['isSquadronCarrier'] = False
+
+            if 'SquadronName' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['SquadronName'] = None
 
     def add_sfc_whitelist(self, call_signs: list[str]):
         for call_sign in call_signs:
@@ -700,6 +713,7 @@ class CarrierModel:
     def get_data_misc(self):
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Squadron Name'] = [self.get_squadron_name(carrierID) for carrierID in self.sorted_ids_display()]
         df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids_display()]
         df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids_display()]
         df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids_display()]
@@ -710,7 +724,7 @@ class CarrierModel:
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids_display()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
+        return df[['Carrier Name', 'Squadron Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
     def generate_info_docking_perm(self, carrierID: int) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
         if self.is_squadron_carrier(carrierID):
@@ -773,6 +787,10 @@ class CarrierModel:
     
     def get_callsign(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['Callsign']
+    
+    def get_squadron_name(self, carrierID: int) -> str|None:
+        squadron = self.get_carriers()[carrierID]['SquadronName']
+        return squadron if squadron is not None else 'Unknown'
     
     def get_status(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['status']
@@ -1010,7 +1028,7 @@ if __name__ == '__main__':
             'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
         ]))
     print(pd.DataFrame(model.get_data_misc(), columns=[
-            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Squadron Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
     
