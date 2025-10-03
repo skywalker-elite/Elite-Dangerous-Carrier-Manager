@@ -38,8 +38,9 @@ class JournalReader:
         self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
-        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
         self.dropout = dropout
         self.droplist = droplist
@@ -48,12 +49,12 @@ class JournalReader:
                 print('Dropout mode active, journal data is randomly dropped')
                 self.droplist = [i for i in range(10) if random() < 0.5]
                 for i in self.droplist:
-                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+                    print(f'{self.tracked_items + ["carrier_owners"][i]} was dropped')
             else:
                 print('Dropout mode active, journal data is dropped')
-                self.droplist = [["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"].index(i) for i in self.droplist]
+                self.droplist = [self.tracked_items + ["carrier_owners"].index(i) for i in self.droplist]
                 for i in self.droplist:
-                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+                    print(f'{self.tracked_items + ["carrier_owners"][i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -154,7 +155,7 @@ class JournalReader:
                 for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
     
     def get_items(self) -> list:
-        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         if self.dropout:
             items = self.items.copy()
             for i in self.droplist:
@@ -164,9 +165,9 @@ class JournalReader:
     
     def get_new_items(self) -> list:
         items = []
-        for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']:
+        for item_type in self.tracked_items:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
-        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         return items + [self._carrier_owners]
     
     def update_items_count(self):
