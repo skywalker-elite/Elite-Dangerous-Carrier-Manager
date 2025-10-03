@@ -11,6 +11,18 @@ class CarrierView:
     def __init__(self, root: tk.Tk):
         self.root = root
 
+        style = ttk.Style(self.root)
+        # Removing the focus border around tabs
+        style.layout("Tab",
+                    [('Notebook.tab', {'sticky': 'nswe', 'children':
+                        [('Notebook.padding', {'side': 'top', 'sticky': 'nswe', 'children':
+                            #[('Notebook.focus', {'side': 'top', 'sticky': 'nswe', 'children':
+                                [('Notebook.label', {'side': 'top', 'sticky': ''})],
+                            #})],
+                        })],
+                    })]
+                    )
+
         self.sheet_colors = {
             'table_bg':    '#1c1c1e',  # main window surface
             'header_bg':   "#202021",  # secondary surface
