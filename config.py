@@ -2,7 +2,7 @@ from datetime import timedelta
 from sys import platform
 
 WINDOW_SIZE = "1080x420"
-WINDOW_SIZE_TIMER = "300x100"
+WINDOW_SIZE_TIMER = "300x120"
 
 CD = timedelta(minutes=4, seconds=50)
 CD_cancel = timedelta(minutes=1)
@@ -15,6 +15,7 @@ UPDATE_INTERVAL = 500
 REDRAW_INTERVAL_FAST = 250
 REDRAW_INTERVAL_SLOW = 1000
 REMIND_INTERVAL = 500
+SAVE_CACHE_INTERVAL = 1000 * 60 * 5  # 5 minutes
 
 AVG_JUMP_CAL_WINDOW = 8
 
@@ -44,6 +45,7 @@ ladder_systems = {
 test_trade_data = {
     'trade_type': 'load',
     'trading_type': 'loading',
+    'to_from': 'from',
     'carrier_name': 'P.T.N. Carrier Name',
     'carrier_callsign': 'PTN-123',
     'commodity': 'Gold',

@@ -1,6 +1,9 @@
 import tomllib
-from utility import getResourcePath, getSettingsDefaultPath
+import json
+from utility import getConfigSettingsDefaultPath, getResourcePath, getSettingsDefaultPath
+from utility import getConfigSettingsPath
 from os.path import join, exists
+from shutil import copy2
 import re
 
 class SettingsValidationError(Exception):
@@ -11,9 +14,17 @@ class Settings:
         self.settings_file = settings_file
         self.validation_errors = []
         self.validation_warnings = []
+
+        # 1) Load the normal user-editable settings
         self.load()
+
+        # 2) Validate & fill defaults
         self.validate()
         self.fill_default_sound_files()
+
+        # 3) Load the config overrides and merge them in
+        self.load_config()
+        self.merge_config()
 
     def set(self, key, value):
         self._settings[key] = value
@@ -23,8 +34,27 @@ class Settings:
         result = self._settings
         for key in keys:
             if result is None:
-                return None
+                break
             result = result.get(key, None)
+        if result is None:
+            # check if key exists in default settings, if so, persist it into user config
+            try:
+                with open(getConfigSettingsDefaultPath(), 'r') as f:
+                    default_cfg = json.load(f)
+                default_val = default_cfg
+                for key in keys:
+                    default_val = default_val.get(key, None)
+                    if default_val is None:
+                        break
+                if default_val is not None:
+                    # persist this default into the user config
+                    self.set_config(*keys, value=default_val)
+                    # merge it back into in-memory settings
+                    self.merge_config()
+                    return default_val
+            except Exception:
+                pass
+            return None
         return result
 
     def load(self, settings_file=None):
@@ -105,6 +135,48 @@ class Settings:
         # if self.validation_warnings:
         #     print("Warnings:\n" + "\n".join(self.validation_warnings))
         # print("Settings validation passed")
+
+    def load_config(self, prog_file=None):
+        """Load UI-driven overrides (if present)."""
+        if prog_file is None:
+            prog_file = getConfigSettingsPath()
+        try:
+            if not exists(prog_file):
+                copy2(getConfigSettingsDefaultPath(), prog_file)
+            with open(prog_file, 'r') as f:
+                self._config = json.load(f)
+        except json.JSONDecodeError:
+            with open(getConfigSettingsDefaultPath(), 'r') as f:
+                self._config = json.load(f)
+            self.validation_warnings.append(f"Could not parse config settings file {prog_file}, using defaults\n {prog_file} has been reset\n You should not edit this file manually!")
+
+    def merge_config(self):
+        """Deep-merge config settings on top of the loaded user settings."""
+        def _merge(src, dest):
+            for k, v in src.items():
+                if isinstance(v, dict) and isinstance(dest.get(k), dict):
+                    _merge(v, dest[k])
+                else:
+                    dest[k] = v
+        _merge(self._config, self._settings)
+
+    def set_config(self, *keys, value):
+        """
+        Update a config setting (nested via multiple keys) and persist it.
+        Example: set_config('notifications', 'cooldown', value='/…')
+        """
+        d = self._config
+        for k in keys[:-1]:
+            d = d.setdefault(k, {})
+        d[keys[-1]] = value
+        self.save_config()
+
+    def save_config(self, prog_file=None):
+        """Write out the config overrides json so they persist."""
+        if prog_file is None:
+            prog_file = getConfigSettingsPath()
+        with open(prog_file, 'w') as f:
+            json.dump(self._config, f)
 
 if __name__ == '__main__':
     from utility import getSettingsPath
