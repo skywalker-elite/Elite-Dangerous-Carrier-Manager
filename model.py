@@ -713,7 +713,7 @@ class CarrierModel:
     def get_data_misc(self):
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
-        df['Squadron Name'] = [self.get_squadron_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Squadron Name'] = [self.generate_info_squadron_name(carrierID) for carrierID in self.sorted_ids_display()]
         df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids_display()]
         df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids_display()]
         df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids_display()]
@@ -726,6 +726,17 @@ class CarrierModel:
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         return df[['Carrier Name', 'Squadron Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
+    def generate_info_squadron_name(self, carrierID: int) -> str:
+        squadron_name = self.get_squadron_name(carrierID=carrierID)
+        if squadron_name is None:
+            return self.get_callsign(carrierID=carrierID) if self.is_squadron_carrier(carrierID) else 'Unknown'
+        else:
+            if len(squadron_name) <= 6:
+                return squadron_name.upper()
+            abbv = ''.join([word[0] for word in squadron_name.split() if word[0].isalpha()]).upper()
+            return abbv if len(abbv) <=4 else abbv[:4]
+            
+    
     def generate_info_docking_perm(self, carrierID: int) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
         if self.is_squadron_carrier(carrierID):
             docking_perm = {'DockingAccess': 'squadron', 'AllowNotorious': False}
@@ -789,8 +800,8 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['Callsign']
     
     def get_squadron_name(self, carrierID: int) -> str|None:
-        squadron = self.get_carriers()[carrierID]['SquadronName']
-        return squadron if squadron is not None else 'Unknown'
+        squadron_name = self.get_carriers()[carrierID]['SquadronName']
+        return squadron_name
     
     def get_status(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['status']
