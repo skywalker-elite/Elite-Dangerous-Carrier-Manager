@@ -156,7 +156,7 @@ class CarrierView:
 
         # Set column headers
         self.sheet_misc.headers([
-            'Carrier Name', 'Squadron Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Squadron', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ])
         self.sheet_misc['B:J'].align('right')
 
