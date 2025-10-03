@@ -155,8 +155,8 @@ class JournalReader:
         return fid, is_active
     
     def _get_parsed_items(self):
-        return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._squadron_startup, self._carrier_owners]
+        return [sorted(getattr(self, f'_{item_type}'), key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True)
+                for item_type in self.tracked_items] + [self._squadron_startup, self._carrier_owners]
     
     def get_items(self) -> list:
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
@@ -735,12 +735,13 @@ class CarrierModel:
         return df[['Carrier Name', 'Squadron Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
     def generate_info_squadron_name(self, carrierID: int) -> str:
-        squadron_name = self.get_squadron_name(carrierID=carrierID).lower()
+        squadron_name = self.get_squadron_name(carrierID=carrierID)
         if squadron_name is None:
             return self.get_callsign(carrierID=carrierID) if self.is_squadron_carrier(carrierID) else 'Unknown'
         else:
-            if squadron_name in self._squadron_abbv_mapping.keys():
-                return self._squadron_abbv_mapping[squadron_name][:4]
+            squadron_name_lower = squadron_name.lower()
+            if squadron_name_lower in self._squadron_abbv_mapping.keys():
+                return self._squadron_abbv_mapping[squadron_name_lower][:4]
             if len(squadron_name) <= 6:
                 return squadron_name.upper()
             abbv = ''.join([word[0] for word in squadron_name.split() if word[0].isalpha()]).upper()
