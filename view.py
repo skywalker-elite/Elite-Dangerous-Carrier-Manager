@@ -473,8 +473,10 @@ if __name__ == '__main__':
     apply_theme_to_titlebar(root)
     view = CarrierView(root)
     view.update_table_jumps([
-        ['P.T.N. Carrier', 'PTN-123', '1000', 'Sol', 'Earth', 'Idle', 'Alpha Centauri', 'Proxima b', '00:15:42', ''],
-        ['N.A.C. Carrier', 'NAC-456', '800', 'Lave', 'Lave Station', 'Jumping', 'Achenar', 'Achenar I', '00:04:42', ''],
-        ['E.D.C. Carrier', 'EDC-M42', '500', 'Achenar', 'Achenar I', 'Cooling Down', 'Sol', 'Earth', '', ''],
+        ['P.T.N. Carrier', 'PTN-123', '1000', 'Quaaybuwan', '1', 'Jumping', 'Sol', 'Earth', '00:15:42', ''],
+        ['N.A.C. Carrier', 'NAC-456', '800', 'Anlave', 'Anderson', 'Idle', '', '', '', ''],
+        ['E.D.C.M Carrier', 'EDC-M42', '500', 'Achenar', 'Achenar I', 'Cooling Down', '', '', '00:04:42', ''],
+        ['Far Star', 'FS0-042', '300', 'Terminus', '1', 'Idle', '', ' ', '', ''],
+        ['Heart of Gold', 'HOG-042', '420', 'Betelgeuse', '5', 'Jumping', 'Soulianis and Rahm', 'Magrathea', '00:42:42', '']
     ])
     root.mainloop()
