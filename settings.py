@@ -130,6 +130,14 @@ class Settings:
         if webhook and not re.match(r'^https://discord.com/api/webhooks/', webhook):
             self.validation_errors.append(f"discord.webhook does not look like a valid webhook URL: {webhook}")
 
+        # 3) Check format for squadron_abbv
+        abbv_list = self.get('name_customization', 'squadron_abbv')
+        if abbv_list:
+            if not all(len(item) == 1 and isinstance(item, dict) and
+                isinstance(list(item.keys())[0], str) and isinstance(list(item.values())[0], str) and list(item.values())[0].isalnum()
+                for item in abbv_list):
+                self.validation_errors.append(f"Invalid format for squadron_abbv:\n {abbv_list}")
+
         if self.validation_errors:
             raise SettingsValidationError("Settings validation failed:\n" + "\n".join(self.validation_errors))
         # if self.validation_warnings:

@@ -469,6 +469,9 @@ class CarrierModel:
     def reset_sfc_whitelist(self):
         self._sfc_white_list = []
 
+    def set_squadron_abbv_mapping(self, mapping:list[dict[str, str]]):
+        self._squadron_abbv_mapping = {list(item.keys())[0].lower(): list(item.values())[0].upper() for item in mapping}
+
     def update_carriers(self, now):
         carriers = self.carriers.copy()
         for carrierID in carriers.keys():
@@ -732,14 +735,16 @@ class CarrierModel:
         return df[['Carrier Name', 'Squadron Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
     def generate_info_squadron_name(self, carrierID: int) -> str:
-        squadron_name = self.get_squadron_name(carrierID=carrierID)
+        squadron_name = self.get_squadron_name(carrierID=carrierID).lower()
         if squadron_name is None:
             return self.get_callsign(carrierID=carrierID) if self.is_squadron_carrier(carrierID) else 'Unknown'
         else:
+            if squadron_name in self._squadron_abbv_mapping.keys():
+                return self._squadron_abbv_mapping[squadron_name][:4]
             if len(squadron_name) <= 6:
                 return squadron_name.upper()
             abbv = ''.join([word[0] for word in squadron_name.split() if word[0].isalpha()]).upper()
-            return abbv if len(abbv) <=4 else abbv[:4]
+            return abbv[:4]
             
     
     def generate_info_docking_perm(self, carrierID: int) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
