@@ -71,6 +71,23 @@ table = "normal" # Font size for the tables
 # Otherwise the data can be wildly inaccurate
 whitelist = [] # List of squadron carriers to NOT ignore. This is a list of squadron IDs (example: ["PTNS", "PBNS"])
 
+[name_customization]
+# Custom names for squadrons. This is a list of mappings from full squadron names to their abbreviations. 
+# If not specified, EDCM will use the first letter 
+# Example: 
+# squadron_abbv = [
+#     { "Pilots Trade Network Squadron" = "PTNS" },
+#     { "Pilots Booze Network Squadron" = "PBNS" },
+#     { "Pilots Community Network Squadron" = "PCNS" },
+#     { "Pilots Faction Network Squadron" = "PFNS" },
+# ]
+squadron_abbv = [
+    { "Pilots Trade Network Squadron" = "PTNS" },
+    { "Pilots Booze Network Squadron" = "PBNS" },
+    { "Pilots Community Network Squadron" = "PCNS" },
+    { "Pilots Faction Network Squadron" = "PFNS" },
+]
+
 [advanced]
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
 ignore_list = [] # List of carriers to ignore. This is a list of carrier IDs (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
