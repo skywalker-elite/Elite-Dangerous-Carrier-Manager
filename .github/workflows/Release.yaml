@@ -52,7 +52,7 @@ jobs:
         with:
           tag_name: ${{ github.ref }}
           release_name: Release ${{ github.ref }}
-          draft: false
+          draft: true
           prerelease: ${{ steps.version.outputs.is_stable == 'false' }}
 
   pyinstaller-build-linux:
