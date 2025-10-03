@@ -254,6 +254,8 @@ class CarrierModel:
 
         self.update_ignore_list()
 
+        
+
         self.journal_reader.update_items_count()
 
     def process_load_games(self, load_games, first_read:bool=True):
@@ -435,6 +437,9 @@ class CarrierModel:
             if 'SquadronName' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['SquadronName'] = None
 
+    def set_custom_order(self, call_signs: list[str]):
+        self.custom_order = call_signs
+    
     def add_sfc_whitelist(self, call_signs: list[str]):
         for call_sign in call_signs:
             carrierID = self.get_id_by_callsign(call_sign)
