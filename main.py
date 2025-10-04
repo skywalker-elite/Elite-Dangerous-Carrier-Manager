@@ -6,6 +6,7 @@ from controller import CarrierController
 from model import CarrierModel, JournalReader
 import sys
 import pickle
+from PIL import Image, ImageTk
 from utility import getResourcePath, getJournalPath, getCachePath
 from config import WINDOW_SIZE
 from popups import apply_theme_to_titlebar
@@ -62,8 +63,8 @@ def main():
     sv_ttk.use_dark_theme()
     root.title("Elite Dangerous Carrier Manager")
     root.geometry(WINDOW_SIZE)
-    photo = tk.PhotoImage(file=getResourcePath(os.path.join('images','EDCM.png')))
-    root.wm_iconphoto(True, photo)
+    photo = Image.open(getResourcePath(os.path.join('images','EDCM.png')))
+    root.iconphoto(True, *[ImageTk.PhotoImage(photo.resize((resolution, resolution))) for resolution in (16, 32, 48, 64, 128, 256, 512, 1024) if resolution < photo.width and resolution < photo.height])
     root.update()
 
     app = CarrierController(root, model=model)
