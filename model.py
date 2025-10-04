@@ -1000,9 +1000,16 @@ class CarrierModel:
         else:
             return active_journals + unknown_fid_journals
     
-    def get_active_journal_paths(self) -> list[str]:
-        active = self.journal_reader.get_latest_active_journals()
-        return list(active.values()) if active is not None else None
+    def get_active_journal_paths(self) -> list[str]|None:
+        active_journals = self.journal_reader.get_latest_active_journals()
+        unknown_fid_journals = self.journal_reader.get_active_unknown_fid_journals()
+        paths = []
+        if active_journals is not None:
+            paths += list(active_journals.values())
+        if unknown_fid_journals is not None:
+            paths += list(unknown_fid_journals.values())
+
+        return paths if paths else None
         
 
 def getLocation(system, body, body_id):
