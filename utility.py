@@ -15,7 +15,7 @@ from collections import deque
 from functools import wraps
 from os.path import join
 from pathlib import Path
-
+from config import timer_slope_thresholds
 from decos import rate_limited
 
 def getJournalPath() -> str:
@@ -210,7 +210,7 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
     return h.hexdigest()[:40]
 
 @rate_limited(max_calls=20, period=60)
-def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None]:
+def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None]:
     response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats-v2')
     if response.status_code == 200:
         data = response.json()[0]
@@ -220,15 +220,19 @@ def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|
         count = data.get('cnt', None)
         earliest = data.get('earliest', None)
         latest = data.get('latest', None)
+        slope = data.get('slope', None)
         if avg_timer is not None:
             h, m, s = getHMS(int(avg_timer))
             avg_timer = f'{h:02} h {m:02} m {s:02} s'
-        return avg_timer, count, datetime.fromisoformat(earliest) if earliest else None, datetime.fromisoformat(latest) if latest else None
-    return None, None, None, None
+        return avg_timer, count, datetime.fromisoformat(earliest) if earliest else None, datetime.fromisoformat(latest) if latest else None, slope
+    return None, None, None, None, None
 
 def getHumanizedExpectedJumpTimer() -> str:
-    avg_timer, count, earliest, latest = getExpectedJumpTimer()
-    return generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest)
+    avg_timer, count, earliest, latest, slope = getExpectedJumpTimer()
+    return getTimerStatDescription(avg_timer, count, earliest, latest, slope)
+
+def getTimerStatDescription(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None, slope:float|None) -> str:
+    return '\n'.join([generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest), generateTimerSlopeDescription(slope)])
 
 def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None) -> str:
     if avg_timer is None:
@@ -237,6 +241,18 @@ def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earli
         earliest_str = naturaltime(earliest) if earliest else 'N/A'
         latest_str = naturaltime(latest) if latest else 'N/A'
         return f'Average jump timer: {avg_timer} based on {count} sample(s) from {earliest_str} to {latest_str}'
+    
+def generateTimerSlopeDescription(slope:float|None) -> str:
+    if slope is None:
+        return 'No trend data available'
+    elif slope > timer_slope_thresholds['surge']:
+        return 'Timer is surging'
+    elif slope > timer_slope_thresholds['climb']:
+        return 'Timer is climbing'
+    elif slope < timer_slope_thresholds['down']:
+        return 'Timer is declining'
+    else:
+        return 'Timer is stable'
 
 if __name__ == '__main__':
     print(getHumanizedExpectedJumpTimer())
