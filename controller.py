@@ -31,7 +31,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, generateHumanizedExpectedJumpTimer, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from utility import checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
@@ -56,7 +56,7 @@ class CarrierController:
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
-        self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None}
+        self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None}
 
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
@@ -298,7 +298,7 @@ class CarrierController:
     
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
         print('Updating timer stats')
-        self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"] = getExpectedJumpTimer()
+        self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"] = getExpectedJumpTimer()
     
     def update_journals(self):
         try:
@@ -637,7 +637,7 @@ class CarrierController:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def redraw_timer_stat(self):
-        self.view.update_timer_stat(generateHumanizedExpectedJumpTimer(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"]))
+        self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"]))
 
     def _start_realtime_listener(self):
         self._realtime_loop = asyncio.new_event_loop()
