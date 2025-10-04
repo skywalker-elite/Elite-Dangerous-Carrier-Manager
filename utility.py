@@ -232,7 +232,9 @@ def getHumanizedExpectedJumpTimer() -> str:
     return getTimerStatDescription(avg_timer, count, earliest, latest, slope)
 
 def getTimerStatDescription(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None, slope:float|None) -> str:
-    return '\n'.join([generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest), generateTimerSlopeDescription(slope)])
+    # Disable slope description for now, not enough data to be useful
+    # return '\n'.join([generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest), generateTimerSlopeDescription(slope)])
+    return generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest)
 
 def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None) -> str:
     if avg_timer is None:
@@ -243,6 +245,7 @@ def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earli
         return f'Average jump timer: {avg_timer} based on {count} sample(s) from {earliest_str} to {latest_str}'
     
 def generateTimerSlopeDescription(slope:float|None) -> str:
+    return '' # Disable slope description for now, not enough data to be useful
     if slope is None:
         return 'No trend data available'
     elif slope > timer_slope_thresholds['surge']:
