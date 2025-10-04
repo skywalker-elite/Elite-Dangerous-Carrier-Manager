@@ -75,6 +75,12 @@ font_sizes = {
     'capital class signature detected': 21 if platform != 'darwin' else 23,
 }
 
+timer_slope_thresholds = {
+'surge': 5e-10,
+'climb': 1e-10,
+'down': -5e-12
+}
+
 # --- Tooltip Configuration ---
 TOOLTIP_HOVER_DELAY = 500
 TOOLTIP_BACKGROUND = "#1c1c1c"
