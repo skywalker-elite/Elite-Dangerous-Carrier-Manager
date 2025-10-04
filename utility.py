@@ -39,15 +39,6 @@ def getHMS(seconds):
     h, m = divmod(m, 60)
     return h, m, s
 
-def formatForSort(s:str) -> str:
-    out = ''
-    for si in s:
-        if si.isdigit():
-            out += chr(ord(si) + 49)
-        else:
-            out += si
-    return out
-
 def getHammerCountdown(dt:datetime64) -> str:
     unix_time = dt.astype('datetime64[s]').astype('int')
     return f'<t:{unix_time}:R>'
