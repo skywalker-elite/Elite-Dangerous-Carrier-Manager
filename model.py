@@ -208,6 +208,7 @@ class CarrierModel:
         self._ignore_list = []
         self._sfc_white_list = []
         self.custom_order = []
+        self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
