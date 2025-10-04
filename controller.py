@@ -157,7 +157,8 @@ class CarrierController:
             self.model.reset_sfc_whitelist()
             self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
             self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
-            self.model.custom_order = self.settings.get('advanced', 'custom_order')
+            self.model.set_custom_order(self.settings.get('advanced', 'custom_order'))
+            self.model.set_squadron_abbv_mapping(self.settings.get('name_customization', 'squadron_abbv'))
             self.model.read_journals() # re-read journals to apply ignore list and custom order
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.root.geometry(self.settings.get('UI', 'window_size'))
