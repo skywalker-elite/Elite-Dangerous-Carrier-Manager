@@ -1,17 +1,19 @@
 #define AppVersion GetDefine("APP_VERSION", GetEnv("APP_VERSION"))
 #define InputDir   GetDefine("INPUT_DIR",   GetEnv("INPUT_DIR"))
 #define OutputDirA GetDefine("OUTPUT_DIR",  GetEnv("OUTPUT_DIR"))
+#define AppExe      "Elite Dangerous Carrier Manager.exe"
 
 #pragma message "AppVersion = {#AppVersion}"
 #pragma message "InputDir   = {#InputDir}"
 #pragma message "OutputDirA = {#OutputDirA}"
+#pragma message "AppExe      = {#AppExe}"
 
 [Setup]
 AppName=Elite Dangerous Carrier Manager
 AppVersion={#AppVersion}
 AppId={{4BDCB69F-A22E-4297-83E8-29DA3465C9D4}}
 WizardStyle=modern
-WizardImageFile="Inno_wizard_image.png"
+WizardImageFile="{#InputDir}\..\..\installer\Inno_wizard_image.png"
 SetupIconFile="{#InputDir}\_internal\images\EDCM.ico"
 DefaultDirName={autopf}\EDCM
 OutputDir={#OutputDirA}
