@@ -73,7 +73,7 @@ whitelist = [] # List of squadron carriers to NOT ignore. This is a list of squa
 
 [name_customization]
 # Custom names for squadrons. This is a list of mappings from full squadron names to their abbreviations. 
-# If not specified, EDCM will use the first letter 
+# If not specified, EDCM will use the first four letters of each word in the squadron name as the abbreviation.
 # Example: 
 # squadron_abbv = [
 #     { "Pilots Trade Network Squadron" = "PTNS" },
