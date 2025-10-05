@@ -86,14 +86,13 @@ jobs:
         run: |
             PYI_OUTPUT_DIR="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
 
-            # AppDir layout
-            mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
-            mkdir -p AppDir/usr/lib/edcm
+            # Layout
+            mkdir -p AppDir/usr/bin AppDir/usr/lib/edcm AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
 
-            # Copy your onedir tree
-            cp -r "${PYI_OUTPUT_DIR}/." AppDir/usr/lib/edcm/
+            # Copy your PyInstaller onedir
+            cp -r "$PYI_OUTPUT_DIR/." AppDir/usr/lib/edcm/
 
-            # Launcher (entrypoint)
+            # Launcher
             cat > AppDir/usr/bin/edcm <<'EOF'
             #!/bin/sh
             HERE="$(dirname "$(readlink -f "$0")")"
@@ -101,7 +100,7 @@ jobs:
             EOF
             chmod +x AppDir/usr/bin/edcm
 
-            # Desktop + icon
+            # Desktop file
             cat > AppDir/usr/share/applications/edcm.desktop <<'EOF'
             [Desktop Entry]
             Type=Application
@@ -111,22 +110,21 @@ jobs:
             Categories=Game;Utility;
             Terminal=false
             EOF
-            cp "${PYI_OUTPUT_DIR}/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
 
-            # AppRun (symlink to your launcher is fine)
+            # Icon (replace path if yours lives elsewhere)
+            cp "$PYI_OUTPUT_DIR/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
+
+            # Copy to AppDir root so appimagetool sees them
+            cp AppDir/usr/share/applications/edcm.desktop AppDir/edcm.desktop
+            cp AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png AppDir/edcm.png
+
+            # Quick sanity check
+            [ -f AppDir/edcm.desktop ] || { echo "missing desktop"; exit 1; }
+            [ -f AppDir/edcm.png ]     || { echo "missing icon"; exit 1; }
+            [ -x AppDir/usr/bin/edcm ] || { echo "missing launcher"; exit 1; }
+
+            # AppRun points to your launcher
             ln -sf usr/bin/edcm AppDir/AppRun
-
-            # Get appimagetool
-            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-            chmod +x appimagetool-x86_64.AppImage
-
-            # Embed update info and build (+ .zsync is generated automatically)
-            VER="${{ needs.create-release.outputs.version_full }}"
-            UPDATE_INFO="gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|EDCM-*x86_64.AppImage.zsync"
-            ./appimagetool-x86_64.AppImage -u "$UPDATE_INFO" AppDir "EDCM-${VER}-x86_64.AppImage"
-
-            ls -l
-
       
       - name: Generate artifact attestation
         id: attestation
@@ -190,7 +188,7 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
           APP_VERSION: ${{ needs.create-release.outputs.version_full }}
-          INPUT_DIR:  ${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager
+          INPUT_DIR:  ${{ github.workspace }}\dist\Elite Dangerous Carrier Manager
         with:
           path: installer/setup.iss
 
