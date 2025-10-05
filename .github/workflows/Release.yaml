@@ -16,6 +16,7 @@ jobs:
       attestations: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version_full: ${{ steps.version.outputs.full }}
     steps:
       - name: Check tag version
         uses: nowsprinting/check-version-format-action@v3
@@ -73,22 +74,83 @@ jobs:
           cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM-Linux'
+      
+      - name: Compute semver (no leading v)
+        id: semver
+        run: |
+          VER='${{ needs.create-release.outputs.version_full }}'   # e.g., v1.0.0-dev2
+          echo "SEMVER_NO_V=${VER#v}" >> $GITHUB_ENV               # -> 1.0.0-dev2
+      
+      - name: Build .deb (edcm)
+        run: |
+          set -euxo pipefail
+          VER_WITH_V='${{ needs.create-release.outputs.version_full }}'
+          SEMVER_NO_V="$SEMVER_NO_V"
+          PYI="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
+
+          # Stage files into a package root
+          PKGROOT=pkgroot
+          rm -rf "$PKGROOT"
+          mkdir -p "$PKGROOT/opt/edcm" "$PKGROOT/usr/bin" \
+                  "$PKGROOT/usr/share/applications" \
+                  "$PKGROOT/usr/share/icons/hicolor/256x256/apps"
+
+          # App payload
+          cp -r "$PYI/." "$PKGROOT/opt/edcm/"
+
+          # Wrapper so users can just run `edcm`
+          cat > "$PKGROOT/usr/bin/edcm" <<'EOF'
+          #!/bin/sh
+          exec /opt/edcm/Elite\ Dangerous\ Carrier\ Manager "$@"
+          EOF
+          chmod +x "$PKGROOT/usr/bin/edcm"
+
+          # Desktop entry + icon
+          cat > "$PKGROOT/usr/share/applications/edcm.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Elite Dangerous Carrier Manager
+          Exec=edcm
+          Icon=edcm
+          Categories=Game;Utility;
+          Terminal=false
+          EOF
+          cp "$PYI/_internal/images/EDCM.png" "$PKGROOT/usr/share/icons/hicolor/256x256/apps/edcm.png"
+
+          # Install fpm and build the .deb
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm
+          sudo gem install --no-document fpm
+
+          fpm -s dir -t deb -n edcm -v "$SEMVER_NO_V" -C "$PKGROOT" \
+              --architecture amd64 \
+              --deb-compression xz \
+              --license "GPL-3.0-only" \
+              --maintainer "skywalker-elite <197877581+skywalker-elite@users.noreply.github.com>" \
+              --description "Elite Dangerous Carrier Manager" \
+              --url "https://github.com/${{ github.repository }}" \
+              -p "EDCM-${VER_WITH_V}_amd64.deb"
+
+          ls -l "EDCM-${VER_WITH_V}_amd64.deb"
+
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
-      - name: Upload Linux Executable
-        id: upload-linux-executable
+          subject-path: |
+            EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
+
+
+      - name: Upload AppImage
         uses: actions/upload-release-asset@v1
-        env:
+        env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
-          asset_name: EDCM-Linux
-          asset_content_type: application/octet-stream
+          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
+          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
+          asset_content_type: application/vnd.debian.binary-package
+
       - name: Upload Linux Attestation as Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -113,22 +175,33 @@ jobs:
           cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM'
+
+      - name: Build Windows Installer (Inno Setup)
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
+        with:
+          path: \installer\setup.iss
+          options: /O+
+        env:
+          APP_VERSION: ${{ needs.create-release.outputs.version_full }}
+          INPUT_DIR: "${{ github.workspace }}\\dist\\Elite Dangerous Carrier Manager"
+          OUTPUT_DIR: "${{ github.workspace }}\\installer\\dist"
+
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
-      - name: Upload Windows Executable
-        id: upload-release-asset 
+          subject-path: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+
+      - name: Upload Windows Installer
         uses: actions/upload-release-asset@v1
-        env:
+        env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
-          asset_name: EDCM.exe
+          asset_path: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+          asset_name: EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
+
       - name: Upload Windows Attestation as Artifact
         uses: actions/upload-artifact@v4
         with:
