@@ -215,7 +215,7 @@ jobs:
           options: >
             /DAPP_VERSION=${{ needs.create-release.outputs.version_full }}
             /DINPUT_DIR="${{ github.workspace }}\dist\Elite Dangerous Carrier Manager"
-            /DOUTPUT_DIR="${{ github.workspace }}\dist\installer"
+            /DOUTPUT_DIR="${{ github.workspace }}\installer\dist"
 
       - name: Generate artifact attestation
         id: attestation
