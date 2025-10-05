@@ -138,7 +138,7 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            edcm-${{ needs.create-release.outputs.version_full }}_amd64.deb
+            EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
 
 
       - name: Upload AppImage
@@ -147,9 +147,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: edcm-${{ needs.create-release.outputs.version_full }}_amd64.deb
+          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
           asset_name: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
-          asset_content_type: application/octet-stream
+          asset_content_type: application/vnd.debian.binary-package
 
       - name: Upload Linux Attestation as Artifact
         uses: actions/upload-artifact@v4
