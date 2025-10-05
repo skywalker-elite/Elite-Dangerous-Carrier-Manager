@@ -213,12 +213,27 @@ jobs:
         run: |
           echo INPUT_DIR="${{ github.workspace }}\dist\Elite Dangerous Carrier Manager"
           if exist "${{ github.workspace }}\dist\Elite Dangerous Carrier Manager" (echo onedir OK) else (echo MISSING & exit /b 1)
+          if exist "${{ github.workspace }}\installer\setup.iss" (echo onedir OK) else (echo MISSING & exit /b 1)
           if not exist "${{ github.workspace }}\installer\dist" mkdir "${{ github.workspace }}\installer\dist"
 
+      # - name: Install Inno Setup
+      #   run: choco install innosetup -y
+
+      # - name: Compile installer (manual ISCC)
+      #   shell: cmd
+      #   working-directory: ${{ github.workspace }}
+      #   run: |
+      #     "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" ^
+      #       /DAPP_VERSION=${{ needs.create-release.outputs.version_full }} ^
+      #       /DINPUT_DIR="${{ github.workspace }}\dist\Elite Dangerous Carrier Manager" ^
+      #       /DOUTPUT_DIR="${{ github.workspace }}\installer\dist" ^
+      #       installer\setup.iss
+
+
       - name: Build Windows Installer (Inno Setup)
-        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.7
         with:
-          path: /installer/setup.iss
+          path: \installer\setup.iss
           options: /O+
         env:
           APP_VERSION: ${{ needs.create-release.outputs.version_full }}
@@ -229,7 +244,7 @@ jobs:
         id: attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: dist/installer/EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+          subject-path: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
 
       - name: Upload Windows Installer
         uses: actions/upload-release-asset@v1
@@ -237,7 +252,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: dist/installer/EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+          asset_path: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
           asset_name: EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
 
