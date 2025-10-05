@@ -282,8 +282,14 @@ class CarrierController:
                 self.view.show_message_box_warning('Error', f'Error while resetting settings\n{traceback.format_exc()}')
     
     def update_tables_fast(self, now):
-        self.model.update_carriers(now)
-        self.view.update_table_jumps(self.model.get_data(now), self.model.get_rows_pending_decom())
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            fut_update_carriers = pool.submit(self.model.update_carriers, now)
+            fut_get_data = pool.submit(self.model.get_data, now)
+            fut_get_rows_pending_decom = pool.submit(self.model.get_rows_pending_decom)
+        fut_update_carriers.result()
+        jumps = fut_get_data.result()
+        pending = fut_get_rows_pending_decom.result()
+        self.view.root.after(0, self.view.update_table_jumps, jumps, pending)
     
     def update_tables_slow(self, now):
         with ThreadPoolExecutor(max_workers=4) as pool:
@@ -652,7 +658,8 @@ class CarrierController:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def redraw_timer_stat(self):
-        self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"]))
+        desc = getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"])
+        self.view.root.after(0, self.view.update_timer_stat, desc)
 
     def _start_realtime_listener(self):
         self._realtime_loop = asyncio.new_event_loop()
@@ -714,11 +721,11 @@ class CarrierController:
             try:
                 self._save_cache(cache_path)
             except Exception as e:
-                self.view.show_message_box_warning('Error', f'Error while saving cache\n{traceback.format_exc()}')
+                self.view.root.after(0, self.view.show_message_box_warning, 'Error', f'Error while saving cache\n{traceback.format_exc()}')
             else:
-                self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
+                self.view.root.after(SAVE_CACHE_INTERVAL, lambda: threading.Thread(target=self.save_cache).start())
         else:
-            self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
+            self.view.root.after(0, self.view.show_message_box_warning, 'Warning', 'Cache path is not set, cannot save cache')
 
     def _save_cache(self, cache_path:str):
         if cache_path is not None:
