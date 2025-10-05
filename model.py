@@ -698,7 +698,7 @@ class CarrierModel:
         df = df[datetime.now().astimezone() - df['timestamp'] < timedelta(weeks=AVG_JUMP_CAL_WINDOW)]
         return int(round(len(df) / AVG_JUMP_CAL_WINDOW, 2) * 100000)
     
-    def get_data_services(self):
+    def get_data_services(self) -> list:
         df = pd.DataFrame([self.generate_info_services(carrierID) for carrierID in self.sorted_ids_display()], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
         df[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = df[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
         df = df.fillna('Off')
@@ -721,7 +721,7 @@ class CarrierModel:
     def get_services(self, carrierID: int):
         return self.get_carriers()[carrierID]['Services']
     
-    def get_data_misc(self):
+    def get_data_misc(self) -> list:
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
         df['Squadron Name'] = [self.generate_info_squadron_name(carrierID) for carrierID in self.sorted_ids_display()]

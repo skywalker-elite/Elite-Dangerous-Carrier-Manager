@@ -27,6 +27,7 @@ from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
 from auth import AuthHandler
+from concurrent.futures import ThreadPoolExecutor
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
@@ -285,11 +286,23 @@ class CarrierController:
         self.view.update_table_jumps(self.model.get_data(now), self.model.get_rows_pending_decom())
     
     def update_tables_slow(self, now):
-        pending_decom = self.model.get_rows_pending_decom()
-        self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
-        self.view.update_table_trade(*self.model.get_data_trade())
-        self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance
-        self.view.update_table_misc(self.model.get_data_misc(), pending_decom) #TODO: reduce update rate for performance
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            fut_finance = pool.submit(self.model.get_data_finance)
+            fut_trade = pool.submit(self.model.get_data_trade)
+            fut_services = pool.submit(self.model.get_data_services)
+            fut_misc = pool.submit(self.model.get_data_misc)
+            fut_pending = pool.submit(self.model.get_rows_pending_decom)
+
+        df_finance = fut_finance.result()
+        df_trade, trade_pending = fut_trade.result()
+        df_services = fut_services.result()
+        df_misc = fut_misc.result()
+        pending = fut_pending.result()
+
+        self.view.update_table_finance(df_finance, pending)
+        self.view.update_table_trade (df_trade, trade_pending)
+        self.view.update_table_services(df_services, pending)
+        self.view.update_table_misc   (df_misc, pending)
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
