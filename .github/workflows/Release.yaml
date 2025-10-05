@@ -75,10 +75,17 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
       
+      - name: Compute semver (no leading v)
+        id: semver
+        run: |
+          VER='${{ needs.create-release.outputs.version_full }}'   # e.g., v1.0.0-dev2
+          echo "SEMVER_NO_V=${VER#v}" >> $GITHUB_ENV               # -> 1.0.0-dev2
+      
       - name: Build .deb (edcm)
         run: |
           set -euxo pipefail
-          VER="${{ needs.create-release.outputs.version_full }}"
+          VER_WITH_V='${{ needs.create-release.outputs.version_full }}'
+          SEMVER_NO_V="$SEMVER_NO_V"
           PYI="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
 
           # Stage files into a package root
@@ -115,18 +122,16 @@ jobs:
           sudo apt-get install -y ruby ruby-dev build-essential rpm
           sudo gem install --no-document fpm
 
-          fpm -s dir -t deb -n edcm -v "$VER" -C "$PKGROOT" \
+          fpm -s dir -t deb -n edcm -v "$SEMVER_NO_V" -C "$PKGROOT" \
               --architecture amd64 \
               --deb-compression xz \
               --license "GPL-3.0-only" \
-              --category utils \
               --maintainer "skywalker-elite <197877581+skywalker-elite@users.noreply.github.com>" \
               --description "Elite Dangerous Carrier Manager" \
               --url "https://github.com/${{ github.repository }}"
+              -p "EDCM-${VER_WITH_V}-amd64.deb"
 
-          # Result is something like: edcm_${VER}_amd64.deb
-          ls -l *.deb
-
+          ls -l "EDCM-${VER_WITH_V}-amd64.deb"
       
       - name: Generate artifact attestation
         id: attestation
