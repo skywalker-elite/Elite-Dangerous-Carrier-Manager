@@ -74,7 +74,6 @@ jobs:
           cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM-Linux'
 
       - name: Install libfuse2 compat
         run: |
@@ -130,7 +129,7 @@ jobs:
         id: attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: EDCM-x86_64.AppImage, EDCM-x86_64.AppImage.zsync
+          subject-path: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage, EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync
 
       - name: Upload AppImage
         uses: actions/upload-release-asset@v1
@@ -183,6 +182,8 @@ jobs:
         run: |
           echo exe path: ${{ steps.create_executable.outputs.executable_path }}
           dir "${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager"
+          echo "The repository is located at: $GITHUB_WORKSPACE"
+          ls -l $GITHUB_WORKSPACE
 
       - name: Build Windows Installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
@@ -190,7 +191,7 @@ jobs:
           APP_VERSION: ${{ needs.create-release.outputs.version_full }}
           INPUT_DIR:  ${{ github.workspace }}\dist\Elite Dangerous Carrier Manager
         with:
-          path: installer/setup.iss
+          path: ${{ github.workspace }}\installer\setup.iss
 
       - name: Generate artifact attestation
         id: attestation
