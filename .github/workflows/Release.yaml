@@ -129,10 +129,10 @@ jobs:
               --maintainer "skywalker-elite <197877581+skywalker-elite@users.noreply.github.com>" \
               --description "Elite Dangerous Carrier Manager" \
               --url "https://github.com/${{ github.repository }}" \
-              -p "EDCM-${VER_WITH_V}-amd64.deb"
+              -p "EDCM-${VER_WITH_V}_amd64.deb"
 
-          ls -l "EDCM-${VER_WITH_V}-amd64.deb"
-      
+          ls -l "EDCM-${VER_WITH_V}_amd64.deb"
+
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
