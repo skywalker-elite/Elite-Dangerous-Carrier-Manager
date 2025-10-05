@@ -123,7 +123,7 @@ class CarrierController:
         if getattr(self, '_journal_update_pending', False):
             return
         self._journal_update_pending = True
-        self._perform_journal_update()
+        threading.Thread(target=self._perform_journal_update).start()
 
     def _perform_journal_update(self):
         self.update_journals()
@@ -978,4 +978,4 @@ class CarrierController:
     @debounce(10)
     def _on_configure(self, event):
         print('Saving window size:', f'{self.root.winfo_width()}x{self.root.winfo_height()}')
-        self.settings.set_config('UI', 'window_size', value=f'{self.root.winfo_width()}x{self.root.winfo_height()}')
+        threading.Thread(target=self.settings.set_config, args=('UI', 'window_size'), kwargs={'value': f'{self.root.winfo_width()}x{self.root.winfo_height()}'}).start()
