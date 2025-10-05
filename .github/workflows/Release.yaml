@@ -84,8 +84,16 @@ jobs:
           # Layout an AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
 
-          # Use your PyInstaller one-file binary as the entrypoint (rename to a short name)
-          cp "${BIN_DIR}/Elite Dangerous Carrier Manager" AppDir/usr/bin/edcm
+          # Place the onedir tree in the AppDir
+          mkdir -p AppDir/usr/lib/edcm AppDir/usr/bin
+          cp -r "./dist/Elite Dangerous Carrier Manager/" AppDir/usr/lib/edcm/
+
+          # Launcher that runs your binary from that folder
+          cat > AppDir/usr/bin/edcm <<'EOF'
+          #!/bin/sh
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/../lib/edcm/Elite Dangerous Carrier Manager" "$@"
+          EOF
           chmod +x AppDir/usr/bin/edcm
 
           # Desktop file (shows up in menus/launchers)
@@ -173,7 +181,8 @@ jobs:
       - name: Build Windows Installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
-          options: "/DAPP_VERSION=${{ needs.create-release.outputs.version_full }} /DINPUT_DIR=${{ steps.create_executable.outputs.executable_path }}"
+          DAPP_VERSION: ${{ needs.create-release.outputs.version_full }} 
+          DINPUT_DIR: D:\a\Elite-Dangerous-Carrier-Manager\Elite-Dangerous-Carrier-Manager\dist\Elite Dangerous Carrier Manager
         with:
           path: installer/setup_local.iss
 
