@@ -106,7 +106,7 @@ class CarrierController:
         self.check_app_update()
         self.minimize_hint_sent = False
 
-        threading.Thread(target=self.save_cache).start()
+        threading.Thread(target=self.save_cache, daemon=True).start()
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in()
@@ -123,7 +123,7 @@ class CarrierController:
         if getattr(self, '_journal_update_pending', False):
             return
         self._journal_update_pending = True
-        threading.Thread(target=self._perform_journal_update).start()
+        threading.Thread(target=self._perform_journal_update, daemon=True).start()
 
     def _perform_journal_update(self):
         self.update_journals()
@@ -723,7 +723,7 @@ class CarrierController:
             except Exception as e:
                 self.view.root.after(0, self.view.show_message_box_warning, 'Error', f'Error while saving cache\n{traceback.format_exc()}')
             else:
-                self.view.root.after(SAVE_CACHE_INTERVAL, lambda: threading.Thread(target=self.save_cache).start())
+                self.view.root.after(SAVE_CACHE_INTERVAL, lambda: threading.Thread(target=self.save_cache, daemon=True).start())
         else:
             self.view.root.after(0, self.view.show_message_box_warning, 'Warning', 'Cache path is not set, cannot save cache')
 
@@ -748,7 +748,7 @@ class CarrierController:
 
     def reload(self):
         progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Reloading', 'Reloading all journals, this may take a while depending on the size of your journals')
-        thread_reload = threading.Thread(target=self._reload)
+        thread_reload = threading.Thread(target=self._reload, daemon=True)
         thread_reload.start()
         while thread_reload.is_alive():
             progress_win.update()
@@ -985,4 +985,4 @@ class CarrierController:
     @debounce(10)
     def _on_configure(self, event):
         print('Saving window size:', f'{self.root.winfo_width()}x{self.root.winfo_height()}')
-        threading.Thread(target=self.settings.set_config, args=('UI', 'window_size'), kwargs={'value': f'{self.root.winfo_width()}x{self.root.winfo_height()}'}).start()
+        threading.Thread(target=self.settings.set_config, args=('UI', 'window_size'), kwargs={'value': f'{self.root.winfo_width()}x{self.root.winfo_height()}'}, daemon=True).start()

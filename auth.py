@@ -206,7 +206,7 @@ class AuthHandler:
             print("MFA challenge verified.")
         else:
             print(f"Unhandled auth event: {event}")
-        threading.Thread(target=self._auth_event_callbacks.get(event, lambda: None)).start()
+        threading.Thread(target=self._auth_event_callbacks.get(event, lambda: None), daemon=True).start()
 
     def _cache_session(self):
         """Cache only the refresh token (to stay under credential‐store size limits)."""
