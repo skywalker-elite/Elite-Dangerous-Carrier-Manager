@@ -78,53 +78,49 @@ jobs:
 
       - name: Build AppImage
         run: |
-          # Paths from your existing PyInstaller step
-          PYI_OUTPUT_DIR="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
+            PYI_OUTPUT_DIR="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
 
-          # Layout an AppDir
-          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+            # AppDir layout
+            mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+            mkdir -p AppDir/usr/lib/edcm
 
-          # Place the onedir tree in the AppDir
-          mkdir -p AppDir/usr/lib/edcm AppDir/usr/bin
-          cp -r "${PYI_OUTPUT_DIR}/" AppDir/usr/lib/edcm/
+            # Copy your onedir tree
+            cp -r "${PYI_OUTPUT_DIR}/." AppDir/usr/lib/edcm/
 
-          # Launcher that runs your binary from that folder
-          cat > AppDir/usr/bin/edcm <<'EOF'
-          #!/bin/sh
-          HERE="$(dirname "$(readlink -f "$0")")"
-          exec "$HERE/../lib/edcm/Elite Dangerous Carrier Manager" "$@"
-          EOF
-          chmod +x AppDir/usr/bin/edcm
+            # Launcher (entrypoint)
+            cat > AppDir/usr/bin/edcm <<'EOF'
+            #!/bin/sh
+            HERE="$(dirname "$(readlink -f "$0")")"
+            exec "$HERE/../lib/edcm/Elite Dangerous Carrier Manager" "$@"
+            EOF
+            chmod +x AppDir/usr/bin/edcm
 
-          # Desktop file (shows up in menus/launchers)
-          cat > AppDir/usr/share/applications/edcm.desktop <<'EOF'
-          [Desktop Entry]
-          Type=Application
-          Name=Elite Dangerous Carrier Manager
-          Exec=edcm
-          Icon=edcm
-          Categories=Game;Utility;
-          Terminal=false
-          EOF
+            # Desktop + icon
+            cat > AppDir/usr/share/applications/edcm.desktop <<'EOF'
+            [Desktop Entry]
+            Type=Application
+            Name=Elite Dangerous Carrier Manager
+            Exec=edcm
+            Icon=edcm
+            Categories=Game;Utility;
+            Terminal=false
+            EOF
+            cp "${PYI_OUTPUT_DIR}/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
 
-          # Icon (replace with your real path)
-          cp "${PYI_OUTPUT_DIR}/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
+            # AppRun (symlink to your launcher is fine)
+            ln -sf usr/bin/edcm AppDir/AppRun
 
-          # Get linuxdeploy + AppImage plugin
-          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage
-          chmod +x linuxdeploy-*.AppImage
+            # Get appimagetool
+            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+            chmod +x appimagetool-x86_64.AppImage
 
-          # Version + embedded update info for GitHub Releases (delta updates via zsync)
-          export VERSION="${{ needs.create-release.outputs.version_full }}"
-          export UPDATE_INFORMATION="gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|EDCM-x86_64.AppImage.zsync"
+            # Embed update info and build (+ .zsync is generated automatically)
+            VER="${{ needs.create-release.outputs.version_full }}"
+            UPDATE_INFO="gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|EDCM-*x86_64.AppImage.zsync"
+            ./appimagetool-x86_64.AppImage -u "$UPDATE_INFO" AppDir "EDCM-${VER}-x86_64.AppImage"
 
-          # Build the AppImage (also emits .zsync when UPDATE_INFORMATION is set)
-          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+            ls -l
 
-          # Rename for clarity
-          mv EDCM*.AppImage EDCM-x86_64.AppImage || true
-          ls -l
       
       - name: Generate artifact attestation
         id: attestation
@@ -134,24 +130,24 @@ jobs:
 
       - name: Upload AppImage
         uses: actions/upload-release-asset@v1
-        env:  
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: EDCM-x86_64.AppImage
-          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
-          asset_content_type: application/octet-stream
-
-      - name: Upload AppImage zsync (delta updates)
-        if: hashFiles('*.zsync') != ''
-        uses: actions/upload-release-asset@v1
-        env:
+        env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: EDCM-x86_64.AppImage.zsync
-          asset_name: EDCM-x86_64.AppImage.zsync
+          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
+          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
           asset_content_type: application/octet-stream
+
+      - name: Upload AppImage zsync
+        uses: actions/upload-release-asset@v1
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync
+          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync
+          asset_content_type: application/octet-stream
+
 
       - name: Upload Linux Attestation as Artifact
         uses: actions/upload-artifact@v4
@@ -181,10 +177,11 @@ jobs:
       - name: Build Windows Installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
-          DAPP_VERSION: ${{ needs.create-release.outputs.version_full }} 
-          DINPUT_DIR: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
+          APP_VERSION: ${{ needs.create-release.outputs.version_full }}
+          INPUT_DIR:  ${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager
         with:
-          path: .\installer\setup_local.iss
+          path: installer/setup_local.iss
+
 
       - name: Generate artifact attestation
         id: attestation

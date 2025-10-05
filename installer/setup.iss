@@ -8,7 +8,6 @@ AppVersion={#AppVersion}
 AppId={{4BDCB69F-A22E-4297-83E8-29DA3465C9D4}}
 WizardStyle=modern
 WizardImageFile="Inno_wizard_image.png"
-; WizardImageStretch=no
 SetupIconFile="{#InputDir}\_internal\images\EDCM.ico"
 DefaultDirName={autopf}\EDCM
 OutputDir=dist\installer
