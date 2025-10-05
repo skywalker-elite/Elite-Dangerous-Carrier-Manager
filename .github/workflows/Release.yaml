@@ -16,6 +16,7 @@ jobs:
       attestations: write
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version_full: ${{ steps.version.outputs.full }}
     steps:
       - name: Check tag version
         uses: nowsprinting/check-version-format-action@v3
@@ -74,21 +75,76 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM-Linux'
+
+      - name: Build AppImage
+        run: |
+          # Paths from your existing PyInstaller step
+          BIN_DIR="${{ steps.create_executable.outputs.executable_path }}"
+
+          # Layout an AppDir
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+
+          # Use your PyInstaller one-file binary as the entrypoint (rename to a short name)
+          cp "${BIN_DIR}/Elite Dangerous Carrier Manager" AppDir/usr/bin/edcm
+          chmod +x AppDir/usr/bin/edcm
+
+          # Desktop file (shows up in menus/launchers)
+          cat > AppDir/usr/share/applications/edcm.desktop <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Elite Dangerous Carrier Manager
+          Exec=edcm
+          Icon=edcm
+          Categories=Game;Utility;
+          Terminal=false
+          EOF
+
+          # Icon (replace with your real path)
+          cp "${BIN_DIR}/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
+
+          # Get linuxdeploy + AppImage plugin
+          wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
+          wget -q https://github.com/linuxdeploy/linuxdeploy-plugin-appimage/releases/download/continuous/linuxdeploy-plugin-appimage-x86_64.AppImage
+          chmod +x linuxdeploy-*.AppImage
+
+          # Version + embedded update info for GitHub Releases (delta updates via zsync)
+          export VERSION="${{ needs.create-release.outputs.version_full }}"
+          export UPDATE_INFORMATION="gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|EDCM-x86_64.AppImage.zsync"
+
+          # Build the AppImage (also emits .zsync when UPDATE_INFORMATION is set)
+          ./linuxdeploy-x86_64.AppImage --appdir AppDir --output appimage
+
+          # Rename for clarity
+          mv EDCM*.AppImage EDCM-x86_64.AppImage || true
+          ls -l
+      
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
-      - name: Upload Linux Executable
-        id: upload-linux-executable
+          subject-path: EDCM-x86_64.AppImage, EDCM-x86_64.AppImage.zsync
+
+      - name: Upload AppImage
+        uses: actions/upload-release-asset@v1
+        env:  
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} 
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: EDCM-x86_64.AppImage
+          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
+          asset_content_type: application/octet-stream
+
+      - name: Upload AppImage zsync (delta updates)
+        if: hashFiles('*.zsync') != ''
         uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
-          asset_name: EDCM-Linux
+          asset_path: EDCM-x86_64.AppImage.zsync
+          asset_name: EDCM-x86_64.AppImage.zsync
           asset_content_type: application/octet-stream
+
       - name: Upload Linux Attestation as Artifact
         uses: actions/upload-artifact@v4
         with:
@@ -114,21 +170,29 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM'
+      - name: Build Windows Installer (Inno Setup)
+        uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
+        env:
+          options: "/DAPP_VERSION=${{ needs.create-release.outputs.version_full }} /DINPUT_DIR=${{ steps.create_executable.outputs.executable_path }}"
+        with:
+          path: installer/setup_local.iss
+
       - name: Generate artifact attestation
         id: attestation
         uses: actions/attest-build-provenance@v2
         with:
-          subject-path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
-      - name: Upload Windows Executable
-        id: upload-release-asset 
+          subject-path: dist/installer/EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+
+      - name: Upload Windows Installer
         uses: actions/upload-release-asset@v1
-        env:
+        env: 
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager.exe
-          asset_name: EDCM.exe
+          asset_path: dist/installer/EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+          asset_name: EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
           asset_content_type: application/vnd.microsoft.portable-executable
+
       - name: Upload Windows Attestation as Artifact
         uses: actions/upload-artifact@v4
         with:
