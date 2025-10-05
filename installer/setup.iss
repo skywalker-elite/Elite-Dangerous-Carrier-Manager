@@ -1,6 +1,9 @@
-#define AppVersion GetEnv("APP_VERSION")     ; passed from Actions
-#define InputDir    GetEnv("INPUT_DIR")      ; PyInstaller output dir
+#define AppVersion GetDefine("APP_VERSION", GetEnv("APP_VERSION"))
+#define InputDir   GetDefine("INPUT_DIR",   GetEnv("INPUT_DIR"))
 #define AppExe      "Elite Dangerous Carrier Manager.exe"
+
+#pragma message "AppVersion = {#AppVersion}"
+#pragma message "InputDir   = {#InputDir}"
 
 [Setup]
 AppName=Elite Dangerous Carrier Manager
@@ -19,7 +22,7 @@ CloseApplications=yes
 RestartApplications=no
 
 [Files]
-Source: "{#InputDir}\dist\Elite Dangerous Carrier Manager\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "{#InputDir}\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
 
 [Icons]
 Name: "{group}\EDCM"; Filename: "{app}\{#AppExe}"

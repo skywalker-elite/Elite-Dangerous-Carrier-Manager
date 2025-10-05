@@ -76,6 +76,12 @@ jobs:
           requirements: 'requirements.txt'
           upload_exe_with_name: 'EDCM-Linux'
 
+      - name: Install libfuse2 compat
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libfuse2 || sudo apt-get install -y libfuse2t64
+
+      
       - name: Build AppImage
         run: |
             PYI_OUTPUT_DIR="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
@@ -173,15 +179,20 @@ jobs:
           cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
-          upload_exe_with_name: 'EDCM'
+      
+      - name: Show PyInstaller onedir path (debug)
+        shell: cmd
+        run: |
+          echo exe path: ${{ steps.create_executable.outputs.executable_path }}
+          dir "${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager"
+
       - name: Build Windows Installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
           APP_VERSION: ${{ needs.create-release.outputs.version_full }}
           INPUT_DIR:  ${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager
         with:
-          path: installer/setup_local.iss
-
+          path: installer/setup.iss
 
       - name: Generate artifact attestation
         id: attestation
