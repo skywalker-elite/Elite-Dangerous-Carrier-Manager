@@ -79,14 +79,14 @@ jobs:
       - name: Build AppImage
         run: |
           # Paths from your existing PyInstaller step
-          BIN_DIR="${{ steps.create_executable.outputs.executable_path }}"
+          PYI_OUTPUT_DIR="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
 
           # Layout an AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
 
           # Place the onedir tree in the AppDir
           mkdir -p AppDir/usr/lib/edcm AppDir/usr/bin
-          cp -r "./dist/Elite Dangerous Carrier Manager/" AppDir/usr/lib/edcm/
+          cp -r "${PYI_OUTPUT_DIR}/" AppDir/usr/lib/edcm/
 
           # Launcher that runs your binary from that folder
           cat > AppDir/usr/bin/edcm <<'EOF'
@@ -108,7 +108,7 @@ jobs:
           EOF
 
           # Icon (replace with your real path)
-          cp "${BIN_DIR}/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
+          cp "${PYI_OUTPUT_DIR}/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
 
           # Get linuxdeploy + AppImage plugin
           wget -q https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
@@ -182,9 +182,9 @@ jobs:
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         env:
           DAPP_VERSION: ${{ needs.create-release.outputs.version_full }} 
-          DINPUT_DIR: D:\a\Elite-Dangerous-Carrier-Manager\Elite-Dangerous-Carrier-Manager\dist\Elite Dangerous Carrier Manager
+          DINPUT_DIR: ${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager
         with:
-          path: installer/setup_local.iss
+          path: .\installer\setup_local.iss
 
       - name: Generate artifact attestation
         id: attestation
