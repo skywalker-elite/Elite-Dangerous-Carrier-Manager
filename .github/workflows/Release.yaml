@@ -75,69 +75,57 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
       
-      - name: Build AppImage
+      - name: Build .deb (edcm)
         run: |
-            PYI_OUTPUT_DIR="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
+          set -euxo pipefail
+          VER="${{ needs.create-release.outputs.version_full }}"
+          PYI="${{ steps.create_executable.outputs.executable_path }}/Elite Dangerous Carrier Manager"
 
-            # Layout
-            mkdir -p AppDir/usr/bin AppDir/usr/lib/edcm AppDir/usr/share/applications AppDir/usr/share/icons/hicolor/256x256/apps
+          # Stage files into a package root
+          PKGROOT=pkgroot
+          rm -rf "$PKGROOT"
+          mkdir -p "$PKGROOT/opt/edcm" "$PKGROOT/usr/bin" \
+                  "$PKGROOT/usr/share/applications" \
+                  "$PKGROOT/usr/share/icons/hicolor/256x256/apps"
 
-            # Copy your PyInstaller onedir
-            cp -r "$PYI_OUTPUT_DIR/." AppDir/usr/lib/edcm/
+          # App payload
+          cp -r "$PYI/." "$PKGROOT/opt/edcm/"
 
-            # Launcher
-            cat > AppDir/usr/bin/edcm <<'EOF'
-            #!/bin/sh
-            HERE="$(dirname "$(readlink -f "$0")")"
-            exec "$HERE/../lib/edcm/Elite Dangerous Carrier Manager" "$@"
-            EOF
-            chmod +x AppDir/usr/bin/edcm
+          # Wrapper so users can just run `edcm`
+          cat > "$PKGROOT/usr/bin/edcm" <<'EOF'
+          #!/bin/sh
+          exec /opt/edcm/Elite\ Dangerous\ Carrier\ Manager "$@"
+          EOF
+          chmod +x "$PKGROOT/usr/bin/edcm"
 
-            # Desktop file
-            cat > AppDir/usr/share/applications/edcm.desktop <<'EOF'
-            [Desktop Entry]
-            Type=Application
-            Name=Elite Dangerous Carrier Manager
-            Exec=edcm
-            Icon=edcm
-            Categories=Game;Utility;
-            Terminal=false
-            EOF
+          # Desktop entry + icon
+          cat > "$PKGROOT/usr/share/applications/edcm.desktop" <<'EOF'
+          [Desktop Entry]
+          Type=Application
+          Name=Elite Dangerous Carrier Manager
+          Exec=edcm
+          Icon=edcm
+          Categories=Game;Utility;
+          Terminal=false
+          EOF
+          cp "$PYI/_internal/images/EDCM.png" "$PKGROOT/usr/share/icons/hicolor/256x256/apps/edcm.png"
 
-            # Icon (replace path if yours lives elsewhere)
-            cp "$PYI_OUTPUT_DIR/_internal/images/EDCM.png" AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png
+          # Install fpm and build the .deb
+          sudo apt-get update
+          sudo apt-get install -y ruby ruby-dev build-essential rpm
+          sudo gem install --no-document fpm
 
-            # Copy to AppDir root so appimagetool sees them
-            cp AppDir/usr/share/applications/edcm.desktop AppDir/edcm.desktop
-            cp AppDir/usr/share/icons/hicolor/256x256/apps/edcm.png AppDir/edcm.png
+          fpm -s dir -t deb -n edcm -v "$VER" -C "$PKGROOT" \
+              --architecture amd64 \
+              --deb-compression xz \
+              --license "GPL-3.0-only" \
+              --category utils \
+              --maintainer "skywalker-elite <197877581+skywalker-elite@users.noreply.github.com>" \
+              --description "Elite Dangerous Carrier Manager" \
+              --url "https://github.com/${{ github.repository }}"
 
-            # Quick sanity check
-            [ -f AppDir/edcm.desktop ] || { echo "missing desktop"; exit 1; }
-            [ -f AppDir/edcm.png ]     || { echo "missing icon"; exit 1; }
-            [ -x AppDir/usr/bin/edcm ] || { echo "missing launcher"; exit 1; }
-
-            # AppRun points to your launcher
-            ln -sf usr/bin/edcm AppDir/AppRun
-
-            # Get appimagetool and run it WITHOUT FUSE
-            wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
-            chmod +x appimagetool-x86_64.AppImage
-            ./appimagetool-x86_64.AppImage --appimage-extract
-
-            VER="${{ needs.create-release.outputs.version_full }}"
-            UPDATE_INFO="gh-releases-zsync|${{ github.repository_owner }}|${{ github.event.repository.name }}|latest|EDCM-*x86_64.AppImage.zsync"
-            ./squashfs-root/AppRun -u "$UPDATE_INFO" AppDir "EDCM-${VER}-x86_64.AppImage"
-
-            ls -l
-      
-      - name: Verify AppImage outputs
-        run: |
-          ls -l
-          test -f "EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage"
-          test -f "EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync" || {
-            echo "Missing .zsync — did you embed update info with appimagetool -u?"
-            exit 1
-          }
+          # Result is something like: edcm_${VER}_amd64.deb
+          ls -l *.deb
 
       
       - name: Generate artifact attestation
@@ -145,8 +133,7 @@ jobs:
         uses: actions/attest-build-provenance@v2
         with:
           subject-path: |
-            EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
-            EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync
+            edcm-${{ needs.create-release.outputs.version_full }}_amd64.deb
 
 
       - name: Upload AppImage
@@ -155,20 +142,9 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
-          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage
+          asset_path: edcm-${{ needs.create-release.outputs.version_full }}_amd64.deb
+          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
           asset_content_type: application/octet-stream
-
-      - name: Upload AppImage zsync
-        uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync
-          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}-x86_64.AppImage.zsync
-          asset_content_type: application/octet-stream
-
 
       - name: Upload Linux Attestation as Artifact
         uses: actions/upload-artifact@v4
