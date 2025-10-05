@@ -122,12 +122,14 @@ class CarrierController:
         if getattr(self, '_journal_update_pending', False):
             return
         self._journal_update_pending = True
-        self.view.root.after(0, self._perform_journal_update)
+        self._perform_journal_update()
 
     def _perform_journal_update(self):
-        self._journal_update_pending = False
         self.update_journals()
-        self.view.update_table_active_journals(self.model.get_data_active_journals())
+        self._journal_update_pending = False
+        self.view.root.after(0, 
+                             self.view.update_table_active_journals(self.model.get_data_active_journals())
+                             )
 
     def set_current_version(self):
         self.view.label_version.configure(text=getCurrentVersion())
