@@ -128,7 +128,7 @@ jobs:
               --license "GPL-3.0-only" \
               --maintainer "skywalker-elite <197877581+skywalker-elite@users.noreply.github.com>" \
               --description "Elite Dangerous Carrier Manager" \
-              --url "https://github.com/${{ github.repository }}"
+              --url "https://github.com/${{ github.repository }}" \
               -p "EDCM-${VER_WITH_V}-amd64.deb"
 
           ls -l "EDCM-${VER_WITH_V}-amd64.deb"
