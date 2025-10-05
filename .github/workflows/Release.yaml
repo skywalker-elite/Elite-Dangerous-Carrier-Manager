@@ -218,7 +218,7 @@ jobs:
       - name: Build Windows Installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
         with:
-          path: installer/setup.iss
+          path: installer\setup.iss
         env:
           APP_VERSION: ${{ needs.create-release.outputs.version_full }}
           INPUT_DIR: "${{ github.workspace }}\\dist\\Elite Dangerous Carrier Manager"
