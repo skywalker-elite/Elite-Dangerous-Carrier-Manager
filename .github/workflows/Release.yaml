@@ -200,21 +200,21 @@ jobs:
           spec: 'build.spec'
           requirements: 'requirements.txt'
       
-      - name: Show PyInstaller onedir path (debug)
-        shell: cmd
-        run: |
-          echo exe path: ${{ steps.create_executable.outputs.executable_path }}
-          dir "${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager"
-          echo "The repository is located at: ${{ github.workspace }}"
-          ls -l ${{ github.workspace }}
+      # - name: Show PyInstaller onedir path (debug)
+      #   shell: cmd
+      #   run: |
+      #     echo exe path: ${{ steps.create_executable.outputs.executable_path }}
+      #     dir "${{ steps.create_executable.outputs.executable_path }}\Elite Dangerous Carrier Manager"
+      #     echo "The repository is located at: ${{ github.workspace }}"
+      #     ls -l ${{ github.workspace }}
 
-      - name: Verify paths for Inno
-        shell: cmd
-        run: |
-          echo INPUT_DIR="${{ github.workspace }}\dist\Elite Dangerous Carrier Manager"
-          if exist "${{ github.workspace }}\dist\Elite Dangerous Carrier Manager" (echo onedir OK) else (echo MISSING & exit /b 1)
-          if exist "${{ github.workspace }}\installer\setup.iss" (echo onedir OK) else (echo MISSING & exit /b 1)
-          if not exist "${{ github.workspace }}\installer\dist" mkdir "${{ github.workspace }}\installer\dist"
+      # - name: Verify paths for Inno
+      #   shell: cmd
+      #   run: |
+      #     echo INPUT_DIR="${{ github.workspace }}\dist\Elite Dangerous Carrier Manager"
+      #     if exist "${{ github.workspace }}\dist\Elite Dangerous Carrier Manager" (echo onedir OK) else (echo MISSING & exit /b 1)
+      #     if exist "${{ github.workspace }}\installer\setup.iss" (echo onedir OK) else (echo MISSING & exit /b 1)
+      #     if not exist "${{ github.workspace }}\installer\dist" mkdir "${{ github.workspace }}\installer\dist"
 
       # - name: Install Inno Setup
       #   run: choco install innosetup -y

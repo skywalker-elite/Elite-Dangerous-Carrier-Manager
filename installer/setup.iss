@@ -1,6 +1,6 @@
-#define AppVersion GetDefine("APP_VERSION", GetEnv("APP_VERSION"))
-#define InputDir   GetDefine("INPUT_DIR",   GetEnv("INPUT_DIR"))
-#define OutputDirA GetDefine("OUTPUT_DIR",  GetEnv("OUTPUT_DIR"))
+#define AppVersion GetEnv("APP_VERSION")
+#define InputDir   GetEnv("INPUT_DIR")
+#define OutputDirA GetEnv("OUTPUT_DIR")
 #define AppExe      "Elite Dangerous Carrier Manager.exe"
 
 #pragma message "AppVersion = {#AppVersion}"
