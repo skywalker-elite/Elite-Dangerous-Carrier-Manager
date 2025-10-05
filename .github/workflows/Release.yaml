@@ -210,11 +210,12 @@ jobs:
 
       - name: Build Windows Installer (Inno Setup)
         uses: Minionguyjpro/Inno-Setup-Action@v1.2.2
-        env:
-          APP_VERSION: ${{ needs.create-release.outputs.version_full }}
-          INPUT_DIR:  ${{ github.workspace }}\dist\Elite Dangerous Carrier Manager
         with:
-          path: ${{ github.workspace }}\installer\setup.iss
+          path: installer/setup.iss
+          options: >
+            /DAPP_VERSION=${{ needs.create-release.outputs.version_full }}
+            /DINPUT_DIR="${{ github.workspace }}\dist\Elite Dangerous Carrier Manager"
+            /DOUTPUT_DIR="${{ github.workspace }}\dist\installer"
 
       - name: Generate artifact attestation
         id: attestation

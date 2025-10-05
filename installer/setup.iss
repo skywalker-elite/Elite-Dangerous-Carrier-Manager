@@ -1,9 +1,10 @@
 #define AppVersion GetDefine("APP_VERSION", GetEnv("APP_VERSION"))
 #define InputDir   GetDefine("INPUT_DIR",   GetEnv("INPUT_DIR"))
-#define AppExe      "Elite Dangerous Carrier Manager.exe"
+#define OutputDirA GetDefine("OUTPUT_DIR",  GetEnv("OUTPUT_DIR"))
 
 #pragma message "AppVersion = {#AppVersion}"
 #pragma message "InputDir   = {#InputDir}"
+#pragma message "OutputDirA = {#OutputDirA}"
 
 [Setup]
 AppName=Elite Dangerous Carrier Manager
@@ -13,7 +14,7 @@ WizardStyle=modern
 WizardImageFile="Inno_wizard_image.png"
 SetupIconFile="{#InputDir}\_internal\images\EDCM.ico"
 DefaultDirName={autopf}\EDCM
-OutputDir=dist\installer
+OutputDir={#OutputDirA}
 OutputBaseFilename=EDCM-Setup-{#AppVersion}
 Compression=lzma
 SolidCompression=yes
@@ -30,6 +31,8 @@ Name: "{commondesktop}\EDCM"; Filename: "{app}\{#AppExe}"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional shortcuts:"
+Name: "startmenuicon"; Description: "Create a &Start Menu shortcut"; GroupDescription: "Additional shortcuts:"
+Name: "quicklaunchicon"; Description: "Create a &Quick Launch shortcut"; GroupDescription: "Additional shortcuts:"
 
 [Run]
 Filename: "{app}\{#AppExe}"; Description: "Launch EDCM"; Flags: nowait postinstall skipifsilent
