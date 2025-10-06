@@ -782,7 +782,7 @@ class CarrierController:
         self.view.button_login.configure(text='Login with Discord')
         self.view.button_login.configure(command=self.button_click_login)
         self.view.checkbox_enable_timer_reporting.configure(state='disabled')
-        self.view.checkbox_enable_timer_reporting_var.set(False)
+        # self.view.checkbox_enable_timer_reporting_var.set(False)
         self.view.button_verify_roles.configure(state='disabled')
         self.view.button_delete_account.configure(state='disabled')
         self.view.button_report_timer_history.configure(state='disabled')
@@ -794,8 +794,7 @@ class CarrierController:
         self.view.checkbox_enable_timer_reporting_var.set(self.settings.get('timer_reporting', 'enabled'))
         self.view.button_verify_roles.configure(state='normal')
         self.view.button_delete_account.configure(state='normal')
-        if self.auth_handler.is_PTN_elevated():
-            self.view.button_report_timer_history.configure(state='normal')
+        self.view.button_report_timer_history.configure(state='normal')
 
     def report_jump_timer(self, carrierID:int):
         if self.model.get_current_or_destination_system(carrierID) in ['HD 105341','HIP 58832']:
@@ -865,15 +864,16 @@ class CarrierController:
     def button_click_report_timer_history(self):
         if not self.auth_handler.is_logged_in():
             return self.view.show_message_box_warning('Not logged in', 'You need to be logged in to report timer history')
-        if not self.auth_handler.is_PTN_elevated():
+        if not self.auth_handler.can_bulk_report():
             return self.view.show_message_box_warning(
                 'Permission denied',
-                'You need an elevated PTN role to report jump timer history.\n'
-                'Use "Verify PTN Roles" to refresh your roles if you think this is wrong.'
+                'You need certain PTN roles to report jump timer history.\n'
+                'Use "Verify PTN Roles" to refresh your roles if you recently got promoted.\n'
+                'If you think you should have access, please contact the developer: Skywalker.'
             )
         if not self.view.show_message_box_askyesno(
             'Report timer history',
-            'Caution: This will report every jump you have ever made, do you want to continue?'
+            'Caution: This will report every jump you have ever made (except the ignored carriers), do you want to continue?'
         ):
             return
 
