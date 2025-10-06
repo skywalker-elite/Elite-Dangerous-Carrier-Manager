@@ -915,7 +915,7 @@ class CarrierModel:
             amount = round(amount / 500) * 500 / 1000
             if amount % 1 == 0:
                 amount = int(amount)
-            price = largest_order['Price']
+            price = int(largest_order['Price'].replace(',', ''))
             order_type = largest_order['Trade Type'].lower()
             return (order_type, commodity, amount, price)
 
