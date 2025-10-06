@@ -356,11 +356,11 @@ class CarrierController:
                 if not timed_unload:
                     self.view.show_message_box_warning('Warning', 'You have not opened the market yet!\nMake sure to open the market before running the unload command!')
             else:
+                if timed_unload:
+                    self.view.show_message_box_warning('Warning', 'You have already opened the market!\nYou should close the market now and open it when it\'s time to unload.')
                 _, _, _, price = order
                 if not 21500 < price < 22500:
                     self.view.show_message_box_warning('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\nMake sure to follow the guidelines!')
-                if timed_unload:
-                    self.view.show_message_box_warning('Warning', 'You have already opened the market!\nYou should close the market now and open it when it\'s time to unload.')
 
     def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         station = trade_post_view.cbox_stations.get()
