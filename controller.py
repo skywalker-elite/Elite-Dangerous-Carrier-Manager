@@ -108,9 +108,9 @@ class CarrierController:
         threading.Thread(target=self.save_cache).start()
 
         if self.auth_handler.is_logged_in():
-            self.on_sign_in()
+            self.on_sign_in(show_message=False)
         else:
-            self.on_sign_out()
+            self.on_sign_out(show_message=False)
 
         self.auth_handler.register_auth_event_callback('SIGNED_IN', self.on_sign_in)
         self.auth_handler.register_auth_event_callback('SIGNED_OUT', self.on_sign_out)
@@ -743,17 +743,14 @@ class CarrierController:
 
     def button_click_login(self):
         if not self.auth_handler.is_logged_in():
-            user = self.auth_handler.login()
-            if user is not None:
-                self.view.show_message_box_info('Success!', 'Logged in successfully')
+            threading.Thread(target=self.auth_handler.login, daemon=True).start()
         else:
-            self.view.show_message_box_info('Info', f'Already logged in as {self.auth_handler.get_username()}')
+            self.view.root.after(0, self.view.show_message_box_info, 'Info', f'Already logged in as {self.auth_handler.get_username()}')
 
     def button_click_logout(self):
         if self.auth_handler.is_logged_in():
             if self.view.show_message_box_askyesno('Logout', f'Do you want to logout of {self.auth_handler.get_username()}?'):
-                self.auth_handler.logout()
-                self.view.show_message_box_info('Success!', 'Logged out successfully')
+                threading.Thread(target=self.auth_handler.logout, daemon=True).start()
         else:
             self.view.show_message_box_info('Info', 'Not logged in')
 
@@ -778,16 +775,20 @@ class CarrierController:
                     self.auth_handler.delete_account()
                     self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
 
-    def on_sign_out(self):
+    def on_sign_out(self, show_message: bool=True):
+        if show_message:
+            self.view.show_message_box_info('Logged Out', 'You have been logged out')
         self.view.button_login.configure(text='Login with Discord')
-        self.view.button_login.configure(command=self.button_click_login)
+        self.view.button_login.configure(command=lambda: threading.Thread(target=self.button_click_login, daemon=True).start())
         self.view.checkbox_enable_timer_reporting.configure(state='disabled')
         # self.view.checkbox_enable_timer_reporting_var.set(False)
         self.view.button_verify_roles.configure(state='disabled')
         self.view.button_delete_account.configure(state='disabled')
         self.view.button_report_timer_history.configure(state='disabled')
 
-    def on_sign_in(self):
+    def on_sign_in(self, show_message: bool=True):
+        if show_message:
+            self.view.show_message_box_info('Logged In', f'You are now logged in as {self.auth_handler.get_username()}')
         self.view.button_login.configure(text=f'Logout of {self.auth_handler.get_username()}')
         self.view.button_login.configure(command=self.button_click_logout)
         self.view.checkbox_enable_timer_reporting.configure(state='normal')
