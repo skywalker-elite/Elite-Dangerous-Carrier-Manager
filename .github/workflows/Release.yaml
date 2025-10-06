@@ -74,6 +74,21 @@ jobs:
           cache: 'true'
           spec: 'build.spec'
           requirements: 'requirements.txt'
+
+      - name: Compress Folder
+        run: |
+          tar -czf "${{ steps.create_executable.outputs.executable_path }}".tar.gz -C "${{ steps.create_executable.outputs.executable_path }}" .
+          ls -lh "${{ steps.create_executable.outputs.executable_path }}".tar.gz
+
+      - name: Upload Compressed Folder
+        uses: actions/upload-release-asset@v1
+        env: 
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_path: ${{ steps.create_executable.outputs.executable_path }}.tar.gz
+          asset_name: EDCM-Linux-${{ needs.create-release.outputs.version_full }}.tar.gz
+          asset_content_type: application/gzip
       
       - name: Compute semver (no leading v)
         id: semver
@@ -139,7 +154,7 @@ jobs:
         with:
           subject-path: |
             EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
-
+            ${{ steps.create_executable.outputs.executable_path }}.tar.gz
 
       - name: Upload AppImage
         uses: actions/upload-release-asset@v1
