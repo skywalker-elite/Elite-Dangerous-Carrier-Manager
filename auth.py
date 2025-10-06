@@ -370,6 +370,32 @@ class AuthHandler:
             print(f"Error while fetching highest-level info: {e}")
             return None
         
+    def can_bulk_report(self) -> bool:
+        """Returns whether the user has permission to use bulk report features."""
+        if not self.is_logged_in():
+            return False
+        try:
+            user = self.client.auth.get_user()
+            if not user:
+                print("No authenticated user found.")
+                return False
+            user_id = user.user.id
+            result = self.client.functions.invoke(
+                "can-bulk-report",
+                invoke_options={
+                    "headers": {"Authorization": f"Bearer {self.client.auth.get_session().access_token}"},
+                    "body": {"user_id": user_id},
+                },
+            )
+            if type(result) is not bytes:
+                print(f"Unexpected response type from can-bulk-report: {result}")
+                return False
+            result: dict = json.loads(result)
+            return result.get("authorized", False)
+        except Exception as e:
+            print(f"Error while checking bulk report permission: {e}")
+            return False
+    
     def is_PTN_elevated(self) -> bool:
         """Returns whether the user has at least the 'Elevated' role level in PTN."""
         level = self.get_highest_PTN_role_level()
@@ -386,4 +412,4 @@ class AuthHandler:
 
 if __name__ == "__main__":
     auth_handler = AuthHandler()
-    auth_handler.auth_PTN_roles()
+    print(auth_handler.can_bulk_report())
