@@ -118,25 +118,30 @@ class CarrierController:
             self.view.show_message_box_info('No update available', f'You are using the latest version: {getCurrentVersion()}')
     
     def load_settings(self, settings_file:str):
-        try:
-            self.settings = Settings(settings_file=settings_file)
-        except FileNotFoundError as e:
+        if not os.path.exists(settings_file):
             if settings_file == getSettingsDefaultPath():
-                raise e
+                raise FileNotFoundError(f'Default settings file not found at {settings_file}')
             else:
                 if self.view.show_message_box_askyesno('Settings file not found', 'Do you want to create a new settings file?'):
-                    makedirs(getAppDir(), exist_ok=True)
-                    copyfile(getSettingsDefaultPath(), settings_file)
+                    try:
+                        makedirs(getAppDir(), exist_ok=True)
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f'Could not create app directory:\n{e}')
+                    try:
+                        copyfile(getSettingsDefaultPath(), settings_file)
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f'Could not copy default settings file:\n{e}')
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         try:
                             open_file(settings_file)
                         except Exception as e:
                             self.view.show_message_box_warning('Error', f'Could not open settings file:\n{e}')
                         self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
-                    self.settings = Settings(settings_file=settings_file)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
-                    self.settings = Settings(settings_file=getSettingsDefaultPath())
+                    settings_file=getSettingsDefaultPath()
+        try:
+            self.settings = Settings(settings_file=settings_file)
         except tomllib.TOMLDecodeError as e:
             if settings_file == getSettingsDefaultPath():
                 raise e
