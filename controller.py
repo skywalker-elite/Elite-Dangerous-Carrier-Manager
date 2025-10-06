@@ -345,25 +345,22 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
 
-    def handle_peak_trade_logic(self, carrierID, carrier_name, system, carrier_callsign, order):
-        if order is not None:
-            trade_type, commodity, _, price = order
-            if trade_type == 'unloading' and commodity == 'Wine':
-                if not 21500 < price < 22500:
-                    if not self.view.show_message_box_askyesno('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\n Are you sure you want to post this?'):
-                        return
-                body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
-                planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
-                if planetary_body is not None:
-                    timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
-                    post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
-                    self.copy_to_clipboard(post_string, 'It\'s wine o\'clock', 'Wine unload command copied')
-                else:
-                    self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {planetary_body=}')
+    def handle_peak_trade_logic(self, carrierID: int, carrier_name: str, system: str, carrier_callsign: str, order: tuple[str, str, int | float, int]|None):
+        body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
+        planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
+        if planetary_body is not None:
+            timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
+            post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
+            self.copy_to_clipboard(post_string, 'It\'s wine o\'clock', f'{"Timed" if timed_unload else "Wine"} unload command copied')
+            if order is None or (order[0] != 'unloading' or order[1] != 'Wine'): # no wine unload order
+                if not timed_unload:
+                    self.view.show_message_box_warning('Warning', 'You have not opened the market yet!\nMake sure to open the market before running the unload command!')
             else:
-                self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
-        else:
-            self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
+                _, _, _, price = order
+                if not 21500 < price < 22500:
+                    self.view.show_message_box_warning('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\nMake sure to follow the guidelines!')
+                if timed_unload:
+                    self.view.show_message_box_warning('Warning', 'You have already opened the market!\nYou should close the market now and open it when it\'s time to unload.')
 
     def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         station = trade_post_view.cbox_stations.get()
