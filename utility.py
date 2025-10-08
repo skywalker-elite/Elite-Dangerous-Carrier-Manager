@@ -242,7 +242,7 @@ def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earli
     else:
         earliest_str = naturaltime(earliest) if earliest else 'N/A'
         latest_str = naturaltime(latest) if latest else 'N/A'
-        return f'Average jump timer: {avg_timer} based on {count} sample(s) from {earliest_str} to {latest_str}'
+        return f'Average jump timer: {avg_timer} based on {count} report(s) from {earliest_str} to {latest_str}'
     
 def generateTimerSlopeDescription(slope:float|None) -> str:
     return '' # Disable slope description for now, not enough data to be useful
