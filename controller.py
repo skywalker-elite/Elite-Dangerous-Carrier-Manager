@@ -99,7 +99,7 @@ class CarrierController:
         self.set_current_version()
         self.redraw_fast()
         self.redraw_slow()
-        self.update_timer_stat_loop()
+        threading.Thread(target=self.update_timer_stat_loop, daemon=True).start()
         self.view.update_table_active_journals(self.model.get_data_active_journals())
         # self._start_realtime_listener()
         self.check_app_update()
@@ -298,9 +298,10 @@ class CarrierController:
         self.view.update_time(now.strftime('%H:%M:%S'))
 
     def update_timer_stat_loop(self):
-        self.update_timer_stat()
-        threading.Timer(UPDATE_INTERVAL_TIMER_STATS // 1000, self.update_timer_stat_loop).start()
-    
+        while True:
+            self.update_timer_stat()
+            time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
+
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
         print('Updating timer stats')
         self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"] = getExpectedJumpTimer()
@@ -925,6 +926,7 @@ class CarrierController:
                         self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
                                                         for more information, check the FAQ on the GitHub page.')
                         self.tray_icon = None
+                        self.view.checkbox_minimize_to_tray_var.set(False)
                 else:
                     # tray icon already exists
                     pass
