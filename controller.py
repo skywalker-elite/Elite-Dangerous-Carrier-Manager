@@ -101,7 +101,7 @@ class CarrierController:
         self.redraw_slow()
         self.update_timer_stat_loop()
         self.view.update_table_active_journals(self.model.get_data_active_journals())
-        self._start_realtime_listener()
+        # self._start_realtime_listener()
         self.check_app_update()
         self.minimize_hint_sent = False
 
@@ -299,7 +299,7 @@ class CarrierController:
 
     def update_timer_stat_loop(self):
         self.update_timer_stat()
-        self.view.root.after(UPDATE_INTERVAL_TIMER_STATS, self.update_timer_stat_loop)
+        threading.Timer(UPDATE_INTERVAL_TIMER_STATS // 1000, self.update_timer_stat_loop).start()
     
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
         print('Updating timer stats')
@@ -641,44 +641,44 @@ class CarrierController:
     def redraw_timer_stat(self):
         self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"]))
 
-    def _start_realtime_listener(self):
-        self._realtime_loop = asyncio.new_event_loop()
-        t = threading.Thread(target=self._realtime_loop.run_forever, daemon=True)
-        t.start()
-        asyncio.run_coroutine_threadsafe(self._realtime_handler(), self._realtime_loop)
+    # def _start_realtime_listener(self):
+    #     self._realtime_loop = asyncio.new_event_loop()
+    #     t = threading.Thread(target=self._realtime_loop.run_forever, daemon=True)
+    #     t.start()
+    #     asyncio.run_coroutine_threadsafe(self._realtime_handler(), self._realtime_loop)
 
-    async def _realtime_handler(self):
-        url = f"{SUPABASE_URL}/realtime/v1"
-        token = SUPABASE_KEY
-        backoff = 1
-        while True:
-            try:
-                client = AsyncRealtimeClient(url=url, token=token)
-                ch = client.channel("public:jump_timers_public")
-                ch.on_postgres_changes(
-                    event="*", schema="public", table="jump_timers_public",
-                    callback=self.update_timer_stat
-                )
-                await ch.subscribe(callback=self._subscription_state_change)
-                print("Realtime subscription established")
-                while client.is_connected:
-                    await asyncio.sleep(1)
-                raise RuntimeError("Realtime client disconnected")
-            except Exception as e:
-                print(f"[realtime] subscription error: {e}, reconnecting in {backoff}s…")
-                await asyncio.sleep(backoff)
-                backoff = min(backoff * 2, 30)
+    # async def _realtime_handler(self):
+    #     url = f"{SUPABASE_URL}/realtime/v1"
+    #     token = SUPABASE_KEY
+    #     backoff = 1
+    #     while True:
+    #         try:
+    #             client = AsyncRealtimeClient(url=url, token=token)
+    #             ch = client.channel("public:jump_timers_public")
+    #             ch.on_postgres_changes(
+    #                 event="*", schema="public", table="jump_timers_public",
+    #                 callback=self.update_timer_stat
+    #             )
+    #             await ch.subscribe(callback=self._subscription_state_change)
+    #             print("Realtime subscription established")
+    #             while client.is_connected:
+    #                 await asyncio.sleep(1)
+    #             raise RuntimeError("Realtime client disconnected")
+    #         except Exception as e:
+    #             print(f"[realtime] subscription error: {e}, reconnecting in {backoff}s…")
+    #             await asyncio.sleep(backoff)
+    #             backoff = min(backoff * 2, 30)
 
-    def _subscription_state_change(self, state: RealtimeSubscribeStates, exception: Exception | None):
-        # just logging
-        if state is RealtimeSubscribeStates.TIMED_OUT:
-            print(f"Subscription timed out{f', exception={exception!r}' if exception else ''}")
-        elif state in (RealtimeSubscribeStates.CLOSED, RealtimeSubscribeStates.CHANNEL_ERROR):
-            print(f"Subscription closed{f', exception={exception!r}' if exception else ''}")
-        elif state is RealtimeSubscribeStates.SUBSCRIBED:
-            print("Subscription successful")
-        else:
-            print(f"Subscription state={state}, exception={exception!r}")
+    # def _subscription_state_change(self, state: RealtimeSubscribeStates, exception: Exception | None):
+    #     # just logging
+    #     if state is RealtimeSubscribeStates.TIMED_OUT:
+    #         print(f"Subscription timed out{f', exception={exception!r}' if exception else ''}")
+    #     elif state in (RealtimeSubscribeStates.CLOSED, RealtimeSubscribeStates.CHANNEL_ERROR):
+    #         print(f"Subscription closed{f', exception={exception!r}' if exception else ''}")
+    #     elif state is RealtimeSubscribeStates.SUBSCRIBED:
+    #         print("Subscription successful")
+    #     else:
+    #         print(f"Subscription state={state}, exception={exception!r}")
 
     def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]:
         if sheet is None:
