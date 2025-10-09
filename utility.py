@@ -209,7 +209,7 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
     h.update(str(carrierID).encode('utf-8'))
     return h.hexdigest()[:40]
 
-@rate_limited(max_calls=20, period=60)
+@rate_limited(max_calls=10, period=60)
 def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None]:
     response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats-v2')
     if response.status_code == 200:
