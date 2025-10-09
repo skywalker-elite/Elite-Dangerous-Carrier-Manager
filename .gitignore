@@ -8,3 +8,4 @@ build_local.spec
 .vscode/*
 fake_journal_test.py
 fake_journals
+installer/setup_local.iss
