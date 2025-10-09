@@ -129,6 +129,10 @@ class CarrierView:
         # self.button_post_trade.grid(row=0, column=0, sticky='sw')
         self.button_post_trade_trade.pack(side='left')
 
+        self.checkbox_filter_ghost_buys_var = tk.BooleanVar()
+        self.checkbox_filter_ghost_buys = ttk.Checkbutton(self.bottom_bar_trade, text='Filter Ghost Buys', variable=self.checkbox_filter_ghost_buys_var)
+        self.checkbox_filter_ghost_buys.pack(side='right')
+
         # finance tab
         self.sheet_finance = Sheet(self.tab_finance, name='sheet_finance')
 

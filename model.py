@@ -895,19 +895,18 @@ class CarrierModel:
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
     def get_formatted_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
-        df_active_trades = self.generate_info_trade(carrierID=carrierID)
+        df_active_trades = self.get_active_trades(carrierID=carrierID)
+        df_active_trades['Trade Type'] = df_active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
+        df_active_trades['Amount'] = df_active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).astype(float)
+        df_active_trades['Commodity'] = df_active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
+        df_active_trades = df_active_trades[df_active_trades['Commodity'].notna()]
+        df_active_trades['timestamp'] = df_active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+        df_active_trades = df_active_trades.sort_values('timestamp', ascending=False)
         if len(df_active_trades) == 0:
             return None
         else:
-            df_active_trades['Amount'] = df_active_trades['Amount'].str.replace(',', '').astype(float)
-            df_active_trades['Time Set (Local)'] = df_active_trades['Time Set (Local)'].apply(lambda x: datetime.strptime(x, '%x %X').replace(tzinfo=timezone.utc).astimezone())
-            df_active_trades.sort_values('Time Set (Local)', ascending=False, inplace=True)
-            total_tonnage = 0
-            for i in range(len(df_active_trades)):
-                total_tonnage += df_active_trades.iloc[i]['Amount']
-                if total_tonnage >= 25000:
-                    df_active_trades = df_active_trades.iloc[:i]
-                    break
+            df_active_trades = self.filter_likely_active_trades(df_active_trades, is_squadron_carrier=self.is_squadron_carrier(carrierID))
+            df_active_trades.sort_values('timestamp', ascending=False, inplace=True)
             df_active_trades.sort_values('Amount', ascending=False, inplace=True)
             largest_order = df_active_trades.iloc[0]
             commodity = largest_order['Commodity']
@@ -915,19 +914,29 @@ class CarrierModel:
             amount = round(amount / 500) * 500 / 1000
             if amount % 1 == 0:
                 amount = int(amount)
-            price = int(largest_order['Price'].replace(',', ''))
+            price = int(largest_order['Price'])
             order_type = largest_order['Trade Type'].lower()
             return (order_type, commodity, amount, price)
 
-    def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
-        trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids_display()]
+    def filter_likely_active_trades(self, df_active_trades: pd.DataFrame, is_squadron_carrier: bool=False) -> pd.DataFrame:
+        result = df_active_trades.copy()
+        total_tonnage = 0
+        for i in range(len(result)):
+            total_tonnage += result.iloc[i]['Amount']
+            if total_tonnage >= (60000 if is_squadron_carrier else 25000):
+                result = result.iloc[:i]
+                break
+        return result
+
+    def get_data_trade(self, filter_ghost_buys: bool=False) -> tuple[pd.DataFrame, list[int]|None]:
+        trades = [self.generate_info_trade(carrierID, filter_ghost_buys=filter_ghost_buys) for carrierID in self.sorted_ids_display()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
         self.trade_carrierIDs: list[int] = df['CarrierID'].to_list()
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
 
-    def generate_info_trade(self, carrierID: int) -> pd.DataFrame:
+    def generate_info_trade(self, carrierID: int, filter_ghost_buys: bool=False) -> pd.DataFrame:
         carrier_name = self.get_name(carrierID)
         active_trades = self.get_active_trades(carrierID)
         if len(active_trades) == 0:
@@ -938,9 +947,18 @@ class CarrierModel:
             active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
             active_trades = active_trades[active_trades['Commodity'].notna()]
             active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
-            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).apply(lambda x: f'{int(x):,}')
-            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
+            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1)
             active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            if filter_ghost_buys:
+                unloading_trades = active_trades[active_trades['Trade Type'] == 'Unloading'].copy()
+                likely_active_trades = self.filter_likely_active_trades(active_trades)
+                if unloading_trades.empty:
+                    active_trades = likely_active_trades
+                else:
+                    active_trades = pd.concat([unloading_trades, likely_active_trades]).sort_values('Time Set (Local)', ascending=False).drop_duplicates().reset_index(drop=True)
+            active_trades = active_trades.sort_values('timestamp', ascending=False)
+            active_trades['Amount'] = active_trades['Amount'].apply(lambda x: f'{int(x):,}')
+            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
             active_trades['Pending Decom'] = self.get_pending_decom(carrierID=carrierID)
             return active_trades[['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom']]
 
