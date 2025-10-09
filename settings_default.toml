@@ -56,7 +56,7 @@ cooldown_finished_discord_ping = false # Whether to ping when with the cooldown 
 
 [discord]
 webhook = "" # Discord webhook URL
-userID = "" # Discord user ID (optional, used for pings), find this by sending /@[your username] in discord, copy the number after the @ and paste it here.
+userID = "" # Discord user ID (optional, used for pings), find this by sending \@[your username] in discord, copy the number after the @ and paste it here.
 
 [font_size]
 # Font size for UI elements
