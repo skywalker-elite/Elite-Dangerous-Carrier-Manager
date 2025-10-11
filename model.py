@@ -384,7 +384,7 @@ class CarrierModel:
                 
     def process_squadrons(self, squadrons, first_read:bool=True):
         for carrierID in self.carriers.keys():
-            if self.carriers[carrierID].get('SquadronName', None) is None:
+            if self.carriers[carrierID].get('SquadronName', None) is None or not first_read:
                 self.carriers[carrierID]['SquadronName'] = squadrons.get(self.carrier_owners.get(carrierID, None), None)
 
     def fill_missing_data(self):
