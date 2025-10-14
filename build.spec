@@ -19,7 +19,7 @@ splash = Splash('images/EDCM_Splash.png',
                 datas=a.datas,
                 text_pos=(150, 470),
                 text_size=12,
-                text_color='black', 
+                text_color='black',
                 always_on_top=False)
 
 pyz = PYZ(a.pure)
@@ -28,10 +28,8 @@ exe = EXE(
     pyz,
     a.scripts,
     splash,
-    splash.binaries,
-    a.binaries,
-    a.datas,
     [],
+    exclude_binaries=True,
     name='Elite Dangerous Carrier Manager',
     debug=False,
     bootloader_ignore_signals=False,
@@ -46,4 +44,16 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['images/EDCM.ico'],
+)
+
+coll = COLLECT(
+    exe,
+    a.binaries,
+    a.zipfiles,
+    a.datas,
+    splash.binaries,
+    strip=False,
+    upx=True,
+    upx_exclude=[],
+    name='Elite Dangerous Carrier Manager'
 )
