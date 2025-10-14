@@ -12,6 +12,7 @@ PLOT_REMIND = timedelta(minutes=2)
 PLOT_WARN = timedelta(seconds=10)
 
 UPDATE_INTERVAL = 500
+UPDATE_INTERVAL_TIMER_STATS = 1000 * 30  # 30 seconds
 REDRAW_INTERVAL_FAST = 250
 REDRAW_INTERVAL_SLOW = 1000
 REMIND_INTERVAL = 500
@@ -73,3 +74,20 @@ font_sizes = {
     'colossal': 19 if platform != 'darwin' else 21,
     'capital class signature detected': 21 if platform != 'darwin' else 23,
 }
+
+timer_slope_thresholds = {
+'surge': 5e-10,
+'climb': 1e-10,
+'down': -5e-12
+}
+
+# --- Tooltip Configuration ---
+TOOLTIP_HOVER_DELAY = 500
+TOOLTIP_BACKGROUND = "#1c1c1c"
+TOOLTIP_FOREGROUND = '#ffffff'
+
+# --- Supabase Configuration ---
+SUPABASE_URL = "https://ujpdxqvevfxjivvnlzds.supabase.co"
+SUPABASE_KEY = "sb_publishable_W7XhQ246tT6rJipPKDMekQ_fOmMoIi2"
+LOCAL_PORT = 58832
+REDIRECT_URL = f"http://localhost:{LOCAL_PORT}/callback"

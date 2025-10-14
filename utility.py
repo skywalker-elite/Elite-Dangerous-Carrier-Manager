@@ -9,7 +9,14 @@ from numpy import datetime64
 import requests
 from packaging import version
 import hashlib
+from humanize import naturaltime
+import time
+from collections import deque
+from functools import wraps
 from os.path import join
+from pathlib import Path
+from config import timer_slope_thresholds
+from decos import rate_limited
 
 def getJournalPath() -> str:
     if sys.platform == 'win32':
@@ -32,15 +39,6 @@ def getHMS(seconds):
     h, m = divmod(m, 60)
     return h, m, s
 
-def formatForSort(s:str) -> str:
-    out = ''
-    for si in s:
-        if si.isdigit():
-            out += chr(ord(si) + 49)
-        else:
-            out += si
-    return out
-
 def getHammerCountdown(dt:datetime64) -> str:
     unix_time = dt.astype('datetime64[s]').astype('int')
     return f'<t:{unix_time}:R>'
@@ -57,12 +55,16 @@ def checkTimerFormat(timer:str) -> bool:
     return True
 
 def isUpdateAvailable() -> bool:
+    version_current = getCurrentVersion()      
     version_latest = getLatestVersion()
-    version_current = getCurrentVersion()
-    if version_latest is None or version.parse(version_latest) <= version.parse(version_current):
-        return False
-    else:
+    if version_latest is not None and version.parse(version_latest) > version.parse(version_current):
         return True
+    # if on a prerelease, look for newer prereleases
+    elif version.parse(version_current).is_prerelease:
+        version_latest = getLatestPrereleaseVersion()
+        if version_latest is not None and version.parse(version_latest) > version.parse(version_current):
+            return True
+    return False
 
 def getLatestVersion() -> str|None:
     try:
@@ -74,10 +76,55 @@ def getLatestVersion() -> str|None:
     latest_version = response.json()['name'].split()[1]
     return latest_version
 
+def isOnPrerelease() -> bool:
+    current = getCurrentVersion()
+    parsed_current = version.parse(current)
+    return parsed_current.is_prerelease
+
+@rate_limited(max_calls=1, period=60)
+def getLatestPrereleaseVersion() -> str|None:
+    """
+    Fetch all prerelease tags of the same major.minor as the current version
+    and return the highest prerelease.
+    """
+    try:
+        resp = requests.get(
+            'https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases'
+        )
+        resp.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        print(f'Error checking prerelease updates: {e}')
+        return None
+
+    # determine target major.minor
+    current = getCurrentVersion()
+    parsed_current = version.parse(current)
+    target_major = parsed_current.major
+    target_minor = parsed_current.minor
+
+    pre_versions = []
+    for rel in resp.json():
+        if rel.get('prerelease'):
+            name = rel.get('name', '')
+            tag = name.split()[1] if ' ' in name else name
+            clean = tag
+            try:
+                parsed = version.parse(clean)
+            except Exception:
+                continue
+            if parsed.is_prerelease and parsed.major == target_major and parsed.minor == target_minor:
+                pre_versions.append(tag)
+
+    if not pre_versions:
+        return None
+
+    # return the highest semver prerelease of the same major.minor
+    return max(pre_versions, key=lambda t: version.parse(t))
+
 def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
-        return f.readline()
-    
+        return f.readline().strip()
+
 def open_file(filename):
     if sys.platform == "win32":
         os.startfile(filename)
@@ -154,39 +201,61 @@ def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
             return os.path.join(cache_dir, 'cache', f'journal_reader_{jr_version}_{h.hexdigest()}.pkl')
         except:
             return None
+        
+def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
+    h = hashlib.sha256()
+    h.update(journal_timestamp.isoformat().encode('utf-8'))
+    h.update(str(timer).encode('utf-8'))
+    h.update(str(carrierID).encode('utf-8'))
+    return h.hexdigest()[:40]
 
-def debounce(wait_seconds):
-    """
-    Postpone a function’s execution until wait_seconds have elapsed since
-    the last call.  If the first arg has a .root, use root.after/after_cancel
-    so the callback won’t fire after the window is closed.
-    """
-    def decorator(fn):
-        @functools.wraps(fn)
-        def wrapped(*args, **kwargs):
-            self = args[0] if args else None
-            root = getattr(self, 'root', None)
-            # use a unique attr per instance+method:
-            after_attr = f'__debounce_after_id_{fn.__name__}'
-            if root and hasattr(root, 'after'):
-                # cancel previous
-                prev = getattr(self, after_attr, None)
-                if prev:
-                    try:
-                        root.after_cancel(prev)
-                    except Exception:
-                        pass
-                # schedule new
-                handle = root.after(int(wait_seconds * 1000), lambda: fn(*args, **kwargs))
-                setattr(self, after_attr, handle)
-            else:
-                # fallback to threading.Timer
-                timer_attr = f'__debounce_timer_{fn.__name__}'
-                prev_timer = getattr(self, timer_attr, None)
-                if prev_timer:
-                    prev_timer.cancel()
-                t = threading.Timer(wait_seconds, lambda: fn(*args, **kwargs))
-                setattr(self, timer_attr, t)
-                t.start()
-        return wrapped
-    return decorator
+@rate_limited(max_calls=10, period=60)
+def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None]:
+    response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats-v2')
+    if response.status_code == 200:
+        data = response.json()[0]
+        if data is None:
+            return None, None, None, None
+        avg_timer = data.get('avg', None)
+        count = data.get('cnt', None)
+        earliest = data.get('earliest', None)
+        latest = data.get('latest', None)
+        slope = data.get('slope', None)
+        if avg_timer is not None:
+            h, m, s = getHMS(int(avg_timer))
+            avg_timer = f'{h:02} h {m:02} m {s:02} s'
+        return avg_timer, count, datetime.fromisoformat(earliest) if earliest else None, datetime.fromisoformat(latest) if latest else None, slope
+    return None, None, None, None, None
+
+def getHumanizedExpectedJumpTimer() -> str:
+    avg_timer, count, earliest, latest, slope = getExpectedJumpTimer()
+    return getTimerStatDescription(avg_timer, count, earliest, latest, slope)
+
+def getTimerStatDescription(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None, slope:float|None) -> str:
+    # Disable slope description for now, not enough data to be useful
+    # return '\n'.join([generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest), generateTimerSlopeDescription(slope)])
+    return generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest)
+
+def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None) -> str:
+    if avg_timer is None:
+        return 'No recent timer reported'
+    else:
+        earliest_str = naturaltime(earliest) if earliest else 'N/A'
+        latest_str = naturaltime(latest) if latest else 'N/A'
+        return f'Average jump timer: {avg_timer} based on {count} report(s) from {earliest_str} to {latest_str}'
+    
+def generateTimerSlopeDescription(slope:float|None) -> str:
+    return '' # Disable slope description for now, not enough data to be useful
+    if slope is None:
+        return 'No trend data available'
+    elif slope > timer_slope_thresholds['surge']:
+        return 'Timer is surging'
+    elif slope > timer_slope_thresholds['climb']:
+        return 'Timer is climbing'
+    elif slope < timer_slope_thresholds['down']:
+        return 'Timer is declining'
+    else:
+        return 'Timer is stable'
+
+if __name__ == '__main__':
+    print(getHumanizedExpectedJumpTimer())

@@ -4,6 +4,7 @@ import sys
 import threading
 import time
 from typing import Callable, TYPE_CHECKING
+from realtime import PostgresChangesPayload, AsyncRealtimeClient, RealtimeSubscribeStates
 import pyperclip
 import re
 from watchdog.observers import Observer
@@ -17,18 +18,23 @@ from tkinter import Tk
 import traceback
 import tomllib
 import pickle
+import asyncio
+import pandas as pd
 from string import Template
 from playsound3 import playsound
 from tkinter import Tk
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
+from supabase import FunctionsHttpError
+from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getCurrentVersion, getLatestVersion, getResourcePath, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, debounce
+from utility import checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from decos import debounce
 from discord_handler import DiscordWebhookHandler
-from config import PLOT_WARN, UPDATE_INTERVAL, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems
+from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
 
 if TYPE_CHECKING: 
     import tksheet
@@ -46,16 +52,19 @@ class CarrierController:
         self.root = root
         self.model = model
         self.tray_icon = None
+        self.auth_handler = AuthHandler()
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
-        
+        self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None}
+
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
@@ -71,6 +80,11 @@ class CarrierController:
         self.view.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'show_active_journals_tab', value=self.view.checkbox_show_active_journals_var.get()))
         self.view.checkbox_minimize_to_tray_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'minimize_to_tray', value=self.view.checkbox_minimize_to_tray_var.get()))
         self.view.checkbox_minimize_to_tray.configure(command=lambda: self.setup_tray_icon())
+        self.view.checkbox_enable_timer_reporting_var.trace_add('write', lambda *args: self.settings.set_config('timer_reporting', 'enabled', value=self.view.checkbox_enable_timer_reporting_var.get()))
+        self.view.button_login.configure(command=self.button_click_login)
+        self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
+        self.view.button_verify_roles.configure(command=self.button_click_verify_roles)
+        self.view.button_delete_account.configure(command=self.button_click_delete_account)
 
         # initial load
         self.update_journals()
@@ -86,12 +100,21 @@ class CarrierController:
         self.set_current_version()
         self.redraw_fast()
         self.redraw_slow()
+        threading.Thread(target=self.update_timer_stat_loop, daemon=True).start()
         self.view.update_table_active_journals(self.model.get_data_active_journals())
-        self.set_current_version()
+        # self._start_realtime_listener()
         self.check_app_update()
         self.minimize_hint_sent = False
 
         threading.Thread(target=self.save_cache).start()
+
+        if self.auth_handler.is_logged_in():
+            self.on_sign_in(show_message=False)
+        else:
+            self.on_sign_out(show_message=False)
+
+        self.auth_handler.register_auth_event_callback('SIGNED_IN', self.on_sign_in)
+        self.auth_handler.register_auth_event_callback('SIGNED_OUT', self.on_sign_out)
 
         self.save_window_size_on_resize()
 
@@ -112,31 +135,46 @@ class CarrierController:
     
     def check_app_update(self, notify_is_latest:bool=False):
         if isUpdateAvailable():
-            if self.view.show_message_box_askyesno('Update Available', f'New version available: {getLatestVersion()}\n Go to download?'):
-                open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
+            if isOnPrerelease():
+                version_latest = getLatestPrereleaseVersion()
+            else:
+                version_latest = getLatestVersion()
+            prompt = f'New version available: {version_latest}\nGo to download?'
+            if self.view.show_message_box_askyesno('Update Available', prompt):
+                if isOnPrerelease():
+                    url = f'https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/tag/{version_latest}'
+                else:
+                    url = 'https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest'
+                open_new_tab(url=url)
         elif notify_is_latest:
-            self.view.show_message_box_info('No update available', f'You are using the latest version: {getCurrentVersion()}')
+            version_current = getCurrentVersion()
+            self.view.show_message_box_info('No update available', f'You are using the latest version: {version_current}')
     
     def load_settings(self, settings_file:str):
-        try:
-            self.settings = Settings(settings_file=settings_file)
-        except FileNotFoundError as e:
+        if not os.path.exists(settings_file):
             if settings_file == getSettingsDefaultPath():
-                raise e
+                raise FileNotFoundError(f'Default settings file not found at {settings_file}')
             else:
                 if self.view.show_message_box_askyesno('Settings file not found', 'Do you want to create a new settings file?'):
-                    makedirs(getAppDir(), exist_ok=True)
-                    copyfile(getSettingsDefaultPath(), settings_file)
+                    try:
+                        makedirs(getAppDir(), exist_ok=True)
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f'Could not create app directory:\n{e}')
+                    try:
+                        copyfile(getSettingsDefaultPath(), settings_file)
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f'Could not copy default settings file:\n{e}')
                     if self.view.show_message_box_askyesno('Success!', 'Settings file created using default settings. \nDo you want to edit it now?'):
                         try:
                             open_file(settings_file)
                         except Exception as e:
                             self.view.show_message_box_warning('Error', f'Could not open settings file:\n{e}')
                         self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
-                    self.settings = Settings(settings_file=settings_file)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
-                    self.settings = Settings(settings_file=getSettingsDefaultPath())
+                    settings_file=getSettingsDefaultPath()
+        try:
+            self.settings = Settings(settings_file=settings_file)
         except tomllib.TOMLDecodeError as e:
             if settings_file == getSettingsDefaultPath():
                 raise e
@@ -153,18 +191,23 @@ class CarrierController:
             if self.settings.validation_warnings:
                 self.view.show_message_box_warning('Settings file warnings', f'{"\n".join(self.settings.validation_warnings)}')
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
-            self.model.reset_ignore_list()
-            self.model.reset_sfc_whitelist()
-            self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
-            self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
-            self.model.custom_order = self.settings.get('advanced', 'custom_order')
-            self.model.read_journals() # re-read journals to apply ignore list and custom order
+            self.apply_settings_to_model()
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.root.geometry(self.settings.get('UI', 'window_size'))
+            self.view.checkbox_filter_ghost_buys_var.set(self.settings.get('Trade', 'filter_ghost_buys'))
             self.view.checkbox_show_active_journals_var.set(self.settings.get('UI', 'show_active_journals_tab'))
             self.view.checkbox_minimize_to_tray_var.set(self.settings.get('UI', 'minimize_to_tray'))
             self.setup_tray_icon()
 
+    def apply_settings_to_model(self):
+        self.model.reset_ignore_list()
+        self.model.reset_sfc_whitelist()
+        self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
+        self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+        self.model.set_custom_order(self.settings.get('advanced', 'custom_order'))
+        self.model.set_squadron_abbv_mapping(self.settings.get('name_customization', 'squadron_abbv'))
+        self.model.read_journals() # re-read journals to apply ignore list and custom order
+    
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
         if status_new == 'jumping':
@@ -180,6 +223,8 @@ class CarrierController:
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=self.model.get_destination_system(carrierID, use_custom_name=True), other_body=self.model.get_destination_body(carrierID),
                     timestamp=self.model.get_departure_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_plotted_discord_ping'))
+            if self.settings.get('timer_reporting', 'enabled'):
+                self.report_jump_timer(carrierID)
         elif status_new == 'cool_down':
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
@@ -250,12 +295,21 @@ class CarrierController:
     def update_tables_slow(self, now):
         pending_decom = self.model.get_rows_pending_decom()
         self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
-        self.view.update_table_trade(*self.model.get_data_trade())
+        self.view.update_table_trade(*self.model.get_data_trade(filter_ghost_buys=self.view.checkbox_filter_ghost_buys_var.get())) #TODO: reduce update rate for performance
         self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance
         self.view.update_table_misc(self.model.get_data_misc(), pending_decom) #TODO: reduce update rate for performance
 
     def update_time(self, now):
         self.view.update_time(now.strftime('%H:%M:%S'))
+
+    def update_timer_stat_loop(self):
+        while True:
+            self.update_timer_stat()
+            time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
+
+    def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
+        print('Updating timer stats')
+        self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"] = getExpectedJumpTimer()
     
     def update_journals(self):
         try:
@@ -339,25 +393,22 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', f'please select one {"carrier" if sheet.name == "sheet_jumps" else "trade"} and one {"carrier" if sheet.name == "sheet_jumps" else "trade"} only!')
 
-    def handle_peak_trade_logic(self, carrierID, carrier_name, system, carrier_callsign, order):
-        if order is not None:
-            trade_type, commodity, _, price = order
-            if trade_type == 'unloading' and commodity == 'Wine':
-                if not 21500 < price < 22500:
-                    if not self.view.show_message_box_askyesno('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\n Are you sure you want to post this?'):
-                        return
-                body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
-                planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
-                if planetary_body is not None:
-                    timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
-                    post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
-                    self.copy_to_clipboard(post_string, 'It\'s wine o\'clock', 'Wine unload command copied')
-                else:
-                    self.view.show_message_box_warning('Error', f'Something went really wrong, please contact the developer and provide the following:\n {system=}, {body_id=}, {planetary_body=}')
+    def handle_peak_trade_logic(self, carrierID: int, carrier_name: str, system: str, carrier_callsign: str, order: tuple[str, str, int | float, int]|None):
+        body_id = self.model.get_current_or_destination_body_id(carrierID=carrierID)
+        planetary_body = {0: 'Star', 1: 'Planet 1', 2: 'Planet 2', 3: 'Planet 3', 4: 'Planet 4', 5: 'Planet 5', 16: 'Planet 6'}.get(body_id, None) # Yes, the body_id of Planet 6 is 16, don't ask me why
+        if planetary_body is not None:
+            timed_unload = self.view.show_message_box_askyesno('Timed unload?', 'Is this a timed unload? (Please follow STC instructions)')
+            post_string = self.generate_wine_unload_post_string(carrier_callsign=carrier_callsign, planetary_body=planetary_body, timed_unload=timed_unload)
+            self.copy_to_clipboard(post_string, 'It\'s wine o\'clock', f'{"Timed" if timed_unload else "Wine"} unload command copied')
+            if order is None or (order[0] != 'unloading' or order[1] != 'Wine'): # no wine unload order
+                if not timed_unload:
+                    self.view.show_message_box_warning('Warning', 'You have not opened the market yet!\nMake sure to open the market before running the unload command!')
             else:
-                self.view.show_message_box_warning('What?', 'This carrier is at the peak, it can only unload wine, everything else is illegal')
-        else:
-            self.view.show_message_box_warning('No trade order', f'There is no trade order set for {carrier_name} ({carrier_callsign})')
+                if timed_unload:
+                    self.view.show_message_box_warning('Warning', 'You have already opened the market!\nYou should close the market now and open it when it\'s time to unload.')
+                _, _, _, price = order
+                if not 21500 < price < 22500:
+                    self.view.show_message_box_warning('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\nMake sure to follow the guidelines!')
 
     def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         station = trade_post_view.cbox_stations.get()
@@ -572,6 +623,7 @@ class CarrierController:
             now = datetime.now(timezone.utc)
             self.update_tables_fast(now)
             self.update_time(now)
+            self.redraw_timer_stat()
         except Exception as e:
             if self.view.show_message_box_askretrycancel('Error', f'An error occurred\n{traceback.format_exc()}'):
                 self.view.root.after(REDRAW_INTERVAL_FAST, self.redraw_fast)
@@ -591,6 +643,48 @@ class CarrierController:
                 self.view.root.destroy()
         else:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
+
+    def redraw_timer_stat(self):
+        self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"]))
+
+    # def _start_realtime_listener(self):
+    #     self._realtime_loop = asyncio.new_event_loop()
+    #     t = threading.Thread(target=self._realtime_loop.run_forever, daemon=True)
+    #     t.start()
+    #     asyncio.run_coroutine_threadsafe(self._realtime_handler(), self._realtime_loop)
+
+    # async def _realtime_handler(self):
+    #     url = f"{SUPABASE_URL}/realtime/v1"
+    #     token = SUPABASE_KEY
+    #     backoff = 1
+    #     while True:
+    #         try:
+    #             client = AsyncRealtimeClient(url=url, token=token)
+    #             ch = client.channel("public:jump_timers_public")
+    #             ch.on_postgres_changes(
+    #                 event="*", schema="public", table="jump_timers_public",
+    #                 callback=self.update_timer_stat
+    #             )
+    #             await ch.subscribe(callback=self._subscription_state_change)
+    #             print("Realtime subscription established")
+    #             while client.is_connected:
+    #                 await asyncio.sleep(1)
+    #             raise RuntimeError("Realtime client disconnected")
+    #         except Exception as e:
+    #             print(f"[realtime] subscription error: {e}, reconnecting in {backoff}s…")
+    #             await asyncio.sleep(backoff)
+    #             backoff = min(backoff * 2, 30)
+
+    # def _subscription_state_change(self, state: RealtimeSubscribeStates, exception: Exception | None):
+    #     # just logging
+    #     if state is RealtimeSubscribeStates.TIMED_OUT:
+    #         print(f"Subscription timed out{f', exception={exception!r}' if exception else ''}")
+    #     elif state in (RealtimeSubscribeStates.CLOSED, RealtimeSubscribeStates.CHANNEL_ERROR):
+    #         print(f"Subscription closed{f', exception={exception!r}' if exception else ''}")
+    #     elif state is RealtimeSubscribeStates.SUBSCRIBED:
+    #         print("Subscription successful")
+    #     else:
+    #         print(f"Subscription state={state}, exception={exception!r}")
 
     def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]:
         if sheet is None:
@@ -652,6 +746,170 @@ class CarrierController:
         self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
         self.model.register_status_change_callback(self.status_change)
         self.model.read_journals()
+        self.apply_settings_to_model()
+
+    def button_click_login(self):
+        if not self.auth_handler.is_logged_in():
+            threading.Thread(target=self.auth_handler.login, daemon=True).start()
+        else:
+            self.view.root.after(0, self.view.show_message_box_info, 'Info', f'Already logged in as {self.auth_handler.get_username()}')
+
+    def button_click_logout(self):
+        if self.auth_handler.is_logged_in():
+            if self.view.show_message_box_askyesno('Logout', f'Do you want to logout of {self.auth_handler.get_username()}?'):
+                threading.Thread(target=self.auth_handler.logout, daemon=True).start()
+        else:
+            self.view.show_message_box_info('Info', 'Not logged in')
+
+    def button_click_verify_roles(self):
+        in_ptn, roles = self.auth_handler.auth_PTN_roles()
+        if in_ptn is None:
+            self.view.show_message_box_warning('Error', 'Error while verifying roles, please try again later')
+        elif not in_ptn:
+            self.view.show_message_box_info('Not in PTN', 'You are not in the PTN Discord server, please make sure you are using the correct Discord account')
+        elif not roles:
+            self.view.show_message_box_info('Info', f'You are in the PTN, but have no elevated roles assigned.')
+        else:
+            roles_str = ', '.join(roles)
+            self.view.show_message_box_info('Success!', f'You are in the PTN and have the following roles:\n {roles_str}')
+
+    def button_click_delete_account(self):
+        if self.auth_handler.is_logged_in():
+            if self.view.show_message_box_askyesno('Delete Account', 'Are you sure you want to delete your account?\n'
+                                                    'This action cannot be undone.'):
+                if self.view.show_message_box_askyesno('Delete Account', 'This will also delete all your data, including all the jump timers you\'ve ever reported.\n'
+                                                         'Are you really sure you want to delete your account?'):
+                    self.auth_handler.delete_account()
+                    self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
+
+    def on_sign_out(self, show_message: bool=True):
+        if show_message:
+            self.view.show_message_box_info('Logged Out', 'You have been logged out')
+        self.view.button_login.configure(text='Login with Discord')
+        self.view.button_login.configure(command=lambda: threading.Thread(target=self.button_click_login, daemon=True).start())
+        self.view.checkbox_enable_timer_reporting.configure(state='disabled')
+        # self.view.checkbox_enable_timer_reporting_var.set(False)
+        self.view.button_verify_roles.configure(state='disabled')
+        self.view.button_delete_account.configure(state='disabled')
+        self.view.button_report_timer_history.configure(state='disabled')
+
+    def on_sign_in(self, show_message: bool=True):
+        if show_message:
+            self.view.show_message_box_info('Logged In', f'You are now logged in as {self.auth_handler.get_username()}')
+        self.view.button_login.configure(text=f'Logout of {self.auth_handler.get_username()}')
+        self.view.button_login.configure(command=self.button_click_logout)
+        self.view.checkbox_enable_timer_reporting.configure(state='normal')
+        self.view.checkbox_enable_timer_reporting_var.set(self.settings.get('timer_reporting', 'enabled'))
+        self.view.button_verify_roles.configure(state='normal')
+        self.view.button_delete_account.configure(state='normal')
+        self.view.button_report_timer_history.configure(state='normal')
+
+    def report_jump_timer(self, carrierID:int):
+        if self.model.get_current_or_destination_system(carrierID) in ['HD 105341','HIP 58832']:
+            print(f'Skipping jump timer report for N1 and N0')
+            return
+        if self.auth_handler.is_logged_in():
+            jump_plot_timestamp = self.model.get_latest_jump_plot(carrierID)
+            latest_departure_time = self.model.get_latest_departure(carrierID)
+            payload = self.generate_timer_payload(carrierID, jump_plot_timestamp, latest_departure_time)
+            # Report the jump timer to the server
+            try:
+                response = self.auth_handler.client.functions.invoke("submit-report", invoke_options={'body': payload})
+                print('Report submitted successfully:', response.decode('utf-8'))
+            except Exception as e:
+                print(f"Error reporting jump timer: {e}")
+
+    def generate_timer_payload(self, carrierID:int, jump_plot_timestamp:datetime|None, latest_departure_time:datetime|None) -> dict:
+        timer = self.model.get_jump_timer_in_seconds(jump_plot_timestamp, latest_departure_time)
+        if timer is None:
+            raise RuntimeError(f'Cannot generate timer payload, timer is None for {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})')
+        payload = {
+            "journal_timestamp": jump_plot_timestamp.isoformat(),
+            "timer": timer,
+            "info_hash": getInfoHash(journal_timestamp=jump_plot_timestamp, timer=timer, carrierID=carrierID)
+        }
+        return payload
+
+    def generate_timer_history(self) -> pd.DataFrame:
+        payloads = []
+        for carrierID in self.model.sorted_ids_display():
+            jumps: pd.DataFrame = self.model.get_carriers()[carrierID]['jumps']
+            for _, jump in jumps.iterrows():
+                jump_plot_timestamp = jump['timestamp']
+                departure_time = jump.get('DepartureTime', None)
+                if departure_time is None:
+                    continue
+                payload = self.generate_timer_payload(carrierID, jump_plot_timestamp, departure_time)
+                payloads.append(payload)
+        df = pd.DataFrame(payloads, columns=['journal_timestamp', 'timer', 'info_hash'])
+        return df
+
+    def report_timer_history(self) -> tuple[int|None, int|None, int|None]:
+        if self.auth_handler.is_logged_in():
+            df = self.generate_timer_history()
+            if df.empty:
+                return 0, None, None
+            def _chunks(seq: list[dict[str, any]], size: int):
+                for i in range(0, len(seq), size):
+                    yield seq[i:i+size]
+            totals = {"submitted": 0, "inserted": 0, "skipped": 0}
+            for chunk in _chunks(df.to_dict(orient='records'), 500):
+                response = self.auth_handler.client.functions.invoke("submit-bulk-report", invoke_options={'body': chunk})
+                if type(response) is bytes:
+                    response = json.loads(response.decode('utf-8'))
+                if 'error' in response:
+                    raise RuntimeError(f"Error reporting jump timer: {response.error}")
+                if response.get('ok', None) is True:
+                    totals['submitted'] += len(chunk)
+                    totals['inserted'] += response.get('inserted', None)
+                    totals['skipped'] += response.get('skipped', None)
+                else:
+                    print(f"Error reporting jump timer: {response}")
+                    raise RuntimeError(f"Error reporting jump timer: {response}")
+            return totals['submitted'], totals['inserted'], totals['skipped']
+        return None, None, None
+
+    def button_click_report_timer_history(self):
+        if not self.auth_handler.is_logged_in():
+            return self.view.show_message_box_warning('Not logged in', 'You need to be logged in to report timer history')
+        if not self.auth_handler.can_bulk_report():
+            return self.view.show_message_box_warning(
+                'Permission denied',
+                'You need certain PTN roles to report jump timer history.\n'
+                'Use "Verify PTN Roles" to refresh your roles if you recently got promoted.\n'
+                'If you think you should have access, please contact the developer: Skywalker.'
+            )
+        if not self.view.show_message_box_askyesno(
+            'Report timer history',
+            'Caution: This will report every jump you have ever made (except the ignored carriers), do you want to continue?'
+        ):
+            return
+
+        # spawn a background thread so the UI stays responsive
+        thread_report_history = threading.Thread(target=self._run_report_timer_history, daemon=True)
+        thread_report_history.start()
+
+    def _run_report_timer_history(self):
+        try:
+            submitted, inserted, skipped = self.report_timer_history()
+            if submitted is None:
+                box = 'warning'; title = 'Error'; msg = 'Error reporting jump timer history, please try again later'
+            elif submitted > 0:
+                box = 'info'; title = 'Success'; msg = f'Submitted {submitted} jump timers, {inserted} accepted, {skipped} skipped.'
+            else:
+                box = 'info'; title = 'No Data'; msg = 'No jump timers to report.'
+        except FunctionsHttpError as e:
+            if e.status == 429:
+                box = 'warning'; title = 'Rate limited'; msg = 'You are being rate limited, please try again later'
+            else:
+                box = 'warning'; title = 'Error'; msg = f'Error reporting jump timer history\n{e.name} {e.status}: {e.message}'
+        except Exception:
+            box = 'warning'; title = 'Error'; msg = f'Error reporting jump timer history\n{traceback.format_exc()}'
+
+        # back onto the Tk event loop to show the dialog
+        self.view.root.after(0, lambda:
+            getattr(self.view, f'show_message_box_{box}')(title, msg)
+        )
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():
@@ -674,6 +932,7 @@ class CarrierController:
                         self.view.show_message_box_warning('Error', 'System tray not supported on this system, minimize to tray disabled\n \
                                                         for more information, check the FAQ on the GitHub page.')
                         self.tray_icon = None
+                        self.view.checkbox_minimize_to_tray_var.set(False)
                 else:
                     # tray icon already exists
                     pass

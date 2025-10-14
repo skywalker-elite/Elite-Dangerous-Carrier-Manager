@@ -38,8 +38,10 @@ class JournalReader:
         self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
-        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
-        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._squadron_startup = {}
+        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']
+        self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
         self.dropout = dropout
         self.droplist = droplist
@@ -48,12 +50,12 @@ class JournalReader:
                 print('Dropout mode active, journal data is randomly dropped')
                 self.droplist = [i for i in range(10) if random() < 0.5]
                 for i in self.droplist:
-                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+                    print(f'{self.tracked_items + ["carrier_owners"][i]} was dropped')
             else:
                 print('Dropout mode active, journal data is dropped')
-                self.droplist = [["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"].index(i) for i in self.droplist]
+                self.droplist = [self.tracked_items + ["carrier_owners"].index(i) for i in self.droplist]
                 for i in self.droplist:
-                    print(f'{["load_games", "carrier_locations", "jump_requests", "jump_cancels", "stats", "trade_orders", "carrier_buys", "trit_deposits", "docking_perms", "carrier_owners"][i]} was dropped')
+                    print(f'{self.tracked_items + ["carrier_owners"][i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -145,16 +147,19 @@ class JournalReader:
                 self._carrier_buys.append(item)
             if item['event'] == 'CarrierDockingPermission':
                 self._docking_perms.append(item)
+            if item['event'] == 'SquadronStartup':
+                if fid is not None:
+                    self._squadron_startup[fid] = item['SquadronName']
                 
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid, is_active
     
     def _get_parsed_items(self):
-        return [sorted(i, key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True) 
-                for i in [self._load_games, self._carrier_locations, self._jump_requests, self._jump_cancels, self._stats, self._trade_orders, self._carrier_buys, self._trit_deposits, self._docking_perms]] + [self._carrier_owners]
+        return [sorted(getattr(self, f'_{item_type}'), key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True)
+                for item_type in self.tracked_items] + [self._squadron_startup, self._carrier_owners]
     
     def get_items(self) -> list:
-        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         if self.dropout:
             items = self.items.copy()
             for i in self.droplist:
@@ -164,10 +169,10 @@ class JournalReader:
     
     def get_new_items(self) -> list:
         items = []
-        for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']:
+        for item_type in self.tracked_items:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
-        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']}
-        return items + [self._carrier_owners]
+        self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
+        return items + [self._squadron_startup,self._carrier_owners]
     
     def update_items_count(self):
         self._last_items_count = self._last_items_count_pending.copy()
@@ -203,6 +208,7 @@ class CarrierModel:
         self._ignore_list = []
         self._sfc_white_list = []
         self.custom_order = []
+        self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
@@ -224,7 +230,7 @@ class CarrierModel:
     def read_journals(self):
         self.journal_reader.read_journals()
         first_read = self.carriers == {}
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, squadrons, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
         # print(self.read_counter, first_read, len(load_games), len(carrier_locations), len(jump_requests), len(jump_cancels), len(stats), len(trade_orders), len(carrier_buys), len(trit_deposits), len(docking_perms))
         # self.read_counter += 1
         self.process_load_games(load_games, first_read)
@@ -243,9 +249,13 @@ class CarrierModel:
 
         self.process_trade_orders(trade_orders, first_read)
 
+        self.process_squadrons(squadrons, first_read)
+
         self.fill_missing_data()
 
         self.update_ignore_list()
+
+        
 
         self.journal_reader.update_items_count()
 
@@ -372,6 +382,10 @@ class CarrierModel:
                             fc_active_trades[commodity] = order
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
                 
+    def process_squadrons(self, squadrons, first_read:bool=True):
+        for carrierID in self.carriers.keys():
+            if self.carriers[carrierID].get('SquadronName', None) is None or not first_read:
+                self.carriers[carrierID]['SquadronName'] = squadrons.get(self.carrier_owners.get(carrierID, None), None)
 
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
@@ -421,6 +435,12 @@ class CarrierModel:
             if 'isSquadronCarrier' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['isSquadronCarrier'] = False
 
+            if 'SquadronName' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['SquadronName'] = None
+
+    def set_custom_order(self, call_signs: list[str]):
+        self.custom_order = call_signs
+    
     def add_sfc_whitelist(self, call_signs: list[str]):
         for call_sign in call_signs:
             carrierID = self.get_id_by_callsign(call_sign)
@@ -450,12 +470,16 @@ class CarrierModel:
     def reset_sfc_whitelist(self):
         self._sfc_white_list = []
 
+    def set_squadron_abbv_mapping(self, mapping:list[dict[str, str]]):
+        self._squadron_abbv_mapping = {list(item.keys())[0].lower(): list(item.values())[0].upper() for item in mapping}
+
     def update_carriers(self, now):
         carriers = self.carriers.copy()
         for carrierID in carriers.keys():
             data = carriers[carrierID].copy()
             if len(data['jumps']) == 0:
                 data['latest_depart'] = None
+                data['latest_jump_plot'] = None
                 latest_body = None
                 latest_body_id = None
                 pre_system = None
@@ -470,6 +494,7 @@ class CarrierModel:
                 time_diff = None
             else:
                 data['latest_depart'] = data['jumps'].iloc[0]['DepartureTime']
+                data['latest_jump_plot'] = data['jumps'].iloc[0]['timestamp']
                 latest_body = data['jumps'].iloc[0]['Body']
                 latest_body_id = data['jumps'].iloc[0]['BodyID']
                 latest_system = data['jumps'].iloc[0]['SystemName']
@@ -699,6 +724,7 @@ class CarrierModel:
     def get_data_misc(self):
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Squadron Name'] = [self.generate_info_squadron_name(carrierID) for carrierID in self.sorted_ids_display()]
         df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids_display()]
         df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids_display()]
         df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids_display()]
@@ -709,8 +735,22 @@ class CarrierModel:
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids_display()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
+        return df[['Carrier Name', 'Squadron Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
+    def generate_info_squadron_name(self, carrierID: int) -> str:
+        squadron_name = self.get_squadron_name(carrierID=carrierID)
+        if squadron_name is None:
+            return self.get_callsign(carrierID=carrierID) if self.is_squadron_carrier(carrierID) else 'Unknown'
+        else:
+            squadron_name_lower = squadron_name.lower()
+            if squadron_name_lower in self._squadron_abbv_mapping.keys():
+                return self._squadron_abbv_mapping[squadron_name_lower][:4]
+            if len(squadron_name) <= 6:
+                return squadron_name.upper()
+            abbv = ''.join([word[0] for word in squadron_name.split() if word[0].isalpha()]).upper()
+            return abbv[:4]
+            
+    
     def generate_info_docking_perm(self, carrierID: int) -> tuple[Literal['All', 'Friends', 'Squadron', 'Squadron&Friends', 'None', 'Unknown'], Literal['Yes', 'No', 'Unknown']]:
         if self.is_squadron_carrier(carrierID):
             docking_perm = {'DockingAccess': 'squadron', 'AllowNotorious': False}
@@ -773,8 +813,24 @@ class CarrierModel:
     def get_callsign(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['Callsign']
     
+    def get_squadron_name(self, carrierID: int) -> str|None:
+        squadron_name = self.get_carriers()[carrierID]['SquadronName']
+        return squadron_name
+    
     def get_status(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['status']
+
+    def get_latest_departure(self, carrierID:int) -> datetime|None:
+        return self.get_carriers()[carrierID]['latest_depart']
+
+    def get_latest_jump_plot(self, carrierID:int) -> datetime|None:
+        return self.get_carriers()[carrierID]['latest_jump_plot']
+
+    def get_jump_timer_in_seconds(self, latest_jump_plot: datetime|None, latest_depart: datetime|None) -> int|None:
+        if latest_depart is None or latest_jump_plot is None:
+            return None
+        time_diff = latest_depart - latest_jump_plot
+        return int(time_diff.total_seconds())
 
     def get_current_system(self, carrierID: int, use_custom_name:bool=False) -> str:
         system_name = self.get_carriers()[carrierID]['current_system']
@@ -841,11 +897,11 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['isSquadronCarrier']
 
     def get_departure_hammer_countdown(self, carrierID: int) -> str|None:
-        latest_depart = self.get_carriers()[carrierID]['latest_depart']
+        latest_depart = self.get_latest_departure(carrierID)
         return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
 
     def get_cooldown_hammer_countdown(self, carrierID: int) -> str|None:
-        latest_cooldown = self.get_carriers()[carrierID]['latest_depart'] + CD if self.get_carriers()[carrierID]['latest_depart'] is not None else None
+        latest_cooldown = self.get_latest_departure(carrierID) + CD if self.get_latest_departure(carrierID) is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
     def get_cooldown_cancel_hammer_countdown(self, carrierID: int) -> str|None:
@@ -853,19 +909,18 @@ class CarrierModel:
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
     def get_formatted_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
-        df_active_trades = self.generate_info_trade(carrierID=carrierID)
+        df_active_trades = self.get_active_trades(carrierID=carrierID)
+        df_active_trades['Trade Type'] = df_active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
+        df_active_trades['Amount'] = df_active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).astype(float)
+        df_active_trades['Commodity'] = df_active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
+        df_active_trades = df_active_trades[df_active_trades['Commodity'].notna()]
+        df_active_trades['timestamp'] = df_active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+        df_active_trades = df_active_trades.sort_values('timestamp', ascending=False)
         if len(df_active_trades) == 0:
             return None
         else:
-            df_active_trades['Amount'] = df_active_trades['Amount'].str.replace(',', '').astype(float)
-            df_active_trades['Time Set (Local)'] = df_active_trades['Time Set (Local)'].apply(lambda x: datetime.strptime(x, '%x %X').replace(tzinfo=timezone.utc).astimezone())
-            df_active_trades.sort_values('Time Set (Local)', ascending=False, inplace=True)
-            total_tonnage = 0
-            for i in range(len(df_active_trades)):
-                total_tonnage += df_active_trades.iloc[i]['Amount']
-                if total_tonnage >= 25000:
-                    df_active_trades = df_active_trades.iloc[:i]
-                    break
+            df_active_trades = self.filter_likely_active_trades(df_active_trades, is_squadron_carrier=self.is_squadron_carrier(carrierID))
+            df_active_trades.sort_values('timestamp', ascending=False, inplace=True)
             df_active_trades.sort_values('Amount', ascending=False, inplace=True)
             largest_order = df_active_trades.iloc[0]
             commodity = largest_order['Commodity']
@@ -873,19 +928,29 @@ class CarrierModel:
             amount = round(amount / 500) * 500 / 1000
             if amount % 1 == 0:
                 amount = int(amount)
-            price = largest_order['Price']
+            price = int(largest_order['Price'])
             order_type = largest_order['Trade Type'].lower()
             return (order_type, commodity, amount, price)
 
-    def get_data_trade(self) -> tuple[pd.DataFrame, list[int]|None]:
-        trades = [self.generate_info_trade(carrierID) for carrierID in self.sorted_ids_display()]
+    def filter_likely_active_trades(self, df_active_trades: pd.DataFrame, is_squadron_carrier: bool=False) -> pd.DataFrame:
+        result = df_active_trades.copy()
+        total_tonnage = 0
+        for i in range(len(result)):
+            total_tonnage += result.iloc[i]['Amount']
+            if total_tonnage >= (60000 if is_squadron_carrier else 25000):
+                result = result.iloc[:i]
+                break
+        return result
+
+    def get_data_trade(self, filter_ghost_buys: bool=False) -> tuple[pd.DataFrame, list[int]|None]:
+        trades = [self.generate_info_trade(carrierID, filter_ghost_buys=filter_ghost_buys) for carrierID in self.sorted_ids_display()]
         df = pd.concat(trades, axis=0, ignore_index=True) if len(trades) > 0 else pd.DataFrame(columns=['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom'])
         self.trade_carrierIDs: list[int] = df['CarrierID'].to_list()
         trades = df.drop(['Pending Decom', 'CarrierID'], axis=1, errors='ignore')
         pending_decom = [i for i, decomming in enumerate(df['Pending Decom']) if decomming == True]
         return trades.values.tolist(), pending_decom if len(pending_decom) > 0 else None
 
-    def generate_info_trade(self, carrierID: int) -> pd.DataFrame:
+    def generate_info_trade(self, carrierID: int, filter_ghost_buys: bool=False) -> pd.DataFrame:
         carrier_name = self.get_name(carrierID)
         active_trades = self.get_active_trades(carrierID)
         if len(active_trades) == 0:
@@ -896,9 +961,18 @@ class CarrierModel:
             active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
             active_trades = active_trades[active_trades['Commodity'].notna()]
             active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
-            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).apply(lambda x: f'{int(x):,}')
-            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
+            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1)
             active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            if filter_ghost_buys:
+                unloading_trades = active_trades[active_trades['Trade Type'] == 'Unloading'].copy()
+                likely_active_trades = self.filter_likely_active_trades(active_trades)
+                if unloading_trades.empty:
+                    active_trades = likely_active_trades
+                else:
+                    active_trades = pd.concat([unloading_trades, likely_active_trades]).sort_values('Time Set (Local)', ascending=False).drop_duplicates().reset_index(drop=True)
+            active_trades = active_trades.sort_values('timestamp', ascending=False)
+            active_trades['Amount'] = active_trades['Amount'].apply(lambda x: f'{int(x):,}')
+            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
             active_trades['Pending Decom'] = self.get_pending_decom(carrierID=carrierID)
             return active_trades[['CarrierID', 'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)', 'Pending Decom']]
 
@@ -959,9 +1033,16 @@ class CarrierModel:
         else:
             return active_journals + unknown_fid_journals
     
-    def get_active_journal_paths(self) -> list[str]:
-        active = self.journal_reader.get_latest_active_journals()
-        return list(active.values()) if active is not None else None
+    def get_active_journal_paths(self) -> list[str]|None:
+        active_journals = self.journal_reader.get_latest_active_journals()
+        unknown_fid_journals = self.journal_reader.get_active_unknown_fid_journals()
+        paths = []
+        if active_journals is not None:
+            paths += list(active_journals.values())
+        if unknown_fid_journals is not None:
+            paths += list(unknown_fid_journals.values())
+
+        return paths if paths else None
         
 
 def getLocation(system, body, body_id):
@@ -1009,7 +1090,7 @@ if __name__ == '__main__':
             'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
         ]))
     print(pd.DataFrame(model.get_data_misc(), columns=[
-            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Squadron Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
     

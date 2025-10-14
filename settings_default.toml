@@ -56,7 +56,7 @@ cooldown_finished_discord_ping = false # Whether to ping when with the cooldown 
 
 [discord]
 webhook = "" # Discord webhook URL
-userID = "" # Discord user ID (optional, used for pings), find this by sending /@[your username] in discord, copy the number after the @ and paste it here.
+userID = "" # Discord user ID (optional, used for pings), find this by sending \@[your username] in discord, copy the number after the @ and paste it here.
 
 [font_size]
 # Font size for UI elements
@@ -70,6 +70,23 @@ table = "normal" # Font size for the tables
 # It's recommended to only include SFCs you personally own and SOLELY control (i.e. you and your alts are the only ones with access)
 # Otherwise the data can be wildly inaccurate
 whitelist = [] # List of squadron carriers to NOT ignore. This is a list of squadron IDs (example: ["PTNS", "PBNS"])
+
+[name_customization]
+# Custom names for squadrons. This is a list of mappings from full squadron names to their abbreviations. 
+# If not specified, EDCM will use the first four letters of each word in the squadron name as the abbreviation.
+# Example: 
+# squadron_abbv = [
+#     { "Pilots Trade Network Squadron" = "PTNS" },
+#     { "Pilots Booze Network Squadron" = "PBNS" },
+#     { "Pilots Community Network Squadron" = "PCNS" },
+#     { "Pilots Faction Network Squadron" = "PFNS" },
+# ]
+squadron_abbv = [
+    { "Pilots Trade Network Squadron" = "PTNS" },
+    { "Pilots Booze Network Squadron" = "PBNS" },
+    { "Pilots Community Network Squadron" = "PCNS" },
+    { "Pilots Faction Network Squadron" = "PFNS" },
+]
 
 [advanced]
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
