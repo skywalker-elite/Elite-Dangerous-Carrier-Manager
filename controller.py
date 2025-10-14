@@ -64,6 +64,7 @@ class CarrierController:
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
@@ -199,6 +200,7 @@ class CarrierController:
             self.model.read_journals() # re-read journals to apply ignore list and custom order
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.root.geometry(self.settings.get('UI', 'window_size'))
+            self.view.checkbox_filter_ghost_buys_var.set(self.settings.get('Trade', 'filter_ghost_buys'))
             self.view.checkbox_show_active_journals_var.set(self.settings.get('UI', 'show_active_journals_tab'))
             self.view.checkbox_minimize_to_tray_var.set(self.settings.get('UI', 'minimize_to_tray'))
             self.setup_tray_icon()
@@ -290,7 +292,7 @@ class CarrierController:
     def update_tables_slow(self, now):
         pending_decom = self.model.get_rows_pending_decom()
         self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
-        self.view.update_table_trade(*self.model.get_data_trade())
+        self.view.update_table_trade(*self.model.get_data_trade(filter_ghost_buys=self.view.checkbox_filter_ghost_buys_var.get())) #TODO: reduce update rate for performance
         self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance
         self.view.update_table_misc(self.model.get_data_misc(), pending_decom) #TODO: reduce update rate for performance
 
