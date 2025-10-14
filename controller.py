@@ -191,13 +191,7 @@ class CarrierController:
             if self.settings.validation_warnings:
                 self.view.show_message_box_warning('Settings file warnings', f'{"\n".join(self.settings.validation_warnings)}')
             self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
-            self.model.reset_ignore_list()
-            self.model.reset_sfc_whitelist()
-            self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
-            self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
-            self.model.set_custom_order(self.settings.get('advanced', 'custom_order'))
-            self.model.set_squadron_abbv_mapping(self.settings.get('name_customization', 'squadron_abbv'))
-            self.model.read_journals() # re-read journals to apply ignore list and custom order
+            self.apply_settings_to_model()
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.root.geometry(self.settings.get('UI', 'window_size'))
             self.view.checkbox_filter_ghost_buys_var.set(self.settings.get('Trade', 'filter_ghost_buys'))
@@ -205,6 +199,15 @@ class CarrierController:
             self.view.checkbox_minimize_to_tray_var.set(self.settings.get('UI', 'minimize_to_tray'))
             self.setup_tray_icon()
 
+    def apply_settings_to_model(self):
+        self.model.reset_ignore_list()
+        self.model.reset_sfc_whitelist()
+        self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
+        self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+        self.model.set_custom_order(self.settings.get('advanced', 'custom_order'))
+        self.model.set_squadron_abbv_mapping(self.settings.get('name_customization', 'squadron_abbv'))
+        self.model.read_journals() # re-read journals to apply ignore list and custom order
+    
     def status_change(self, carrierID:str, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
         if status_new == 'jumping':
@@ -743,6 +746,7 @@ class CarrierController:
         self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
         self.model.register_status_change_callback(self.status_change)
         self.model.read_journals()
+        self.apply_settings_to_model()
 
     def button_click_login(self):
         if not self.auth_handler.is_logged_in():
