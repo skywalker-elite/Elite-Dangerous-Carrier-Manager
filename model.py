@@ -479,6 +479,7 @@ class CarrierModel:
             data = carriers[carrierID].copy()
             if len(data['jumps']) == 0:
                 data['latest_depart'] = None
+                data['latest_jump_plot'] = None
                 latest_body = None
                 latest_body_id = None
                 pre_system = None
@@ -493,6 +494,7 @@ class CarrierModel:
                 time_diff = None
             else:
                 data['latest_depart'] = data['jumps'].iloc[0]['DepartureTime']
+                data['latest_jump_plot'] = data['jumps'].iloc[0]['timestamp']
                 latest_body = data['jumps'].iloc[0]['Body']
                 latest_body_id = data['jumps'].iloc[0]['BodyID']
                 latest_system = data['jumps'].iloc[0]['SystemName']
@@ -818,6 +820,18 @@ class CarrierModel:
     def get_status(self, carrierID: int) -> str:
         return self.get_carriers()[carrierID]['status']
 
+    def get_latest_departure(self, carrierID:int) -> datetime|None:
+        return self.get_carriers()[carrierID]['latest_depart']
+
+    def get_latest_jump_plot(self, carrierID:int) -> datetime|None:
+        return self.get_carriers()[carrierID]['latest_jump_plot']
+
+    def get_jump_timer_in_seconds(self, latest_jump_plot: datetime|None, latest_depart: datetime|None) -> int|None:
+        if latest_depart is None or latest_jump_plot is None:
+            return None
+        time_diff = latest_depart - latest_jump_plot
+        return int(time_diff.total_seconds())
+
     def get_current_system(self, carrierID: int, use_custom_name:bool=False) -> str:
         system_name = self.get_carriers()[carrierID]['current_system']
         return get_custom_system_name(system_name) if use_custom_name else system_name
@@ -883,11 +897,11 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['isSquadronCarrier']
 
     def get_departure_hammer_countdown(self, carrierID: int) -> str|None:
-        latest_depart = self.get_carriers()[carrierID]['latest_depart']
+        latest_depart = self.get_latest_departure(carrierID)
         return getHammerCountdown(latest_depart.to_datetime64()) if latest_depart is not None else None
 
     def get_cooldown_hammer_countdown(self, carrierID: int) -> str|None:
-        latest_cooldown = self.get_carriers()[carrierID]['latest_depart'] + CD if self.get_carriers()[carrierID]['latest_depart'] is not None else None
+        latest_cooldown = self.get_latest_departure(carrierID) + CD if self.get_latest_departure(carrierID) is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
     def get_cooldown_cancel_hammer_countdown(self, carrierID: int) -> str|None:
