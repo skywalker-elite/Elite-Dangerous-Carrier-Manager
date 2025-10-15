@@ -70,8 +70,16 @@ Currently Windows 11 and Linux are supported. Windows 7/8/10 *should* work fine 
 - Each notification can be in the form of a popup message, playing a sound, sending a message to a Discord channel (with or without a ping), or a combination of all three
 - You can customize notifications for each event
 - You can specify the audio file (.mp3 or .wav) to play for each event
+### Jump Timer Reporting and Statistics
+- You can optionally report your jump timers after logging in using your Discord account
+- The data is used to show statistics on jump timers for all users at the top of EDCM
+- The backend just see the timer (Example: 15m42s), and when it was plotted (Example: 00:42:37 UTC). It is linked to your discord account, but not which carrier, where it is at or jumping to etc.
+- For specifics on what data is collected, please see [Data Collection](#data-collection)
 ## Installation
-Simply download the EDCM.exe (or EDCM-linux for linux) file from releases and launch it. 
+For Windows, download the EDCM-setup-x.x.x.exe file from the <a href="https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest">releases page</a>. Run the installer and follow the prompts to install EDCM.
+
+For Linux, download the EDCM-x.x.x.deb file from the <a href="https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest">releases page</a> if your distribution supports .deb packages (Debian, Ubuntu, etc.). For other distributions, you can download the tar.gz file and extract it to a folder of your choice. 
+
 The first time you run EDCM, it will ask if you want to create a settings file. Click yes and it will create one using the default settings.
 You can edit the settings file using any text editor to change the settings to your liking.
 ## Settings
@@ -120,8 +128,26 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
   - Carrier info is updated every time you open up your carrier management menu
   - If you just bought a carrier, you will need to open the carrier management menu to see the full carrier info
 ## Known Issues
-- Launching it takes a good while and may appear unresponsive or not show anything while it's loading, just give it some time, I promise it'll show up, *usually*. 
+- Launching it the first time takes a good while and may appear unresponsive, just give it some time, I promise it'll show up, *usually*. 
 - It may consume a bit more CPU and ram than you expected but shouldn't be *too* bad
+## Data Collection
+If you don't choose to do any of the following, no data is collected or sent to the backend server.
+
+If you choose to log in with your Discord account, the following data will be collected and sent to the backend server:
+- Basic Discord account information (username, user ID, ...etc)
+- The email associated with your Discord account (this is needed by the backend OAuth2 service of supabase, it is not used by EDCM)
+- If you choose to verify PTN roles, additionally Discord guild member information will be collected and sent to the backend server
+
+If you choose to report your jump timers, the following data will be collected and sent to the backend server using your Discord account as identity:
+- When the jump is plotted (UTC time)
+- The timer in seconds (example: 984 for 16m24s)
+- A cryptographic signature generated using the above two pieces of information and your carrier ID (the numeric ID, not callsign in XXX-XXX format), so that the backend can check whether it's a duplicate report
+
+Note: It is technically possible to figure out which carrier the report came from, if you know what carrier IDs to check. But that has to be done per report, and doesn't work from the other direction, in otherwords, if you don't have a list of possible carrier IDs to check, you can't reverse it. 
+
+Jumps excluded from jump timer reporting: 
+- Ignored carriers (as set in the settings file)
+- Jumps to or from N0/N1 for real-time jump timer reporting (if you report timer history using the button in the options tab, it will include them)
 ## Acknowledgements
 Thank you <a href=https://github.com/aussig>aussig</a> for the <a href=https://github.com/aussig/BGS-Tally/tree/develop/data>lists of commodities</a>, related files are in the `3rdParty\aussig.BGS-Tally` folder with the corresponding license file. 
 ## Disclaimers
