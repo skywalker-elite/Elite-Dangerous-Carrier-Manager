@@ -44,6 +44,18 @@ def center_window_relative_to_parent(win: tk.Toplevel, parent: tk.Tk):
     win.after_idle(_do_center)
 
 def create_dialog(root: tk.Tk, title: str) -> tuple[tk.Toplevel, ttk.Frame]:
+    try:
+        state = root.wm_state()
+        if state == 'withdrawn' or state == 'iconic':
+            root.deiconify()
+    except Exception:
+        try:
+            state = root.state()
+            if state == 'withdrawn' or state == 'iconic':
+                root.deiconify()
+                root.deiconify()
+        except Exception:
+            pass
     dialog = tk.Toplevel(root)
     dialog.transient(root)
     apply_theme_to_titlebar(dialog)
