@@ -53,7 +53,6 @@ def create_dialog(root: tk.Tk, title: str) -> tuple[tk.Toplevel, ttk.Frame]:
             state = root.state()
             if state == 'withdrawn' or state == 'iconic':
                 root.deiconify()
-                root.deiconify()
         except Exception:
             pass
     dialog = tk.Toplevel(root)
