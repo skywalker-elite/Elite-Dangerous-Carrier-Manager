@@ -805,7 +805,7 @@ class CarrierController:
         self.view.button_report_timer_history.configure(state='normal')
 
     def report_jump_timer(self, carrierID:int):
-        if self.model.get_current_or_destination_system(carrierID) in ['HD 105341','HIP 58832']:
+        if self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_destination_system(carrierID) in ['HD 105341','HIP 58832']:
             print(f'Skipping jump timer report for N1 and N0')
             return
         if self.auth_handler.is_logged_in():
