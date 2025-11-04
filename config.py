@@ -90,4 +90,4 @@ TOOLTIP_FOREGROUND = '#ffffff'
 SUPABASE_URL = "https://ujpdxqvevfxjivvnlzds.supabase.co"
 SUPABASE_KEY = "sb_publishable_W7XhQ246tT6rJipPKDMekQ_fOmMoIi2"
 LOCAL_PORT = 58832
-REDIRECT_URL = f"http://localhost:{LOCAL_PORT}/callback"
+REDIRECT_URL = f"http://127.0.0.1:{LOCAL_PORT}/callback"
