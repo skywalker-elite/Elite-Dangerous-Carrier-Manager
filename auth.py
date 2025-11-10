@@ -14,6 +14,8 @@ from dotenv import load_dotenv
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Callable, Literal, Optional
 
+import jwt
+from jwt import PyJWKClient, InvalidTokenError
 import keyring
 import requests
 from postgrest import APIResponse
@@ -50,6 +52,52 @@ UUID_RE = re.compile(
     re.IGNORECASE,
 )
 SNOWFLAKE_RE = re.compile(r"^\d{17,20}$")
+
+class JwtVerifier:
+    def __init__(self, supabase_url: str):
+        self.issuer = f"{supabase_url}/auth/v1"
+        self.audience = "authenticated"
+        self.jwks_url = f"{self.issuer}/.well-known/jwks.json"
+        self._client = PyJWKClient(self.jwks_url, cache_keys=True)
+
+    def decode_verify(self, token: str) -> dict:
+        """
+        Verifies signature, exp/nbf, issuer and audience.
+        Supports ES256 and RS256 keys in the project JWKS.
+        """
+        try:
+            # Fast path (uses 'kid' if present)
+            signing_key = self._client.get_signing_key_from_jwt(token).key
+            return jwt.decode(
+                token,
+                signing_key,
+                algorithms=["ES256", "RS256"],
+                audience=self.audience,
+                issuer=self.issuer,
+                options={"require": ["exp", "iss", "aud", "sub"]},
+                leeway=30,
+            )
+        except Exception as e:
+            # Fallback: handle tokens without 'kid' by trying all keys
+            try:
+                jwks = requests.get(self.jwks_url, timeout=5).json().get("keys", [])
+                for jwk in jwks:
+                    try:
+                        key = jwt.PyJWK.from_dict(jwk).key
+                        return jwt.decode(
+                            token,
+                            key,
+                            algorithms=["ES256", "RS256"],
+                            audience=self.audience,
+                            issuer=self.issuer,
+                            options={"require": ["exp", "iss", "aud", "sub"]},
+                            leeway=30,
+                        )
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+            raise e
 
 # ----------------
 # Utility helpers
@@ -88,10 +136,6 @@ def _discord_auth_url(scopes: str, code_challenge: str, state: str) -> str:
 
 def _b64pad(s: str) -> str:
     return s + "=" * (-len(s) % 4)
-
-def _decode_jwt_payload(jwt_str: str) -> Dict[str, Any]:
-    payload_b64 = jwt_str.split(".")[1]
-    return json.loads(base64.urlsafe_b64decode(_b64pad(payload_b64)).decode())
 
 def _is_uuid(s: str | None) -> bool:
     return bool(s and UUID_RE.match(s))
@@ -170,6 +214,8 @@ class AuthHandler:
         self.client: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
         self._access_jwt: Optional[str] = None
         self._access_exp: float = 0.0
+        self._jwt_verifier = JwtVerifier(SUPABASE_URL)
+        self._claims: Dict[str, Any] = {}
 
         # Simple event bus
         self._auth_event_callbacks: dict[str, list[Callable[[], None]]] = {
@@ -255,9 +301,9 @@ class AuthHandler:
             pass
 
     def _set_access(self, access_jwt: str, refresh_token: Optional[str] = None):
+        self._claims = self._jwt_verifier.decode_verify(access_jwt)
         self._access_jwt = access_jwt
-        payload = _decode_jwt_payload(access_jwt)
-        self._access_exp = float(payload.get("exp", 0))
+        self._access_exp = float(self._claims.get("exp", 0))
         if refresh_token:
             self._store_refresh(refresh_token)
         self._apply_client_auth()
@@ -358,16 +404,17 @@ class AuthHandler:
         self._emit("SIGNED_OUT")
 
     def get_user(self) -> Optional[dict]:
-        if not self._access_jwt:
+        if not self.is_logged_in():
             return None
         try:
-            claims = _decode_jwt_payload(self._access_jwt)
+            if not self._claims:
+                return None
             # For custom JWT, sub is Discord snowflake; for any legacy token, it could be UUID.
             return {
-                "id": claims.get("sub"),
-                "discord_id": claims.get("sub") if _is_snowflake(claims.get("sub")) else None,
-                "username": claims.get("username") or claims.get("discord_username"),
-                "claims": claims,
+                "id": self._claims.get("sub"),
+                "discord_id": self._claims.get("sub") if _is_snowflake(self._claims.get("sub")) else None,
+                "username": self._claims.get("username") or self._claims.get("discord_username"),
+                "claims": self._claims,
             }
         except Exception:
             return None
