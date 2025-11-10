@@ -80,12 +80,14 @@ whitelist = [] # List of squadron carriers to NOT ignore. This is a list of squa
 #     { "Pilots Booze Network Squadron" = "PBNS" },
 #     { "Pilots Community Network Squadron" = "PCNS" },
 #     { "Pilots Faction Network Squadron" = "PFNS" },
+#     { "Pilots Trade Network" = "WINE" },
 # ]
 squadron_abbv = [
     { "Pilots Trade Network Squadron" = "PTNS" },
     { "Pilots Booze Network Squadron" = "PBNS" },
     { "Pilots Community Network Squadron" = "PCNS" },
     { "Pilots Faction Network Squadron" = "PFNS" },
+    { "Pilots Trade Network" = "WINE" },
 ]
 
 [advanced]
