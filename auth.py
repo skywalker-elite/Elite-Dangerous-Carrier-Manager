@@ -74,21 +74,17 @@ def _pkce_pair() -> tuple[str, str]:
     return verifier, challenge
 
 def _discord_auth_url(scopes: str, code_challenge: str, state: str) -> str:
-    if not DISCORD_CLIENT_ID:
-        raise RuntimeError("Missing DISCORD_CLIENT_ID")
     params = {
         "client_id": DISCORD_CLIENT_ID,
         "response_type": "code",
-        "redirect_uri": REDIRECT_URL,  # http://127.0.0.1:<LOCAL_PORT>/callback
+        "redirect_uri": REDIRECT_URL, 
         "scope": scopes,
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
         "state": state,
-        "prompt": "consent",
+        "prompt": "none",
     }
-    return "https://discord.com/api/oauth2/authorize?" + "&".join(
-        f"{k}={requests.utils.quote(v)}" for k, v in params.items()
-    )
+    return requests.Request("GET", "https://discord.com/api/oauth2/authorize", params=params).prepare().url
 
 def _b64pad(s: str) -> str:
     return s + "=" * (-len(s) % 4)
