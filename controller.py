@@ -113,8 +113,8 @@ class CarrierController:
         else:
             self.on_sign_out(show_message=False)
 
-        self.auth_handler.register_auth_event_callback('SIGNED_IN', self.on_sign_in)
-        self.auth_handler.register_auth_event_callback('SIGNED_OUT', self.on_sign_out)
+        self.auth_handler.register_auth_event_callback('SIGNED_IN', lambda: self.root.after(0, self.on_sign_in))
+        self.auth_handler.register_auth_event_callback('SIGNED_OUT', lambda: self.root.after(0, self.on_sign_out))
 
         self.save_window_size_on_resize()
 
