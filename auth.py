@@ -19,7 +19,7 @@ from jwt import PyJWKClient, InvalidTokenError
 import keyring
 import requests
 from postgrest import APIResponse
-from supabase import create_client, Client
+from supabase import create_client, Client, FunctionsHttpError
 
 from config import SUPABASE_URL, SUPABASE_KEY, LOCAL_PORT, REDIRECT_URL
 from decos import rate_limited
@@ -310,6 +310,9 @@ class AuthHandler:
 
     def _need_refresh(self) -> bool:
         return (self._access_jwt is None) or (time.time() >= self._access_exp - 30)
+    
+    def _auth_header(self) -> dict:
+        return {"Authorization": f"Bearer {self._access_jwt}"} if self._access_jwt else {}
 
     # ---- External login (identify only) ----
     def login(self) -> bool:
@@ -458,6 +461,52 @@ class AuthHandler:
         if not token:
             raise RuntimeError("No discord_access_token returned by /api/auth/discord-token")
         return token  # short-lived; we do NOT store this
+
+    def invoke_edge(self, name: str, body: Any | None = None, *, method: str = "POST", expect_json: bool = True) -> dict | str | APIResponse:
+        """
+        Call a Supabase Edge Function with the current access token.
+        If we get 401/403, try exactly one refresh and retry.
+        Raises FunctionsHttpError (e.g., 429) or RuntimeError on unexpected conditions.
+        """
+        if not self.is_logged_in():
+            raise FunctionsHttpError("Unauthorized", 401, "No access token")
+
+        def _call():
+            return self.client.functions.invoke(
+                name,
+                invoke_options={
+                    "method": method,
+                    "headers": self._auth_header(),
+                    "body": body,
+                },
+            )
+
+        try:
+            res = _call()
+        except FunctionsHttpError as e:
+            if e.status in (401, 403):
+                # one refresh attempt
+                if self._refresh_access():
+                    res = _call()
+                else:
+                    print("Failed to refresh access token after 401/403")
+                    self.logout()
+                    raise
+            else:
+                raise
+
+        # supabase-py returns bytes for body; normalize
+        if isinstance(res, bytes):
+            txt = res.decode("utf-8", errors="replace")
+            if expect_json:
+                try:
+                    return json.loads(txt)
+                except Exception:
+                    return {"raw": txt}
+            return txt
+
+        return res
+
 
     # -------------------------
     # PTN role-related methods

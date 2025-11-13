@@ -814,8 +814,8 @@ class CarrierController:
             payload = self.generate_timer_payload(carrierID, jump_plot_timestamp, latest_departure_time)
             # Report the jump timer to the server
             try:
-                response = self.auth_handler.client.functions.invoke("submit-report", invoke_options={'body': payload})
-                print('Report submitted successfully:', response.decode('utf-8'))
+                response = self.auth_handler.invoke_edge("submit-report", body=payload)
+                print('Report submitted successfully:', response)
             except Exception as e:
                 print(f"Error reporting jump timer: {e}")
 
@@ -854,9 +854,7 @@ class CarrierController:
                     yield seq[i:i+size]
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
-                response = self.auth_handler.client.functions.invoke("submit-bulk-report", invoke_options={'body': chunk})
-                if type(response) is bytes:
-                    response = json.loads(response.decode('utf-8'))
+                response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)
                 if 'error' in response:
                     raise RuntimeError(f"Error reporting jump timer: {response.error}")
                 if response.get('ok', None) is True:
