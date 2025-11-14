@@ -7,27 +7,25 @@ class DiscordWebhookHandler:
     class UserIDNotSetError(Exception):
         pass
     def __init__(self, webhook_urls: str, userID: str = ''):
-        self.webhook_urls = webhook_urls.strip().split(',')
+        self.webhook_urls = [url for url in webhook_urls.replace(' ', '').split(',')]
+        self.webhooks = [discord.SyncWebhook.from_url(url) for url in self.webhook_urls]
         self.userID = userID
         self.username = "Elite Dangerous Carrier Manager"
         self.avatar_url = "https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/blob/main/images/EDCM.png?raw=true"
 
     def send_message(self, message: str, ping: bool = False):
-        webhooks = [discord.SyncWebhook.from_url(url) for url in self.webhook_urls]
         if ping:
             message = self._get_ping_message() + " " + message
-        for webhook in webhooks:
+        for webhook in self.webhooks:
             webhook.send(message, username=self.username, avatar_url=self.avatar_url)
 
     def _send_embed(self, embed: discord.Embed, ping: bool = False):
-        webhooks = [discord.SyncWebhook.from_url(url) for url in self.webhook_urls]
         if ping:
-            for webhook in webhooks:
+            for webhook in self.webhooks:
                 webhook.send(self._get_ping_message(), embed=embed, username=self.username, avatar_url=self.avatar_url)
         else:
-            for webhook in webhooks:
+            for webhook in self.webhooks:
                 webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
-
     def send_message_with_embed(self, title: str, description: str, image_url: str|None=None, ping: bool = False):
         embed = discord.Embed(
             title=title,
