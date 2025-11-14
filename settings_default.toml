@@ -55,7 +55,7 @@ cooldown_finished_discord = false # Discord notification when a cooldown is fini
 cooldown_finished_discord_ping = false # Whether to ping when with the cooldown finished discord notification
 
 [discord]
-webhook = "" # Discord webhook URL
+webhook = "" # Discord webhook URL(s), separate multiple URLs with commas. Whitespaces are allowed and ignored (example: "https://discord.com/api/webhooks/xxxx/yyyy, https://discord.com/api/webhooks/aaaa/bbbb")
 userID = "" # Discord user ID (optional, used for pings), find this by sending \@[your username] in discord, copy the number after the @ and paste it here.
 
 [font_size]
