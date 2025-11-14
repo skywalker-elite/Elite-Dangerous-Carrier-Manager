@@ -6,6 +6,7 @@ from utility import getSettingsPath
 class DiscordWebhookHandler:
     class UserIDNotSetError(Exception):
         pass
+    
     def __init__(self, webhook_urls: str, userID: str = ''):
         self.webhook_urls = [url for url in webhook_urls.replace(' ', '').split(',')]
         self.webhooks = [discord.SyncWebhook.from_url(url) for url in self.webhook_urls]
@@ -26,6 +27,7 @@ class DiscordWebhookHandler:
         else:
             for webhook in self.webhooks:
                 webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
+
     def send_message_with_embed(self, title: str, description: str, image_url: str|None=None, ping: bool = False):
         embed = discord.Embed(
             title=title,
