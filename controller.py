@@ -531,6 +531,9 @@ class CarrierController:
     def button_click_manual_timer(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
+            if getattr(self, 'manual_timer_view', None) is not None:
+                self.manual_timer_view.popup.destroy()
+                self.manual_timer_view = None
             carrierID = self.model.sorted_ids_display()[selected_row]
             self.manual_timer_view = ManualTimerView(self.view.root, carrierID=carrierID)
             reg = self.manual_timer_view.popup.register(checkTimerFormat)
@@ -555,9 +558,13 @@ class CarrierController:
             timer = self.manual_timer_view.entry_timer.get()
             timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
             timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
-            if timer < datetime.now(timezone.utc):
+            now_utc = datetime.now(timezone.utc)
+            if timer < now_utc:
                 timer += timedelta(days=1)
-            assert timer > datetime.now(timezone.utc), f'Timer must be in the future, {timer}, {datetime.now(timezone.utc)}'
+            assert timer > now_utc, f'Timer must be in the future, {timer}, {now_utc}'
+            if timer - now_utc > timedelta(hours=1, minutes=15):
+                if not self.view.show_message_box_askyesno('Warning', 'Timer set more than 1 hour 15 minutes in the future, are you sure?'):
+                    return
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
             self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False, 'plot_warned': False}
