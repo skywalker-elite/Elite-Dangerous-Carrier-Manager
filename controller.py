@@ -26,12 +26,14 @@ from tkinter import Tk
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
+from humanize import naturaltime
+from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
@@ -328,11 +330,13 @@ class CarrierController:
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             if hammer_countdown is not None:
-                self.copy_to_clipboard(hammer_countdown, 'Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) copied!')
+                timestamp = datetime.fromtimestamp(int(''.join(c for c in hammer_countdown if c.isdigit())), timezone.utc)
+                self.copy_to_clipboard(hammer_countdown, 'Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) ({naturaltime(timestamp)}) copied!')
             else:
                 self.view.show_message_box_warning('Error', f'No jump data found for {carrier_name} ({carrier_callsign})')
         else:
-            self.view.show_message_box_warning('Warning', 'please select one carrier and one carrier only!')
+            hammer_countdown = getHammerCountdown(datetime64(datetime.now(timezone.utc).replace(tzinfo=None)))
+            self.copy_to_clipboard(hammer_countdown, 'Success!', f'No carrier selected, hammertime countdown for current time copied!')
 
     def button_click_post_trade(self):
         selected_row = self.get_selected_row()
