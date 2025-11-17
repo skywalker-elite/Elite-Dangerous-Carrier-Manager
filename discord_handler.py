@@ -8,8 +8,9 @@ class DiscordWebhookHandler:
         pass
     
     def __init__(self, webhook_urls: str, userID: str = ''):
-        self.webhook_urls = [url for url in webhook_urls.replace(' ', '').split(',')]
+        self.webhook_urls = [url for url in webhook_urls.replace(' ', '').split(',') if url]
         self.webhooks = [discord.SyncWebhook.from_url(url) for url in self.webhook_urls]
+        print(f"Initialized DiscordWebhookHandler with {len(self.webhooks)} webhooks.")
         self.userID = userID
         self.username = "Elite Dangerous Carrier Manager"
         self.avatar_url = "https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/blob/main/images/EDCM.png?raw=true"
