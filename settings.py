@@ -127,7 +127,7 @@ class Settings:
 
         # 2) Simple webhook URL check
         webhook = self.get('discord', 'webhook') or ''
-        if webhook and not re.match(r'^https://discord.com/api/webhooks/', webhook):
+        if webhook and not re.match(r'^https://discord(?:app)?.com/api/webhooks/', webhook):
             self.validation_errors.append(f"discord.webhook does not look like a valid webhook URL: {webhook}")
 
         # 3) Check format for squadron_abbv
