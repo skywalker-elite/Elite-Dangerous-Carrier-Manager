@@ -252,6 +252,8 @@ class CarrierView:
         # Buttons
         self.button_open_journal = ttk.Button(self.bottom_bar_active_journals, text='Open Journal File')
         self.button_open_journal.pack(side='left')
+        self.button_open_journal_folder = ttk.Button(self.bottom_bar_active_journals, text='Open Journal Folder')
+        self.button_open_journal_folder.pack(side='left')
 
         # Options tab
         self.labelframe_EDCM = ttk.Labelframe(self.tab_options.scrollable_frame, text='EDCM')
