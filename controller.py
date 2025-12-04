@@ -72,6 +72,7 @@ class CarrierController:
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
+        self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_file(getSettingsPath()))
@@ -634,6 +635,18 @@ class CarrierController:
             else:
                 journal_file = active_journal_paths[selected_row]
                 open_file(journal_file)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row.')
+
+    def button_click_open_journal_folder(self):
+        selected_row = self.get_selected_row(sheet=self.view.sheet_active_journals)
+        if selected_row is not None:
+            active_journal_paths = self.model.get_active_journal_paths()
+            if not active_journal_paths:
+                self.view.show_message_box_warning('Warning', 'No active journals found')
+            else:
+                journal_file = active_journal_paths[selected_row]
+                open_file(path.dirname(journal_file))
         else:
             self.view.show_message_box_warning('Warning', 'Please select one row.')
 
