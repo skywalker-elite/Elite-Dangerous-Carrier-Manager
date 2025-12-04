@@ -207,6 +207,7 @@ class CarrierModel:
         # self.read_counter = 0
         self._ignore_list = []
         self._sfc_white_list = []
+        self._notify_while_ignored_list = []
         self.custom_order = []
         self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
@@ -470,6 +471,17 @@ class CarrierModel:
     def reset_sfc_whitelist(self):
         self._sfc_white_list = []
 
+    def get_ignore_list(self) -> list[str]:
+        return self._ignore_list.copy()
+    
+    def reset_notify_while_ignored_list(self):
+        self._notify_while_ignored_list = []
+    
+    def add_notify_while_ignored_list(self, call_sign:str):
+        carrierID = self.get_id_by_callsign(call_sign)
+        if carrierID is not None and carrierID not in self._notify_while_ignored_list:
+            self._notify_while_ignored_list.append(carrierID)
+            
     def set_squadron_abbv_mapping(self, mapping:list[dict[str, str]]):
         self._squadron_abbv_mapping = {list(item.keys())[0].lower(): list(item.values())[0].upper() for item in mapping}
 
@@ -571,7 +583,7 @@ class CarrierModel:
         self.carriers_updated = carriers.copy()
 
         for carrierID in old_status.keys() & new_status.keys():
-            if new_status[carrierID] != old_status[carrierID] and carrierID not in self._ignore_list:
+            if new_status[carrierID] != old_status[carrierID] and (carrierID not in self._ignore_list or carrierID in self._notify_while_ignored_list):
                 # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 
