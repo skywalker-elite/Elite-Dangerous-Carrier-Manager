@@ -121,6 +121,9 @@ def getLatestPrereleaseVersion() -> str|None:
     # return the highest semver prerelease of the same major.minor
     return max(pre_versions, key=lambda t: version.parse(t))
 
+def getPrereleaseUpdateVersion() -> str|None:
+    return max([getLatestPrereleaseVersion(), getLatestVersion()], key=lambda t: version.parse(t))
+
 def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
         return f.readline().strip()
