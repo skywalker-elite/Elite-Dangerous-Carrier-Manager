@@ -92,7 +92,7 @@ class CarrierView:
         # Set column headers
         self.sheet_jumps.headers([
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-            'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer',
+            'Status', 'Destination System', 'Body', 'Timer', 'Plot Timer',
         ])
 
         self.configure_sheet(self.sheet_jumps)
@@ -115,7 +115,7 @@ class CarrierView:
         # self.button_get_hammer.grid(row=0, column=1, sticky='s')
         self.button_get_hammer.pack(side='left')
         # Manual timer
-        self.button_manual_timer = ttk.Button(self.bottom_bar, text='Enter Swap Timer')
+        self.button_manual_timer = ttk.Button(self.bottom_bar, text='Enter Plot Timer')
         self.button_manual_timer.pack(side='left')
         # Clear timer
         self.button_clear_timer = ttk.Button(self.bottom_bar, text='Clear Timer')
