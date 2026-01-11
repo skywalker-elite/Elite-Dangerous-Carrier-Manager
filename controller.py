@@ -652,20 +652,23 @@ class CarrierController:
 
     def check_manual_timer(self):
         now = datetime.now(timezone.utc)
+        remind = timedelta(seconds=self.settings.get('plot_reminders', 'remind_seconds'))
+        warn = timedelta(seconds=self.settings.get('plot_reminders', 'warn_seconds'))
+        clear = timedelta(seconds=self.settings.get('plot_reminders', 'clear_seconds'))
         for carrierID in self.model.sorted_ids():
             timer = self.model.manual_timers.get(carrierID, None)
             if timer is None:
                 continue
-            if timer['time'] <= now:
+            if timer['time'] + clear <= now:
                 self.model.manual_timers.pop(carrierID)
                 continue
-            elif timer['time'] - PLOT_WARN <= now and not timer['plot_warned']:
+            elif timer['time'] - warn <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
-                m, s = divmod(PLOT_WARN.total_seconds(), 60)
+                m, s = divmod(warn.total_seconds(), 60)
                 self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
-            elif timer['time'] - PLOT_REMIND <= now and not timer['reminded']:
+            elif timer['time'] - remind <= now and not timer['reminded']:
                 timer['reminded'] = True
-                m, s = divmod(PLOT_REMIND.total_seconds(), 60)
+                m, s = divmod(remind.total_seconds(), 60)
                 self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
