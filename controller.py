@@ -208,6 +208,9 @@ class CarrierController:
                     for key, value in override[callsign].items():
                         if key in carrier_notification_settings:
                             carrier_notification_settings[key] = value
+                        elif key == 'notify_while_ignored':
+                            # special case, not part of notification settings
+                            pass
                         else:
                             print(f'Warning: unknown setting {key} in override for carrier {callsign}')
                             self.view.show_message_box_warning('Warning', f'Unknown setting {key} in override for carrier {callsign}')
