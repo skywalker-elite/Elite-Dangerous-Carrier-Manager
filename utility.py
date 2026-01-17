@@ -15,7 +15,7 @@ from collections import deque
 from functools import wraps
 from os.path import join
 from pathlib import Path
-from config import timer_slope_thresholds
+from config import timer_slope_thresholds, SUPABASE_URL, SUPABASE_KEY
 from decos import rate_limited
 
 def getJournalPath() -> str:
@@ -214,11 +214,15 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
 
 @rate_limited(max_calls=10, period=60)
 def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None]:
-    response = requests.get('https://ujpdxqvevfxjivvnlzds.supabase.co/functions/v1/avg-jump-timer-stats-v2')
+    response = requests.post(f'{SUPABASE_URL}/rest/v1/rpc/jump_timer_stats_cached', headers={
+        'content-type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': f'Bearer {SUPABASE_KEY}'
+    })
     if response.status_code == 200:
         data = response.json()[0]
         if data is None:
-            return None, None, None, None
+            return None, None, None, None, None
         avg_timer = data.get('avg', None)
         count = data.get('cnt', None)
         earliest = data.get('earliest', None)
