@@ -22,7 +22,7 @@ from postgrest import APIResponse
 from supabase import create_client, Client, FunctionsHttpError
 
 from config import SUPABASE_URL, SUPABASE_KEY, LOCAL_PORT, REDIRECT_URL
-from decos import rate_limited
+from utility import getCurrentVersion
 
 # =========
 # Constants
@@ -346,7 +346,7 @@ class AuthHandler:
                 "code": result["code"],
                 "code_verifier": verifier,
                 "redirect_uri": REDIRECT_URL,
-                "user_agent": "EDCM Desktop",
+                "user_agent": f"EDCM Desktop {getCurrentVersion()}",
             },
             timeout=20,
         )
@@ -361,7 +361,7 @@ class AuthHandler:
         try:
             data = _post_json(
                 "/api/auth/refresh",
-                {"refresh_token": rt, "user_agent": "EDCM Desktop"},
+                {"refresh_token": rt, "user_agent": f"EDCM Desktop {getCurrentVersion()}"},
                 timeout=15,
             )
             self._set_access(data["access_jwt"], data.get("refresh_token"))
@@ -378,7 +378,7 @@ class AuthHandler:
         try:
             data = _post_json(
                 "/api/auth/refresh",
-                {"refresh_token": rt, "user_agent": "EDCM Desktop"},
+                {"refresh_token": rt, "user_agent": f"EDCM Desktop {getCurrentVersion()}"},
                 timeout=15,
             )
             self._set_access(data["access_jwt"], data.get("refresh_token"))
