@@ -837,8 +837,15 @@ class CarrierController:
                                                     'This action cannot be undone.'):
                 if self.view.show_message_box_askyesno('Delete Account', 'This will also delete all your data, including all the jump timers you\'ve ever reported.\n'
                                                          'Are you really sure you want to delete your account?'):
-                    self.auth_handler.delete_account()
-                    self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
+                    try:
+                        response = self.auth_handler.invoke_edge("delete-account")
+                        if 'error' in response:
+                            self.view.show_message_box_warning('Error', f"Error deleting account: {response['error']}")
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f"Error deleting account: {e}")
+                    else:
+                        self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
+                        self.auth_handler.logout()
 
     def on_sign_out(self, show_message: bool=True):
         if show_message:
