@@ -65,6 +65,7 @@ test_wine_unload_data = {
 }
 
 font_sizes = {
+    'amerain': 5 if platform != 'darwin' else 7,
     'tiny': 7 if platform != 'darwin' else 9,
     'small': 9 if platform != 'darwin' else 11,
     'normal': 11 if platform != 'darwin' else 13,
