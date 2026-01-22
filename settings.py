@@ -127,7 +127,7 @@ class Settings:
 
         # 2) Simple webhook URL check
         webhook = self.get('discord', 'webhook') or ''
-        if webhook and not re.match(r'^https://discord.com/api/webhooks/', webhook):
+        if webhook and not re.match(r'^https://discord(?:app)?.com/api/webhooks/', webhook):
             self.validation_errors.append(f"discord.webhook does not look like a valid webhook URL: {webhook}")
 
         # 3) Check format for squadron_abbv
@@ -138,6 +138,19 @@ class Settings:
                 for item in abbv_list):
                 self.validation_errors.append(f"Invalid format for squadron_abbv:\n {abbv_list}")
 
+        # 4) Check plot reminder settings
+        remind_seconds = self.get('plot_reminders', 'remind_seconds')
+        warn_seconds = self.get('plot_reminders', 'warn_seconds')
+        clear_seconds = self.get('plot_reminders', 'clear_seconds')
+        if not remind_seconds > 0:
+            self.validation_errors.append(f"plot_reminders.remind_seconds must be a positive integer, got: {remind_seconds}")
+        if not remind_seconds > warn_seconds:
+            self.validation_errors.append(f"plot_reminders.remind_seconds must be greater than warn_seconds, got: remind_seconds={remind_seconds}, warn_seconds={warn_seconds}")
+        if not warn_seconds >= 0:
+            self.validation_errors.append(f"plot_reminders.warn_seconds must be a non-negative integer, got: {warn_seconds}")
+        if not clear_seconds >= 0:
+            self.validation_errors.append(f"plot_reminders.clear_seconds must be a non-negative integer, got: {clear_seconds}")
+        
         if self.validation_errors:
             raise SettingsValidationError("Settings validation failed:\n" + "\n".join(self.validation_errors))
         # if self.validation_warnings:

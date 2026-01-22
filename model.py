@@ -207,6 +207,7 @@ class CarrierModel:
         # self.read_counter = 0
         self._ignore_list = []
         self._sfc_white_list = []
+        self._notify_while_ignored_list = []
         self.custom_order = []
         self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
@@ -470,6 +471,17 @@ class CarrierModel:
     def reset_sfc_whitelist(self):
         self._sfc_white_list = []
 
+    def get_ignore_list(self) -> list[str]:
+        return self._ignore_list.copy()
+    
+    def reset_notify_while_ignored_list(self):
+        self._notify_while_ignored_list = []
+    
+    def add_notify_while_ignored_list(self, call_sign:str):
+        carrierID = self.get_id_by_callsign(call_sign)
+        if carrierID is not None and carrierID not in self._notify_while_ignored_list:
+            self._notify_while_ignored_list.append(carrierID)
+            
     def set_squadron_abbv_mapping(self, mapping:list[dict[str, str]]):
         self._squadron_abbv_mapping = {list(item.keys())[0].lower(): list(item.values())[0].upper() for item in mapping}
 
@@ -527,6 +539,10 @@ class CarrierModel:
             elif time_diff is not None and time_diff < CD:
                 self.active_timer = True
                 data['status'] = 'cool_down'
+                if data['CarrierLocation']['timestamp'] is not None and (len(data['jumps']) == 1 or data['CarrierLocation']['timestamp'] > data['jumps'].iloc[1]['DepartureTime']) and data['CarrierLocation']['timestamp'] < data['latest_depart'] and data['CarrierLocation']['SystemName'] != latest_system:
+                    pre_system = data['CarrierLocation']['SystemName']
+                    pre_body = data['CarrierLocation']['Body']
+                    pre_body_id = data['CarrierLocation']['BodyID']
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
@@ -539,6 +555,10 @@ class CarrierModel:
             elif time_diff_cancel is not None and time_diff_cancel < CD_cancel:
                 self.active_timer = True
                 data['status'] = 'cool_down_cancel'
+                if data['CarrierLocation']['timestamp'] is not None and (len(data['jumps']) == 1 or data['CarrierLocation']['timestamp'] > data['jumps'].iloc[1]['DepartureTime']) and data['CarrierLocation']['timestamp'] < data['last_cancel']['timestamp'] and data['CarrierLocation']['SystemName'] != latest_system:
+                    pre_system = data['CarrierLocation']['SystemName']
+                    pre_body = data['CarrierLocation']['Body']
+                    pre_body_id = data['CarrierLocation']['BodyID']
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
@@ -571,7 +591,7 @@ class CarrierModel:
         self.carriers_updated = carriers.copy()
 
         for carrierID in old_status.keys() & new_status.keys():
-            if new_status[carrierID] != old_status[carrierID] and carrierID not in self._ignore_list:
+            if new_status[carrierID] != old_status[carrierID] and (carrierID not in self._ignore_list or carrierID in self._notify_while_ignored_list):
                 # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 

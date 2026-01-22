@@ -6,24 +6,38 @@ from utility import getSettingsPath
 class DiscordWebhookHandler:
     class UserIDNotSetError(Exception):
         pass
-    def __init__(self, webhook_url: str, userID: str = ''):
-        self.webhook_url = webhook_url
+    
+    def __init__(self, webhook_urls: str, userID: str = ''):
+        self.webhook_urls = [url for url in webhook_urls.replace(' ', '').split(',') if url]
+        self.webhook_thread_ids = [url.split('?thread_id=')[1] if '?thread_id=' in url else None for url in self.webhook_urls] 
+        self.webhooks = [discord.SyncWebhook.from_url(url) for url in self.webhook_urls]
+        print(f"Initialized DiscordWebhookHandler with {len(self.webhooks)} webhooks.")
         self.userID = userID
         self.username = "Elite Dangerous Carrier Manager"
         self.avatar_url = "https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/blob/main/images/EDCM.png?raw=true"
 
     def send_message(self, message: str, ping: bool = False):
-        webhook = discord.SyncWebhook.from_url(self.webhook_url)
         if ping:
             message = self._get_ping_message() + " " + message
-        webhook.send(message, username=self.username, avatar_url=self.avatar_url)
+        for webhook, thread_id in zip(self.webhooks, self.webhook_thread_ids):
+            if thread_id:
+                webhook.send(message, username=self.username, avatar_url=self.avatar_url, thread=discord.Object(id=thread_id))
+            else:
+                webhook.send(message, username=self.username, avatar_url=self.avatar_url)
 
     def _send_embed(self, embed: discord.Embed, ping: bool = False):
-        webhook = discord.SyncWebhook.from_url(self.webhook_url)
         if ping:
-            webhook.send(self._get_ping_message(), embed=embed, username=self.username, avatar_url=self.avatar_url)
+            for webhook, thread_id in zip(self.webhooks, self.webhook_thread_ids):
+                if thread_id:
+                    webhook.send(self._get_ping_message(), embed=embed, username=self.username, avatar_url=self.avatar_url, thread=discord.Object(id=thread_id))
+                else:
+                    webhook.send(self._get_ping_message(), embed=embed, username=self.username, avatar_url=self.avatar_url)
         else:
-            webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
+            for webhook, thread_id in zip(self.webhooks, self.webhook_thread_ids):
+                if thread_id:
+                    webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url, thread=discord.Object(id=thread_id))
+                else:
+                    webhook.send(embed=embed, username=self.username, avatar_url=self.avatar_url)
 
     def send_message_with_embed(self, title: str, description: str, image_url: str|None=None, ping: bool = False):
         embed = discord.Embed(

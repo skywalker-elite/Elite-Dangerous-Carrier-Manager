@@ -65,6 +65,7 @@ test_wine_unload_data = {
 }
 
 font_sizes = {
+    'amerain': 5 if platform != 'darwin' else 7,
     'tiny': 7 if platform != 'darwin' else 9,
     'small': 9 if platform != 'darwin' else 11,
     'normal': 11 if platform != 'darwin' else 13,
@@ -90,4 +91,4 @@ TOOLTIP_FOREGROUND = '#ffffff'
 SUPABASE_URL = "https://ujpdxqvevfxjivvnlzds.supabase.co"
 SUPABASE_KEY = "sb_publishable_W7XhQ246tT6rJipPKDMekQ_fOmMoIi2"
 LOCAL_PORT = 58832
-REDIRECT_URL = f"http://localhost:{LOCAL_PORT}/callback"
+REDIRECT_URL = f"http://127.0.0.1:{LOCAL_PORT}/callback"

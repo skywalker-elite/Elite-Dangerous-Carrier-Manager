@@ -26,12 +26,14 @@ from tkinter import Tk
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
+from humanize import naturaltime
+from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView
 from station_parser import EDSMError, getStations
-from utility import checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getLatestPrereleaseVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
@@ -52,6 +54,10 @@ class CarrierController:
         self.root = root
         self.model = model
         self.tray_icon = None
+        self.notification_settings = {}
+        self.notification_settings_carrier = {}
+        self.webhook_handler = None
+        self.webhook_handler_carrier = {}
         self.auth_handler = AuthHandler()
         self.view = CarrierView(root)
         self.model.register_status_change_callback(self.status_change)
@@ -66,6 +72,7 @@ class CarrierController:
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
+        self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_file(getSettingsPath()))
@@ -113,8 +120,8 @@ class CarrierController:
         else:
             self.on_sign_out(show_message=False)
 
-        self.auth_handler.register_auth_event_callback('SIGNED_IN', self.on_sign_in)
-        self.auth_handler.register_auth_event_callback('SIGNED_OUT', self.on_sign_out)
+        self.auth_handler.register_auth_event_callback('SIGNED_IN', lambda: self.root.after(0, self.on_sign_in))
+        self.auth_handler.register_auth_event_callback('SIGNED_OUT', lambda: self.root.after(0, self.on_sign_out))
 
         self.save_window_size_on_resize()
 
@@ -136,7 +143,7 @@ class CarrierController:
     def check_app_update(self, notify_is_latest:bool=False):
         if isUpdateAvailable():
             if isOnPrerelease():
-                version_latest = getLatestPrereleaseVersion()
+                version_latest = getPrereleaseUpdateVersion()
             else:
                 version_latest = getLatestVersion()
             prompt = f'New version available: {version_latest}\nGo to download?'
@@ -190,7 +197,26 @@ class CarrierController:
         finally:
             if self.settings.validation_warnings:
                 self.view.show_message_box_warning('Settings file warnings', f'{"\n".join(self.settings.validation_warnings)}')
-            self.webhook_handler = DiscordWebhookHandler(self.settings.get('discord', 'webhook'), self.settings.get('discord', 'userID'))
+            self.notification_settings = dict(self.settings.get('notifications'))
+            self.notification_settings.update(dict(self.settings.get('discord')))
+            self.webhook_handler = DiscordWebhookHandler(self.notification_settings.get('webhook'), self.notification_settings.get('userID'))
+            for override in self.settings.get('advanced', 'carrier_notification_overrides'):
+                for callsign in override:
+                    print(f'Applying notification overrides for carrier {callsign}')
+                    print(override[callsign])
+                    carrier_notification_settings = self.notification_settings.copy()
+                    for key, value in override[callsign].items():
+                        if key in carrier_notification_settings:
+                            carrier_notification_settings[key] = value
+                        elif key == 'notify_while_ignored':
+                            # special case, not part of notification settings
+                            pass
+                        else:
+                            print(f'Warning: unknown setting {key} in override for carrier {callsign}')
+                            self.view.show_message_box_warning('Warning', f'Unknown setting {key} in override for carrier {callsign}')
+                    self.notification_settings_carrier[callsign] = carrier_notification_settings
+                    if carrier_notification_settings.get('webhook') != self.notification_settings.get('webhook') or carrier_notification_settings.get('userID') != self.notification_settings.get('userID'):
+                        self.webhook_handler_carrier[callsign] = DiscordWebhookHandler(carrier_notification_settings.get('webhook'), carrier_notification_settings.get('userID'))
             self.apply_settings_to_model()
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.root.geometry(self.settings.get('UI', 'window_size'))
@@ -204,67 +230,75 @@ class CarrierController:
         self.model.reset_sfc_whitelist()
         self.model.add_sfc_whitelist(self.settings.get('squadron_carriers', 'whitelist'))
         self.model.add_ignore_list(self.settings.get('advanced', 'ignore_list'))
+        self.model.reset_notify_while_ignored_list()
+        for override in self.settings.get('advanced', 'carrier_notification_overrides'):
+            for callsign in override:
+                if override[callsign].get('notify_while_ignored', False):
+                    self.model.add_notify_while_ignored_list(callsign)
         self.model.set_custom_order(self.settings.get('advanced', 'custom_order'))
         self.model.set_squadron_abbv_mapping(self.settings.get('name_customization', 'squadron_abbv'))
         self.model.read_journals() # re-read journals to apply ignore list and custom order
     
-    def status_change(self, carrierID:str, status_old:str, status_new:str):
+    def status_change(self, carrierID:int, status_old:str, status_new:str):
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
+        callsign = self.model.get_callsign(carrierID)
+        notification_settings = self.notification_settings_carrier.get(callsign, self.notification_settings)
+        carrier_webhook_handler = self.webhook_handler_carrier.get(callsign, self.webhook_handler)
         if status_new == 'jumping':
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
-            if self.settings.get('notifications', 'jump_plotted'):
+            if notification_settings.get('jump_plotted'):
                 self.view.show_non_blocking_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
-            if self.settings.get('notifications', 'jump_plotted_sound'):
-                self.play_sound(self.settings.get('notifications', 'jump_plotted_sound_file'))
-            if self.settings.get('notifications', 'jump_plotted_discord'):
-                self.webhook_handler.send_jump_status_embed(
+            if notification_settings.get('jump_plotted_sound'):
+                self.play_sound(notification_settings.get('jump_plotted_sound_file'))
+            if notification_settings.get('jump_plotted_discord'):
+                carrier_webhook_handler.send_jump_status_embed(
                     status='jump_plotted', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=self.model.get_destination_system(carrierID, use_custom_name=True), other_body=self.model.get_destination_body(carrierID),
-                    timestamp=self.model.get_departure_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_plotted_discord_ping'))
+                    timestamp=self.model.get_departure_hammer_countdown(carrierID), ping=notification_settings.get('jump_plotted_discord_ping'))
             if self.settings.get('timer_reporting', 'enabled'):
                 self.report_jump_timer(carrierID)
         elif status_new == 'cool_down':
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
-            if self.settings.get('notifications', 'jump_completed'):
+            if notification_settings.get('jump_completed'):
                 self.view.show_non_blocking_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
-            if self.settings.get('notifications', 'jump_completed_sound'):
-                self.play_sound(self.settings.get('notifications', 'jump_completed_sound_file'))
-            if self.settings.get('notifications', 'jump_completed_discord'):
-                self.webhook_handler.send_jump_status_embed(
+            if notification_settings.get('jump_completed_sound'):
+                self.play_sound(notification_settings.get('jump_completed_sound_file'))
+            if notification_settings.get('jump_completed_discord'):
+                carrier_webhook_handler.send_jump_status_embed(
                     status='jump_completed', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=self.model.get_previous_system(carrierID, use_custom_name=True), other_body=self.model.get_previous_body(carrierID),
-                    timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_completed_discord_ping'))
+                    timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=notification_settings.get('jump_completed_discord_ping'))
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
-            if self.settings.get('notifications', 'jump_cancelled'):
+            if notification_settings.get('jump_cancelled'):
                 self.view.show_non_blocking_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
-            if self.settings.get('notifications', 'jump_cancelled_sound'):
-                self.play_sound(self.settings.get('notifications', 'jump_cancelled_sound_file'))
-            if self.settings.get('notifications', 'jump_cancelled_discord'):
-                self.webhook_handler.send_jump_status_embed(
+            if notification_settings.get('jump_cancelled_sound'):
+                self.play_sound(notification_settings.get('jump_cancelled_sound_file'))
+            if notification_settings.get('jump_cancelled_discord'):
+                carrier_webhook_handler.send_jump_status_embed(
                     status='jump_cancelled', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=None, other_body=None,
-                    timestamp=self.model.get_cooldown_cancel_hammer_countdown(carrierID), ping=self.settings.get('notifications', 'jump_cancelled_discord_ping'))
+                    timestamp=self.model.get_cooldown_cancel_hammer_countdown(carrierID), ping=notification_settings.get('jump_cancelled_discord_ping'))
         elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
-            if self.settings.get('notifications', 'cooldown_finished'):
+            if notification_settings.get('cooldown_finished'):
                 self.view.show_non_blocking_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
-            if self.settings.get('notifications', 'cooldown_finished_sound'):
-                self.play_sound(self.settings.get('notifications', 'cooldown_finished_sound_file'))
-            if self.settings.get('notifications', 'cooldown_finished_discord'):
-                self.webhook_handler.send_jump_status_embed(
+            if notification_settings.get('cooldown_finished_sound'):
+                self.play_sound(notification_settings.get('cooldown_finished_sound_file'))
+            if notification_settings.get('cooldown_finished_discord'):
+                carrier_webhook_handler.send_jump_status_embed(
                     status='cooldown_finished', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=None, other_body=None,
                     timestamp=self.model.get_cooldown_hammer_countdown(carrierID) if status_old == 'cool_down' else self.model.get_cooldown_cancel_hammer_countdown(carrierID) if status_old == 'cool_down_cancel' else None, 
-                    ping=self.settings.get('notifications', 'cooldown_finished_discord_ping'))
+                    ping=notification_settings.get('cooldown_finished_discord_ping'))
 
     def play_sound(self, sound_file:str, block:bool=False):
         if path.exists(sound_file):
@@ -328,11 +362,13 @@ class CarrierController:
             carrier_callsign = self.model.get_callsign(carrierID)
             hammer_countdown = self.model.get_departure_hammer_countdown(carrierID)
             if hammer_countdown is not None:
-                self.copy_to_clipboard(hammer_countdown, 'Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) copied!')
+                timestamp = datetime.fromtimestamp(int(''.join(c for c in hammer_countdown if c.isdigit())), timezone.utc)
+                self.copy_to_clipboard(hammer_countdown, 'Success!', f'Hammertime countdown for {carrier_name} ({carrier_callsign}) ({naturaltime(timestamp)}) copied!')
             else:
                 self.view.show_message_box_warning('Error', f'No jump data found for {carrier_name} ({carrier_callsign})')
         else:
-            self.view.show_message_box_warning('Warning', 'please select one carrier and one carrier only!')
+            hammer_countdown = getHammerCountdown(datetime64(datetime.now(timezone.utc).replace(tzinfo=None)))
+            self.copy_to_clipboard(hammer_countdown, 'Success!', f'No carrier selected, hammertime countdown for current time copied!')
 
     def button_click_post_trade(self):
         selected_row = self.get_selected_row()
@@ -531,6 +567,9 @@ class CarrierController:
     def button_click_manual_timer(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
+            if getattr(self, 'manual_timer_view', None) is not None:
+                self.manual_timer_view.popup.destroy()
+                self.manual_timer_view = None
             carrierID = self.model.sorted_ids_display()[selected_row]
             self.manual_timer_view = ManualTimerView(self.view.root, carrierID=carrierID)
             reg = self.manual_timer_view.popup.register(checkTimerFormat)
@@ -555,9 +594,13 @@ class CarrierController:
             timer = self.manual_timer_view.entry_timer.get()
             timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
             timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
-            if timer < datetime.now(timezone.utc):
+            now_utc = datetime.now(timezone.utc)
+            if timer < now_utc:
                 timer += timedelta(days=1)
-            assert timer > datetime.now(timezone.utc), f'Timer must be in the future, {timer}, {datetime.now(timezone.utc)}'
+            assert timer > now_utc, f'Timer must be in the future, {timer}, {now_utc}'
+            if timer - now_utc > timedelta(hours=1, minutes=15):
+                if not self.view.show_message_box_askyesno('Warning', 'Timer set more than 1 hour 15 minutes in the future, are you sure?'):
+                    return
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
             self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False, 'plot_warned': False}
@@ -598,22 +641,37 @@ class CarrierController:
         else:
             self.view.show_message_box_warning('Warning', 'Please select one row.')
 
+    def button_click_open_journal_folder(self):
+        selected_row = self.get_selected_row(sheet=self.view.sheet_active_journals)
+        if selected_row is not None:
+            active_journal_paths = self.model.get_active_journal_paths()
+            if not active_journal_paths:
+                self.view.show_message_box_warning('Warning', 'No active journals found')
+            else:
+                journal_file = active_journal_paths[selected_row]
+                open_file(path.dirname(journal_file))
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row.')
+
     def check_manual_timer(self):
         now = datetime.now(timezone.utc)
+        remind = timedelta(seconds=self.settings.get('plot_reminders', 'remind_seconds'))
+        warn = timedelta(seconds=self.settings.get('plot_reminders', 'warn_seconds'))
+        clear = timedelta(seconds=self.settings.get('plot_reminders', 'clear_seconds'))
         for carrierID in self.model.sorted_ids():
             timer = self.model.manual_timers.get(carrierID, None)
             if timer is None:
                 continue
-            if timer['time'] <= now:
+            if timer['time'] + clear <= now:
                 self.model.manual_timers.pop(carrierID)
                 continue
-            elif timer['time'] - PLOT_WARN <= now and not timer['plot_warned']:
+            elif timer['time'] - warn <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
-                m, s = divmod(PLOT_WARN.total_seconds(), 60)
+                m, s = divmod(warn.total_seconds(), 60)
                 self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
-            elif timer['time'] - PLOT_REMIND <= now and not timer['reminded']:
+            elif timer['time'] - remind <= now and not timer['reminded']:
                 timer['reminded'] = True
-                m, s = divmod(PLOT_REMIND.total_seconds(), 60)
+                m, s = divmod(remind.total_seconds(), 60)
                 self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
@@ -779,8 +837,15 @@ class CarrierController:
                                                     'This action cannot be undone.'):
                 if self.view.show_message_box_askyesno('Delete Account', 'This will also delete all your data, including all the jump timers you\'ve ever reported.\n'
                                                          'Are you really sure you want to delete your account?'):
-                    self.auth_handler.delete_account()
-                    self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
+                    try:
+                        response = self.auth_handler.invoke_edge("delete-account")
+                        if 'error' in response:
+                            self.view.show_message_box_warning('Error', f"Error deleting account: {response['error']}")
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f"Error deleting account: {e}")
+                    else:
+                        self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
+                        self.auth_handler.logout()
 
     def on_sign_out(self, show_message: bool=True):
         if show_message:
@@ -808,14 +873,17 @@ class CarrierController:
         if self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_destination_system(carrierID) in ['HD 105341','HIP 58832']:
             print(f'Skipping jump timer report for N1 and N0')
             return
+        if carrierID in self.model.get_ignore_list():
+            print(f'Skipping jump timer report for ignored carrierID {carrierID}')
+            return
         if self.auth_handler.is_logged_in():
             jump_plot_timestamp = self.model.get_latest_jump_plot(carrierID)
             latest_departure_time = self.model.get_latest_departure(carrierID)
             payload = self.generate_timer_payload(carrierID, jump_plot_timestamp, latest_departure_time)
             # Report the jump timer to the server
             try:
-                response = self.auth_handler.client.functions.invoke("submit-report", invoke_options={'body': payload})
-                print('Report submitted successfully:', response.decode('utf-8'))
+                response = self.auth_handler.invoke_edge("submit-report", body=payload)
+                print('Report submitted successfully:', response)
             except Exception as e:
                 print(f"Error reporting jump timer: {e}")
 
@@ -854,9 +922,7 @@ class CarrierController:
                     yield seq[i:i+size]
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
-                response = self.auth_handler.client.functions.invoke("submit-bulk-report", invoke_options={'body': chunk})
-                if type(response) is bytes:
-                    response = json.loads(response.decode('utf-8'))
+                response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)
                 if 'error' in response:
                     raise RuntimeError(f"Error reporting jump timer: {response.error}")
                 if response.get('ok', None) is True:

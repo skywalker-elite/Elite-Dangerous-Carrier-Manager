@@ -54,8 +54,14 @@ cooldown_finished_sound_file = '' # Path to the sound file for the cooldown fini
 cooldown_finished_discord = false # Discord notification when a cooldown is finished
 cooldown_finished_discord_ping = false # Whether to ping when with the cooldown finished discord notification
 
+[plot_reminders]
+# These are the settings for the plot reminders. 
+remind_seconds = 120 # Number of seconds before plot time reminding you to be ready
+warn_seconds = 10 # Number of seconds before plot time warning you that the plot is imminent
+clear_seconds = 5 # Number of seconds after plot time to clear the timer
+
 [discord]
-webhook = "" # Discord webhook URL
+webhook = "" # Discord webhook URL(s), separate multiple URLs with commas. Whitespaces are allowed and ignored (example: "https://discord.com/api/webhooks/xxxx/yyyy, https://discord.com/api/webhooks/aaaa/bbbb")
 userID = "" # Discord user ID (optional, used for pings), find this by sending \@[your username] in discord, copy the number after the @ and paste it here.
 
 [font_size]
@@ -80,18 +86,34 @@ whitelist = [] # List of squadron carriers to NOT ignore. This is a list of squa
 #     { "Pilots Booze Network Squadron" = "PBNS" },
 #     { "Pilots Community Network Squadron" = "PCNS" },
 #     { "Pilots Faction Network Squadron" = "PFNS" },
+#     { "Pilots Trade Network" = "WINE" },
 # ]
 squadron_abbv = [
     { "Pilots Trade Network Squadron" = "PTNS" },
     { "Pilots Booze Network Squadron" = "PBNS" },
     { "Pilots Community Network Squadron" = "PCNS" },
     { "Pilots Faction Network Squadron" = "PFNS" },
+    { "Pilots Trade Network" = "WINE" },
 ]
 
 [advanced]
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
 ignore_list = [] # List of carriers to ignore. This is a list of carrier IDs (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
 custom_order = [] # Custom order of carriers. This is a list of carrier IDs (example: ["FC0-001", "FC0-002"]). Carriers in this list appear first; all others are sorted by time bought (if available).
+# You can override notification settings for specific carriers using the carrier_notification_overrides setting below.
+# Each entry in the list should be a dictionary where the key is the carrier ID and the value is another dictionary with the settings to override.
+# Valid settings to override are every setting under the [notifications] section (e.g., "jump_completed", "jump_completed_sound", etc.) and the [discord] section (e.g., "webhook", "userID").
+# Additionally, you can set "notify_while_ignored" = true to receive notifications for carriers that are not shown in the UI due to being in the ignore_list or squadron carriers not in the whitelist."
+# This does not affect jump timer reporting; ignored carriers will never report jump timers unless removed from the ignore list or added to the squadron whitelist.
+# Settings not specified in the override will use the global settings.
+# Example:
+# carrier_notification_overrides = [
+#     { "FC0-001" = { "jump_completed" = true, "jump_completed_sound" = true } },
+#     { "FC0-002" = { "jump_plotted_discord" = true, "webhook" = "https://discord.com/api/webhooks/xxxx/yyyy", "notify_while_ignored" = true } }
+# ]
+carrier_notification_overrides = [
+    {}
+]
 
 [compatibility] # DO NOT EDIT THIS SECTION
 settings_version = 1 # Version of the settings file. Do not edit this line.
