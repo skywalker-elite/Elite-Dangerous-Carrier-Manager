@@ -3,6 +3,45 @@
 ![Banner](images_readme/EDCM_Banner.png)
 EDCM is a third-party tool that helps you keep track of all your carriers (yes, plural!) in Elite Dangerous. The tool also provides some auxiliary functions to help with your daily trading and financial management. EDCM is from the ground up designed to support multiple carriers and multi-boxing (running multiple instances of the game at once) If you have more than one carrier, this is the tool for you. 
 
+<table>
+  <thead>
+    <tr>
+      <th>Quick Links</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><a href="#features">Features</a></td>
+    </tr>
+    <tr>
+      <td><a href="#installation">Installation</a></td>
+    </tr>
+    <tr>
+      <td><a href="#how-to-edit-the-settings-file">How to edit the settings file</a></td>
+    </tr>
+    <tr>
+      <td><a href="#suggested-things-to-change">Suggested things to change</a></td>
+    </tr>
+    <tr>
+      <td><a href="#launch-arguments">Launch Arguments</a></td>
+    </tr>
+    <tr>
+      <td><a href="#limitations">Limitations</a></td>
+    </tr>
+    <tr>
+      <td><a href="#known-issues">Known Issues</a></td>
+    </tr>
+    <tr>
+      <td><a href="#data-collection">Data Collection</a></td>
+    </tr>
+    <tr>
+      <td><a href="#acknowledgements">Acknowledgements</a></td>
+    </tr>
+    <tr>
+      <td><a href="#disclaimers">Disclaimers</a></td>
+    </tr>
+</table>
+
 
 ![Jumps tab](images_readme/ss_jump.png)
 Carrier location and jump countdown
@@ -59,7 +98,7 @@ Currently Windows 11 and Linux are supported. Windows 7/8/10 *should* work fine 
 - Wine unload command
   - After wine sell order is set and the carrier is at the peak, a wine unload command will be generated and copied to your clipboard after clicking the `Post Trade` button
 - Timer reminder
-  - You can enter the swap timer provided to you and you will get a reminder to plot your jump 2 minutes prior and another at the exact time
+  - You can enter the plot timer provided to you and you will get a reminder to plot your jump 2 minutes prior and another 10 seconds prior to the swap time (both times can be customized in the settings file)
   - Do Not rely on this feature to plot your jump! You are solely responsible to plot your jump on time, this is only a reminder in case you get distracted
 ### Jump Status Notification
 - You can set up notifications for the following events:
@@ -98,8 +137,10 @@ The settings file is a toml file that contains all the settings for EDCM. You ca
   - Enable the notifications you want to use
   - Set the notification sound to your desired sound file if you want to use a custom sound (.mp3 or .wav). The default is a simple TTS announcement
 - **discord** section
-  - Set the Discord webhook URL to your webhook of an appropriate channel if you want to use the Discord notification feature
+  - Set the Discord webhook URL to your webhook of an appropriate **private** channel if you want to use the Discord notification feature
   - Set the userID to your discord user ID if you want to use the ping feature
+  - Set the Discord public webhook URL to your webhook of an appropriate **public** channel if you want to use the public Discord notification feature
+  - **Make sure to NOT put webhooks of a public Discord channel in the 'webhook' field, as they may contain sensitive information. Use the 'webhook_public' field for any channel that others can see instead.**
 - It's recommended to test your settings in the options tab for the first time you set them up
 ## Launch Arguments
 You can pass the following arguments when launching EDCM:
@@ -135,7 +176,6 @@ If you don't choose to do any of the following, no data is collected or sent to 
 
 If you choose to log in with your Discord account, the following data will be collected and sent to the backend server:
 - Basic Discord account information (username, user ID, ...etc)
-- The email associated with your Discord account (this is needed by the backend OAuth2 service of supabase, it is not used by EDCM)
 - If you choose to verify PTN roles, additionally Discord guild member information will be collected and sent to the backend server
 
 If you choose to report your jump timers, the following data will be collected and sent to the backend server using your Discord account as identity:
