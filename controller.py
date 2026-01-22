@@ -200,6 +200,7 @@ class CarrierController:
             self.notification_settings = dict(self.settings.get('notifications'))
             self.notification_settings.update(dict(self.settings.get('discord')))
             self.webhook_handler = DiscordWebhookHandler(self.notification_settings.get('webhook'), self.notification_settings.get('userID'))
+            self.webhook_handler_public = DiscordWebhookHandler(self.notification_settings.get('webhook_public'), self.notification_settings.get('userID'))
             for override in self.settings.get('advanced', 'carrier_notification_overrides'):
                 for callsign in override:
                     print(f'Applying notification overrides for carrier {callsign}')
@@ -217,6 +218,7 @@ class CarrierController:
                     self.notification_settings_carrier[callsign] = carrier_notification_settings
                     if carrier_notification_settings.get('webhook') != self.notification_settings.get('webhook') or carrier_notification_settings.get('userID') != self.notification_settings.get('userID'):
                         self.webhook_handler_carrier[callsign] = DiscordWebhookHandler(carrier_notification_settings.get('webhook'), carrier_notification_settings.get('userID'))
+                        self.webhook_handler_carrier[callsign + '_public'] = DiscordWebhookHandler(carrier_notification_settings.get('webhook_public'), carrier_notification_settings.get('userID'))
             self.apply_settings_to_model()
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
             self.root.geometry(self.settings.get('UI', 'window_size'))
@@ -243,7 +245,8 @@ class CarrierController:
         # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) status changed from {status_old} to {status_new}')
         callsign = self.model.get_callsign(carrierID)
         notification_settings = self.notification_settings_carrier.get(callsign, self.notification_settings)
-        carrier_webhook_handler = self.webhook_handler_carrier.get(callsign, self.webhook_handler)
+        carrier_webhook_handler: DiscordWebhookHandler = self.webhook_handler_carrier.get(callsign, self.webhook_handler)
+        carrier_webhook_handler_public: DiscordWebhookHandler = self.webhook_handler_carrier.get(callsign + '_public', self.webhook_handler_public)
         if status_new == 'jumping':
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
@@ -251,12 +254,20 @@ class CarrierController:
                 self.view.show_non_blocking_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
             if notification_settings.get('jump_plotted_sound'):
                 self.play_sound(notification_settings.get('jump_plotted_sound_file'))
+            censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_destination_system(carrierID) in ['HD 105341','HIP 58832']
             if notification_settings.get('jump_plotted_discord'):
                 carrier_webhook_handler.send_jump_status_embed(
                     status='jump_plotted', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=self.model.get_destination_system(carrierID, use_custom_name=True), other_body=self.model.get_destination_body(carrierID),
-                    timestamp=self.model.get_departure_hammer_countdown(carrierID), ping=notification_settings.get('jump_plotted_discord_ping'))
+                    timestamp=None if censor_mode else self.model.get_departure_hammer_countdown(carrierID), ping=notification_settings.get('jump_plotted_discord_ping'))
+            if notification_settings.get('jump_plotted_discord_public'):
+                if not censor_mode:
+                    carrier_webhook_handler_public.send_jump_status_embed(
+                        status='jump_plotted', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
+                        current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
+                        other_system=self.model.get_destination_system(carrierID, use_custom_name=True), other_body=self.model.get_destination_body(carrierID),
+                        timestamp=self.model.get_departure_hammer_countdown(carrierID), ping=notification_settings.get('jump_plotted_discord_public_ping'))
             if self.settings.get('timer_reporting', 'enabled'):
                 self.report_jump_timer(carrierID)
         elif status_new == 'cool_down':
@@ -266,12 +277,20 @@ class CarrierController:
                 self.view.show_non_blocking_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
             if notification_settings.get('jump_completed_sound'):
                 self.play_sound(notification_settings.get('jump_completed_sound_file'))
+            censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_previous_system(carrierID) in ['HD 105341','HIP 58832']
             if notification_settings.get('jump_completed_discord'):
                 carrier_webhook_handler.send_jump_status_embed(
                     status='jump_completed', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=self.model.get_previous_system(carrierID, use_custom_name=True), other_body=self.model.get_previous_body(carrierID),
                     timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=notification_settings.get('jump_completed_discord_ping'))
+            if notification_settings.get('jump_completed_discord_public'):
+                if not censor_mode:
+                    carrier_webhook_handler_public.send_jump_status_embed(
+                        status='jump_completed', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
+                        current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
+                        other_system=self.model.get_previous_system(carrierID, use_custom_name=True), other_body=self.model.get_previous_body(carrierID),
+                        timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=notification_settings.get('jump_completed_discord_public_ping'))
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
@@ -279,12 +298,20 @@ class CarrierController:
                 self.view.show_non_blocking_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
             if notification_settings.get('jump_cancelled_sound'):
                 self.play_sound(notification_settings.get('jump_cancelled_sound_file'))
+            censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_previous_system(carrierID) in ['HD 105341','HIP 58832']
             if notification_settings.get('jump_cancelled_discord'):
                 carrier_webhook_handler.send_jump_status_embed(
                     status='jump_cancelled', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
                     current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                     other_system=None, other_body=None,
                     timestamp=self.model.get_cooldown_cancel_hammer_countdown(carrierID), ping=notification_settings.get('jump_cancelled_discord_ping'))
+            if notification_settings.get('jump_cancelled_discord_public'):
+                if not censor_mode:
+                    carrier_webhook_handler_public.send_jump_status_embed(
+                        status='jump_cancelled', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
+                        current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
+                        other_system=None, other_body=None,
+                        timestamp=self.model.get_cooldown_cancel_hammer_countdown(carrierID), ping=notification_settings.get('jump_cancelled_discord_public_ping'))
         elif status_new == 'idle' and status_old in ['cool_down', 'cool_down_cancel']:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
@@ -292,6 +319,7 @@ class CarrierController:
                 self.view.show_non_blocking_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
             if notification_settings.get('cooldown_finished_sound'):
                 self.play_sound(notification_settings.get('cooldown_finished_sound_file'))
+            censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832']
             if notification_settings.get('cooldown_finished_discord'):
                 carrier_webhook_handler.send_jump_status_embed(
                     status='cooldown_finished', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
@@ -299,6 +327,14 @@ class CarrierController:
                     other_system=None, other_body=None,
                     timestamp=self.model.get_cooldown_hammer_countdown(carrierID) if status_old == 'cool_down' else self.model.get_cooldown_cancel_hammer_countdown(carrierID) if status_old == 'cool_down_cancel' else None, 
                     ping=notification_settings.get('cooldown_finished_discord_ping'))
+            if notification_settings.get('cooldown_finished_discord_public'):
+                if not censor_mode:
+                    carrier_webhook_handler_public.send_jump_status_embed(
+                        status='cooldown_finished', name=self.model.get_name(carrierID), callsign=self.model.get_callsign(carrierID), 
+                        current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
+                        other_system=None, other_body=None,
+                        timestamp=self.model.get_cooldown_hammer_countdown(carrierID) if status_old == 'cool_down' else self.model.get_cooldown_cancel_hammer_countdown(carrierID) if status_old == 'cool_down_cancel' else None, 
+                        ping=notification_settings.get('cooldown_finished_discord_public_ping'))
 
     def play_sound(self, sound_file:str, block:bool=False):
         if path.exists(sound_file):

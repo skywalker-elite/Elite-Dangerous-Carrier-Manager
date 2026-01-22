@@ -56,7 +56,7 @@ class DiscordWebhookHandler:
 
     def send_jump_status_embed(self, status: Literal['jump_plotted', 'jump_completed', 'jump_cancelled', 'cooldown_finished'], 
                                 name: str, callsign: str, current_system: str|None, current_body: str|None,
-                                other_system: str|None, other_body: str|None, timestamp: str, ping: bool = False) -> None:
+                                other_system: str|None, other_body: str|None, timestamp: str|None, ping: bool = False) -> None:
         
         color_map = {
             'jump_plotted': 4218367,
@@ -65,10 +65,10 @@ class DiscordWebhookHandler:
             'cooldown_finished': 5239664,
         }
         description_map = {
-            'jump_plotted': f"Jump plotted to **{other_system}** body **{other_body}**, arriving {timestamp}",
-            'jump_completed': f"Jump completed at **{current_system}** body **{current_body}**, cooldown finishes {timestamp}",
-            'jump_cancelled': f"Jump cancelled, cooldown finishes {timestamp}",
-            'cooldown_finished': f"Cooldown complete {timestamp}, ready to jump",
+            'jump_plotted': f"Jump plotted to **{other_system}** body **{other_body}**" + (f", arriving {timestamp}" if timestamp else ""),
+            'jump_completed': f"Jump completed at **{current_system}** body **{current_body}**" + (f", cooldown finishes {timestamp}" if timestamp else ""),
+            'jump_cancelled': f"Jump cancelled" + (f", cooldown finishes {timestamp}" if timestamp else ""),
+            'cooldown_finished': f"Cooldown complete" + (f", {timestamp}" if timestamp else "") + ", ready to jump",
         }
 
         current_system, current_body, other_system, other_body = current_system or 'Unknown', current_body or 'Unknown', other_system or 'Unknown', other_body or 'Unknown'
