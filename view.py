@@ -513,9 +513,11 @@ class ManualTimerView:
         self.label_timer_desp = ttk.Label(self.popup, text='Enter timer:')
         self.label_timer_desp.pack(side='top', pady=4, padx=8)
         self.entry_timer = ttk.Entry(self.popup)
+        self.entry_timer.focus()
         self.entry_timer.pack(side='top', pady=4, padx=8)
         self.button_post = ttk.Button(self.popup, text='OK')
         self.button_post.pack(side='bottom', ipadx=8, ipady=2, pady=4)
+        self.popup.bind('<Return>', (lambda e, b=self.button_post: b.invoke()))
 
         self.popup.attributes('-topmost', True)
         center_window_relative_to_parent(self.popup, root)
