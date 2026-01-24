@@ -23,16 +23,7 @@ EDCM is a third-party tool that helps you keep track of all your carriers (yes, 
       <td><a href="#suggested-things-to-change">Suggested things to change</a></td>
     </tr>
     <tr>
-      <td><a href="#launch-arguments">Launch Arguments</a></td>
-    </tr>
-    <tr>
       <td><a href="#limitations">Limitations</a></td>
-    </tr>
-    <tr>
-      <td><a href="#known-issues">Known Issues</a></td>
-    </tr>
-    <tr>
-      <td><a href="#data-collection">Data Collection</a></td>
     </tr>
     <tr>
       <td><a href="#acknowledgements">Acknowledgements</a></td>
@@ -190,6 +181,8 @@ Jumps excluded from jump timer reporting:
 - Jumps to or from N0/N1 for real-time jump timer reporting (if you report timer history using the button in the options tab, it will include them)
 ## Acknowledgements
 Thank you <a href=https://github.com/aussig>aussig</a> for the <a href=https://github.com/aussig/BGS-Tally/tree/develop/data>lists of commodities</a>, related files are in the `3rdParty\aussig.BGS-Tally` folder with the corresponding license file. 
+
+Thank you to all the beta testers from the <a href=https://pilotstradenetwork.com>Pilots Trade Network (PTN)</a> discord for helping test and provide feedback on EDCM. This would not be possible without you guys! 
 ## Disclaimers
 Although influenced a lot by the <a href=https://pilotstradenetwork.com>Pilots Trade Network (PTN)</a> in its design, EDCM is not endorsed by or affliated with the PTN and is not an offical tool of any player group. 
 
