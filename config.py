@@ -11,6 +11,8 @@ JUMPLOCK = timedelta(minutes=10)
 PLOT_REMIND = timedelta(minutes=2)
 PLOT_WARN = timedelta(seconds=10)
 
+TIME_SKEW_WARN_CD = timedelta(hours=1)
+
 UPDATE_INTERVAL = 500
 UPDATE_INTERVAL_TIMER_STATS = 1000 * 30  # 30 seconds
 REDRAW_INTERVAL_FAST = 250
