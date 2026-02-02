@@ -86,6 +86,7 @@ class CarrierController:
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
+        self.view.button_check_time_skew.configure(command=lambda: self.check_time_skew(silent=False))
         self.view.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'show_active_journals_tab', value=self.view.checkbox_show_active_journals_var.get()))
         self.view.checkbox_minimize_to_tray_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'minimize_to_tray', value=self.view.checkbox_minimize_to_tray_var.get()))
         self.view.checkbox_minimize_to_tray.configure(command=lambda: self.setup_tray_icon())
@@ -397,9 +398,13 @@ class CarrierController:
                 self.view.root.destroy()
     
     def check_time_skew(self, silent: bool = True):
+        if not silent:
+            progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
         executioner = ThreadPoolExecutor(max_workers=1)
         future_skew = executioner.submit(self.time_checker.check_and_warn)
         def handle_skew_result(future):
+            if not silent:
+                    progress_win.destroy()
             try:
                 warn, message = future.result()
                 print(message)

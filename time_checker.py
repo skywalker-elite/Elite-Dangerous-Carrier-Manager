@@ -42,7 +42,7 @@ class TimeChecker():
             # Center the integer second (assumes server_ts_int is floor/whole-second time)
             server_ts = server_ts_int + 0.5
 
-            diff = server_ts - w_mid
+            diff = w_mid - server_ts
             uncertainty = 0.5 + (rtt / 2.0)
 
             results.append({
@@ -76,10 +76,13 @@ class TimeChecker():
         message = ""
         if warn:
             direction = "ahead of" if m["diff_s"] > 0 else "behind"
-            message = (f"WARNING: Your clock is ~{abs(m['diff_s']):.1f}s {direction} the game server "
-                       f"(RTT={m['rtt_s']*1000:.0f}ms, uncertainty≈±{m['uncertainty_s']:.2f}s).")
+            message = (f"Your clock is about {abs(m['diff_s']):.1f}s {direction} the game server.\n"
+                       f"You may have issues with plot reminders and other time-sensitive features.\n"
+                       f"Consider synchronizing your system clock.\n"
+                       f"diff: {m['diff_s']:+.2f}s (RTT={m['rtt_s']*1000:.0f}ms, uncertainty≈±{m['uncertainty_s']:.2f}s)")
         else:
-            message = (f"OK: diff={m['diff_s']:+.2f}s (RTT={m['rtt_s']*1000:.0f}ms, uncertainty≈±{m['uncertainty_s']:.2f}s)")
+            message = (f"Time check passed: your clock is close to the game server.\n"
+                       f"diff: {m['diff_s']:+.2f}s (RTT={m['rtt_s']*1000:.0f}ms, uncertainty≈±{m['uncertainty_s']:.2f}s)")
         return (warn, message)
 
 # Example

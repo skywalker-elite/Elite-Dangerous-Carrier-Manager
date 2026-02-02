@@ -264,6 +264,8 @@ class CarrierView:
         self.button_go_to_github.pack(side='left', padx=10, pady=10, anchor='w')
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_check_time_skew = ttk.Button(self.labelframe_EDCM, text='Check Time Skew')
+        self.button_check_time_skew.pack(side='left', padx=10, pady=10, anchor='w')
         self.checkbox_show_active_journals_var = tk.BooleanVar()
         self.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.toggle_active_journals_tab())
         self.checkbox_show_active_journals = ttk.Checkbutton(
