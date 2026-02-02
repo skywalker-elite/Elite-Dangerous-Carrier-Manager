@@ -27,6 +27,7 @@ from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
 from humanize import naturaltime
+from concurrent.futures import ThreadPoolExecutor
 from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
@@ -36,6 +37,7 @@ from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
+from time_checker import TimeChecker
 from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
 
 if TYPE_CHECKING: 
@@ -103,6 +105,10 @@ class CarrierController:
             self._observer.schedule(handler, watch_dir, recursive=False)
         self._observer.daemon = True
         self._observer.start()
+
+        # check time skew
+        self.time_checker = TimeChecker()
+        self.check_time_skew()
 
         self.set_current_version()
         self.redraw_fast()
@@ -389,6 +395,24 @@ class CarrierController:
                 self.view.root.after(UPDATE_INTERVAL, self.update_journals)
             else:
                 self.view.root.destroy()
+    
+    def check_time_skew(self, silent: bool = True):
+        executioner = ThreadPoolExecutor(max_workers=1)
+        future_skew = executioner.submit(self.time_checker.check_and_warn)
+        def handle_skew_result(future):
+            try:
+                warn, message = future.result()
+                print(message)
+                if warn:
+                    self.view.show_message_box_warning('Time Skew Warning', message)
+                elif not silent:
+                    self.view.show_message_box_info('Time Skew Check', message)
+            except Exception as e:
+                print(f'Error checking time skew: {e}')
+                if not silent:
+                    self.view.show_message_box_warning('Time Skew Check Error', f'Error checking time skew:\n{e}')
+
+        future_skew.add_done_callback(handle_skew_result)
     
     def button_click_hammer(self):
         selected_row = self.get_selected_row()

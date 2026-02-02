@@ -62,12 +62,6 @@ cooldown_finished_discord_ping = false # Whether to ping with the cooldown finis
 cooldown_finished_discord_public = false # Whether to send cooldown finished discord notification to public webhook
 cooldown_finished_discord_public_ping = false # Whether to ping with the cooldown finished public discord notification
 
-[plot_reminders]
-# These are the settings for the plot reminders. 
-remind_seconds = 120 # Number of seconds before plot time reminding you to be ready
-warn_seconds = 10 # Number of seconds before plot time warning you that the plot is imminent
-clear_seconds = 5 # Number of seconds after plot time to clear the timer
-
 [discord]
 # These are the settings for Discord notifications.
 # WARNING: Only use webhooks of your own private Discord server in the 'webhook' field below, as they may contain sensitive information.
