@@ -480,7 +480,7 @@ class TradePostView:
         self.label_stock.pack(side='left', padx=2)
         self.label_market_updated = ttk.Label(self.frame_market, text='')
         self.label_market_updated.pack(side='left', padx=2)
-        self.button_post = ttk.Button(self.popup, text='OK')
+        self.button_post = ttk.Button(self.popup, text='Copy to clipboard')
         self.button_post.grid(row=2, column=0, columnspan=14, pady=10)
         
         self.station_selected(None)
