@@ -27,6 +27,7 @@ from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
 from humanize import naturaltime
+from concurrent.futures import ThreadPoolExecutor
 from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
@@ -36,7 +37,8 @@ from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
-from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
+from time_checker import TimeChecker
+from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD, TIME_SKEW_CHECK_CD
 
 if TYPE_CHECKING: 
     import tksheet
@@ -84,6 +86,7 @@ class CarrierController:
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
+        self.view.button_check_time_skew.configure(command=lambda: self.check_time_skew(silent=False))
         self.view.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'show_active_journals_tab', value=self.view.checkbox_show_active_journals_var.get()))
         self.view.checkbox_minimize_to_tray_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'minimize_to_tray', value=self.view.checkbox_minimize_to_tray_var.get()))
         self.view.checkbox_minimize_to_tray.configure(command=lambda: self.setup_tray_icon())
@@ -103,6 +106,13 @@ class CarrierController:
             self._observer.schedule(handler, watch_dir, recursive=False)
         self._observer.daemon = True
         self._observer.start()
+
+        # check time skew
+        self.last_time_skew_check = datetime.min
+        self.last_time_skew_warned = datetime.min
+        self.time_skew_warning_suppressed = False
+        self.time_checker = TimeChecker()
+        self.check_time_skew()
 
         self.set_current_version()
         self.redraw_fast()
@@ -390,6 +400,39 @@ class CarrierController:
             else:
                 self.view.root.destroy()
     
+    def check_time_skew(self, silent: bool = True):
+        if datetime.now() - self.last_time_skew_check < TIME_SKEW_CHECK_CD and silent:
+            return
+        if datetime.now() - self.last_time_skew_warned < TIME_SKEW_WARN_CD and silent:
+            return
+        if self.time_skew_warning_suppressed and silent:
+            return
+        if not silent:
+            progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
+        executioner = ThreadPoolExecutor(max_workers=1)
+        future_skew = executioner.submit(self.time_checker.check_and_warn)
+        def handle_skew_result(future):
+            if not silent:
+                    progress_win.destroy()
+            try:
+                warn, message = future.result()
+                print(message)
+                if warn:
+                    if silent:
+                        self.time_skew_warning_suppressed = self.view.show_message_box_warning_checkbox('Time Skew Warning', message, 'Don\'t show this warning again for the rest of this session', checkbox_value=self.time_skew_warning_suppressed)
+                    else:
+                        self.view.show_message_box_warning('Time Skew Warning', message)
+                    self.last_time_skew_warned = datetime.now()
+                elif not silent:
+                    self.view.show_message_box_info('Time Skew Check', message)
+                self.last_time_skew_check = datetime.now()
+            except Exception as e:
+                print(f'Error checking time skew: {e}')
+                if not silent:
+                    self.view.show_message_box_warning('Time Skew Check Error', f'Error checking time skew:\n{e}')
+
+        future_skew.add_done_callback(handle_skew_result)
+    
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
@@ -641,6 +684,7 @@ class CarrierController:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
             self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False, 'plot_warned': False}
             self.manual_timer_view.popup.destroy()
+            self.check_time_skew(silent=True)
     
     def button_click_post_departure(self):
         selected_row = self.get_selected_row()

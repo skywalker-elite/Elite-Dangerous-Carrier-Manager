@@ -3,7 +3,7 @@ from tkinter import ttk
 from tksheet import Sheet
 from typing import Literal
 import tkinter.font as tkfont
-from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar
+from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND
 from station_parser import getStockPrice
@@ -264,6 +264,8 @@ class CarrierView:
         self.button_go_to_github.pack(side='left', padx=10, pady=10, anchor='w')
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_check_time_skew = ttk.Button(self.labelframe_EDCM, text='Check Time Skew')
+        self.button_check_time_skew.pack(side='left', padx=10, pady=10, anchor='w')
         self.checkbox_show_active_journals_var = tk.BooleanVar()
         self.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.toggle_active_journals_tab())
         self.checkbox_show_active_journals = ttk.Checkbutton(
@@ -415,6 +417,12 @@ class CarrierView:
 
     def show_indeterminate_progress_bar(self, title: str, message: str):
         return show_indeterminate_progress_bar(self.root, title, message)
+    
+    def show_message_box_info_checkbox(self, title: str, message: str, checkbox_text: str, checkbox_value: bool=False) -> bool:
+        return show_message_box_info_checkbox(self.root, title, message, checkbox_text, checkbox_value)
+    
+    def show_message_box_warning_checkbox(self, title: str, message: str, checkbox_text: str, checkbox_value: bool=False) -> bool:
+        return show_message_box_warning_checkbox(self.root, title, message, checkbox_text, checkbox_value)
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
