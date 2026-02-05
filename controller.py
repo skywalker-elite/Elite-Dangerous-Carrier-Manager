@@ -186,7 +186,7 @@ class CarrierController:
                             open_file(settings_file)
                         except Exception as e:
                             self.view.show_message_box_warning('Error', f'Could not open settings file:\n{e}')
-                        self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
+                        self.view.show_message_box_info('Waiting', 'Click OK when you are done editing and saved the file', grab_focus=False, topmost=False)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
                     settings_file=getSettingsDefaultPath()
@@ -748,11 +748,11 @@ class CarrierController:
             elif timer['time'] - warn <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
                 m, s = divmod(warn.total_seconds(), 60)
-                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
+                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False)
             elif timer['time'] - remind <= now and not timer['reminded']:
                 timer['reminded'] = True
                 m, s = divmod(remind.total_seconds(), 60)
-                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
+                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False)
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     
