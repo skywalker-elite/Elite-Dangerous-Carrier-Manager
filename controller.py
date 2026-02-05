@@ -748,11 +748,11 @@ class CarrierController:
             elif timer['time'] - warn <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
                 m, s = divmod(warn.total_seconds(), 60)
-                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False)
+                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False, topmost=True)
             elif timer['time'] - remind <= now and not timer['reminded']:
                 timer['reminded'] = True
                 m, s = divmod(remind.total_seconds(), 60)
-                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False)
+                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False, topmost=True)
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     

@@ -72,8 +72,8 @@ def show_message_box_info(root: tk.Tk, title: str, message: str, grab_focus: boo
     ttk.Label(frame, text=message, wraplength=400, justify='center').grid(row=0, column=1, pady=8, padx=8)
     ttk.Button(frame, text='OK', command=dialog.destroy).grid(row=1, column=0, columnspan=2, ipadx=8, padx=8, pady=(8, 0))
 
-    dialog.attributes('-topmost', topmost)
     center_window_relative_to_parent(dialog, root)
+    dialog.attributes('-topmost', topmost)
     if grab_focus:
         dialog.focus_set()
     root.wait_window(dialog)
