@@ -401,7 +401,7 @@ class CarrierController:
                 self.view.root.destroy()
     
     def check_time_skew(self, silent: bool = True):
-        if datetime.now() - self.last_time_skew_check <TIME_SKEW_CHECK_CD and silent:
+        if datetime.now() - self.last_time_skew_check < TIME_SKEW_CHECK_CD and silent:
             return
         if datetime.now() - self.last_time_skew_warned < TIME_SKEW_WARN_CD and silent:
             return
