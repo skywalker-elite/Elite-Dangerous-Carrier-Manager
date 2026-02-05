@@ -616,7 +616,7 @@ class CarrierController:
         except Exception as e:
             self.view.show_message_box_warning('Error', f'Error while generating trade post string\n{e}')
         else:
-            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}')
+            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}\n\nIt has been copied to your clipboard as well')
 
     def button_click_test_wine_unload(self):
         from config import test_wine_unload_data
@@ -625,7 +625,7 @@ class CarrierController:
         except Exception as e:
             self.view.show_message_box_warning('Error', f'Error while generating wine unload post string\n{e}')
         else:
-            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your wine unload post looks like:\n{post_string}')
+            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your wine unload post looks like:\n{post_string}\n\nIt has been copied to your clipboard as well')
 
     def button_click_test_discord_webhook(self):
         try:
