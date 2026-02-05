@@ -397,11 +397,8 @@ class CarrierView:
     def update_timer_stat(self, text:str):
         self.label_timer_stat.configure(text=text)
 
-    def show_message_box_info(self, title:str, message:str):
-        show_message_box_info(self.root, title, message)
-
-    def show_message_box_info_no_topmost(self, title:str, message:str):
-        show_message_box_info_no_topmost(self.root, title, message)
+    def show_message_box_info(self, title:str, message:str, grab_focus: bool=True, topmost: bool=True):
+        show_message_box_info(self.root, title, message, grab_focus=grab_focus, topmost=topmost)
 
     def show_non_blocking_info(self, title: str, message: str):
         show_non_blocking_info(self.root, title, message)
