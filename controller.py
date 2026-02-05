@@ -38,7 +38,7 @@ from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescriptio
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
-from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD
+from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD, TIME_SKEW_CHECK_CD
 
 if TYPE_CHECKING: 
     import tksheet
@@ -109,6 +109,8 @@ class CarrierController:
 
         # check time skew
         self.last_time_skew_check = datetime.min
+        self.last_time_skew_warned = datetime.min
+        self.time_skew_warning_suppressed = False
         self.time_checker = TimeChecker()
         self.check_time_skew()
 
@@ -399,6 +401,12 @@ class CarrierController:
                 self.view.root.destroy()
     
     def check_time_skew(self, silent: bool = True):
+        if datetime.now() - self.last_time_skew_check <TIME_SKEW_CHECK_CD and silent:
+            return
+        if datetime.now() - self.last_time_skew_warned < TIME_SKEW_WARN_CD and silent:
+            return
+        if self.time_skew_warning_suppressed and silent:
+            return
         if not silent:
             progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
         executioner = ThreadPoolExecutor(max_workers=1)
@@ -410,7 +418,11 @@ class CarrierController:
                 warn, message = future.result()
                 print(message)
                 if warn:
-                    self.view.show_message_box_warning('Time Skew Warning', message)
+                    if silent:
+                        self.time_skew_warning_suppressed = self.view.show_message_box_warning_checkbox('Time Skew Warning', message, 'Don\'t show this warning again for the rest of this session', checkbox_value=self.time_skew_warning_suppressed)
+                    else:
+                        self.view.show_message_box_warning('Time Skew Warning', message)
+                    self.last_time_skew_warned = datetime.now()
                 elif not silent:
                     self.view.show_message_box_info('Time Skew Check', message)
                 self.last_time_skew_check = datetime.now()
@@ -672,8 +684,7 @@ class CarrierController:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
             self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False, 'plot_warned': False}
             self.manual_timer_view.popup.destroy()
-            if datetime.now() - self.last_time_skew_check > TIME_SKEW_WARN_CD:
-                self.check_time_skew(silent=True)
+            self.check_time_skew(silent=True)
     
     def button_click_post_departure(self):
         selected_row = self.get_selected_row()
