@@ -241,3 +241,29 @@ def show_message_box_warning_checkbox(root: tk.Tk, title:str, message:str, check
     dialog.focus_set()
     root.wait_window(dialog)
     return result
+
+def show_dropdown_popup(root: tk.Tk, title: str, prompt: str, options: list[str]) -> int|None:
+    result = None
+
+    dialog, frame = create_dialog(root, title)
+
+    ttk.Label(frame, text=prompt, wraplength=400, justify='center').grid(row=0, column=0, pady=8, padx=8)
+
+    selected_var = tk.StringVar(value=options[0] if options else '')
+
+    dropdown = ttk.Combobox(frame, textvariable=selected_var, values=options, state='readonly', width=30, justify='center')
+    dropdown.grid(row=1, column=0, pady=8, padx=8, sticky='ew')
+    dropdown.current(0)
+
+    def on_ok():
+        nonlocal result
+        result = dropdown.current()
+        dialog.destroy()
+
+    ttk.Button(frame, text='OK', command=on_ok).grid(row=2, column=0, ipadx=8, padx=8, pady=(8, 0))
+
+    dialog.attributes('-topmost', True)
+    center_window_relative_to_parent(dialog, root)
+    dialog.focus_set()
+    root.wait_window(dialog)
+    return result

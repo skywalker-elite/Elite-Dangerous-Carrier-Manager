@@ -32,7 +32,7 @@ from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
-from view import CarrierView, TradePostView, ManualTimerView, MenuOption
+from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
@@ -87,6 +87,7 @@ class CarrierController:
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.button_trade_history.configure(command=self.button_click_trade_history)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
@@ -613,6 +614,11 @@ class CarrierController:
             to_from=to_from
         )
         return post_string
+    
+    def button_click_trade_history(self):
+        selected_carrier = self.view.show_dropdown_popup('Trade History', 'Select carrier:', [f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})' for carrierID in self.model.sorted_ids_display()])
+        if selected_carrier is not None:
+            trade_history_view = TradeHistoryView(self.view.root, data=self.model.get_trade_history(carrierID=list(self.model.sorted_ids_display())[selected_carrier]).values.tolist())
 
     def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str, timed_unload:bool=False) -> str:
         if not timed_unload:
