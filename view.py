@@ -296,6 +296,8 @@ class CarrierView:
         self.button_report_timer_history = ttk.Button(self.labelframe_timer_reporting, text='Report Timer History')
         self.button_report_timer_history.pack(side='left', padx=10, pady=10, anchor='w')
         self.hovertip_button_report_timer_history = Hovertip(self.button_report_timer_history, 'Report all jump timers in history.\nRequires having certain PTN roles, which you can verify using the button "Verify PTN Roles".', hover_delay=TOOLTIP_HOVER_DELAY, background=TOOLTIP_BACKGROUND, foreground=TOOLTIP_FOREGROUND)
+        self.button_timer_contributions = ttk.Button(self.labelframe_timer_reporting, text='My Contributions')
+        self.button_timer_contributions.pack(side='left', padx=10, pady=10, anchor='w')
         self.button_delete_account = ttk.Button(self.labelframe_timer_reporting, text='Delete Account', style='Danger.TButton')
         self.button_delete_account.pack(side='left', padx=10, pady=10, anchor='w')
 
