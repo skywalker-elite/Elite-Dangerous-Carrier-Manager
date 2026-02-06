@@ -26,9 +26,9 @@ trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${comm
 # ${carrier_callsign} - The callsign of the carrier (example: PTN-123)
 # ${planetary_body}   - The planetary body at the peak where the carrier is located (example: P1)
 # Wine unload post format, you should not need to edit this unless the Steve command changes.
-wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign} planetary_body: ${planetary_body}"
+wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign}"
 # Timed wine unload post format, you should not need to edit this unless the Steve command changes.
-wine_unload_timed_string = "/wine_timed_unload carrier_id: ${carrier_callsign} planetary_body: ${planetary_body}"
+wine_unload_timed_string = "/wine_timed_unload carrier_id: ${carrier_callsign}"
 
 [notifications]
 # These are the settings for the notifications. You can set them to true or false to enable or disable them.

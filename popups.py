@@ -63,7 +63,7 @@ def create_dialog(root: tk.Tk, title: str) -> tuple[tk.Toplevel, ttk.Frame]:
     frame.pack(fill='both', expand=True)
     return dialog, frame
 
-def show_message_box_info(root: tk.Tk, title: str, message: str):
+def show_message_box_info(root: tk.Tk, title: str, message: str, grab_focus: bool=True, topmost: bool=True):
     root.bell()
 
     dialog, frame = create_dialog(root, title)
@@ -72,9 +72,10 @@ def show_message_box_info(root: tk.Tk, title: str, message: str):
     ttk.Label(frame, text=message, wraplength=400, justify='center').grid(row=0, column=1, pady=8, padx=8)
     ttk.Button(frame, text='OK', command=dialog.destroy).grid(row=1, column=0, columnspan=2, ipadx=8, padx=8, pady=(8, 0))
 
-    dialog.attributes('-topmost', True)
     center_window_relative_to_parent(dialog, root)
-    dialog.focus_set()
+    dialog.attributes('-topmost', topmost)
+    if grab_focus:
+        dialog.focus_set()
     root.wait_window(dialog)
 
 def show_message_box_info_no_topmost(root: tk.Tk, title:str, message:str):
@@ -188,3 +189,55 @@ def show_indeterminate_progress_bar(root: tk.Tk, title:str, message:str) -> tupl
     center_window_relative_to_parent(progress_win, root)
     progress_win.focus_set()
     return progress_win, progress_bar
+
+def show_message_box_info_checkbox(root: tk.Tk, title:str, message:str, checkbox_text:str, checkbox_value:bool=False) -> bool:
+    root.bell()
+
+    result = False
+    dialog, frame = create_dialog(root, title)
+
+    tk.Label(frame, bitmap='info').grid(row=0, column=0, padx=8, pady=8)
+    ttk.Label(frame, text=message, wraplength=400, justify='center').grid(row=0, column=1, pady=8, padx=8)
+
+    checkbox_var = tk.BooleanVar(value=checkbox_value)
+    checkbox = ttk.Checkbutton(frame, text=checkbox_text, variable=checkbox_var)
+    checkbox.grid(row=1, column=0, columnspan=2, pady=(0, 8))
+
+    def on_ok():
+        nonlocal result
+        result = checkbox_var.get()
+        dialog.destroy()
+
+    ttk.Button(frame, text='OK', command=on_ok).grid(row=2, column=0, columnspan=2, ipadx=8, padx=8, pady=(8, 0))
+
+    dialog.attributes('-topmost', True)
+    center_window_relative_to_parent(dialog, root)
+    dialog.focus_set()
+    root.wait_window(dialog)
+    return result
+
+def show_message_box_warning_checkbox(root: tk.Tk, title:str, message:str, checkbox_text:str, checkbox_value:bool=False) -> bool:
+    root.bell()
+
+    result = False
+    dialog, frame = create_dialog(root, title)
+
+    tk.Label(frame, bitmap='warning').grid(row=0, column=0, padx=8, pady=8)
+    ttk.Label(frame, text=message, wraplength=400, justify='center').grid(row=0, column=1, pady=8, padx=8)
+
+    checkbox_var = tk.BooleanVar(value=checkbox_value)
+    checkbox = ttk.Checkbutton(frame, text=checkbox_text, variable=checkbox_var)
+    checkbox.grid(row=1, column=0, columnspan=2, pady=(0, 8))
+
+    def on_ok():
+        nonlocal result
+        result = checkbox_var.get()
+        dialog.destroy()
+
+    ttk.Button(frame, text='OK', command=on_ok).grid(row=2, column=0, columnspan=2, ipadx=8, padx=8, pady=(8, 0))
+
+    dialog.attributes('-topmost', True)
+    center_window_relative_to_parent(dialog, root)
+    dialog.focus_set()
+    root.wait_window(dialog)
+    return result

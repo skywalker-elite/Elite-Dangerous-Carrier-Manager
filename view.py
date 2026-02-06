@@ -3,7 +3,7 @@ from tkinter import ttk
 from tksheet import Sheet
 from typing import Literal
 import tkinter.font as tkfont
-from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar
+from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND
 from station_parser import getStockPrice
@@ -59,22 +59,22 @@ class CarrierView:
         self.label_timer_stat = ttk.Label(self.top_bar, justify='center')
         self.label_timer_stat.pack(anchor='n', padx=10)
 
-        self.tab_controler = ttk.Notebook(root)
-        self.tab_jumps = ttk.Frame(self.tab_controler)
-        self.tab_finance = ttk.Frame(self.tab_controler)
-        self.tab_trade = ttk.Frame(self.tab_controler)
-        self.tab_services = ttk.Frame(self.tab_controler)
-        self.tab_misc = ttk.Frame(self.tab_controler)
-        self.tab_options = ScrollableFrame(self.tab_controler)
-        self.tab_active_journals = ttk.Frame(self.tab_controler)
+        self.tab_controller = ttk.Notebook(root)
+        self.tab_jumps = ttk.Frame(self.tab_controller)
+        self.tab_finance = ttk.Frame(self.tab_controller)
+        self.tab_trade = ttk.Frame(self.tab_controller)
+        self.tab_services = ttk.Frame(self.tab_controller)
+        self.tab_misc = ttk.Frame(self.tab_controller)
+        self.tab_options = ScrollableFrame(self.tab_controller)
+        self.tab_active_journals = ttk.Frame(self.tab_controller)
 
-        self.tab_controler.add(self.tab_jumps, text='Jumps')
-        self.tab_controler.add(self.tab_trade, text='Trade')
-        self.tab_controler.add(self.tab_finance, text='Finance')
-        self.tab_controler.add(self.tab_services, text='Services')
-        self.tab_controler.add(self.tab_misc, text='Misc')
-        self.tab_controler.add(self.tab_active_journals, text='Active Journals', state='hidden')
-        self.tab_controler.add(self.tab_options, text='Options')
+        self.tab_controller.add(self.tab_jumps, text='Jumps')
+        self.tab_controller.add(self.tab_trade, text='Trade')
+        self.tab_controller.add(self.tab_finance, text='Finance')
+        self.tab_controller.add(self.tab_services, text='Services')
+        self.tab_controller.add(self.tab_misc, text='Misc')
+        self.tab_controller.add(self.tab_active_journals, text='Active Journals', state='hidden')
+        self.tab_controller.add(self.tab_options, text='Options')
 
         # Make the grid expand when the window is resized
         def configure_tab_grid(tab):
@@ -84,7 +84,7 @@ class CarrierView:
         for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_misc, self.tab_active_journals]:
             configure_tab_grid(tab)
 
-        self.tab_controler.pack(expand=True, fill='both')
+        self.tab_controller.pack(expand=True, fill='both')
 
         # Initialize the tksheet.Sheet widget
         self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps')
@@ -181,62 +181,6 @@ class CarrierView:
         self.sheet_misc['B:J'].align('right')
 
         self.configure_sheet(self.sheet_misc)
-        # Options tab
-        self.labelframe_EDCM = ttk.Labelframe(self.tab_options.scrollable_frame, text='EDCM')
-        self.labelframe_EDCM.grid(row=0, column=0, padx=10, pady=10, sticky='w')
-        self.button_check_updates = ttk.Button(self.labelframe_EDCM, text='Check for Updates')
-        self.button_check_updates.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_go_to_github = ttk.Button(self.labelframe_EDCM, text='Go to GitHub Repo')
-        self.button_go_to_github.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
-        self.button_clear_cache.pack(side='left', padx=10, pady=10, anchor='w')
-        self.checkbox_show_active_journals_var = tk.BooleanVar()
-        self.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.toggle_active_journals_tab())
-        self.checkbox_show_active_journals = ttk.Checkbutton(
-            self.labelframe_EDCM,
-            text='Show Active Journals Tab',
-            variable=self.checkbox_show_active_journals_var,
-        )
-        self.checkbox_show_active_journals.pack(side='left', padx=10, pady=10, anchor='w')
-
-        self.labelframe_timer_reporting = ttk.Labelframe(self.tab_options.scrollable_frame, text='Jump Timer Reporting')
-        self.labelframe_timer_reporting.grid(row=1, column=0, padx=10, pady=10, sticky='w')
-        self.checkbox_enable_timer_reporting_var = tk.BooleanVar()
-        self.checkbox_enable_timer_reporting = ttk.Checkbutton(self.labelframe_timer_reporting, text='Enable Reporting', variable=self.checkbox_enable_timer_reporting_var)
-        self.checkbox_enable_timer_reporting.pack(side='left', padx=10, pady=10, anchor='w')
-        self.hovertip_enable_timer_reporting = Hovertip(self.checkbox_enable_timer_reporting, 'Enable reporting of jump timers. Requires login with Discord.', hover_delay=TOOLTIP_HOVER_DELAY, background=TOOLTIP_BACKGROUND, foreground=TOOLTIP_FOREGROUND)
-        self.button_login = ttk.Button(self.labelframe_timer_reporting, text='Log In with Discord')
-        self.button_login.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_verify_roles = ttk.Button(self.labelframe_timer_reporting, text='Verify PTN Roles')
-        self.button_verify_roles.pack(side='left', padx=10, pady=10, anchor='w')
-        self.hovertip_button_verify_roles = Hovertip(self.button_verify_roles, 'Verify your Discord account has elevated PTN roles.', hover_delay=TOOLTIP_HOVER_DELAY, background=TOOLTIP_BACKGROUND, foreground=TOOLTIP_FOREGROUND)
-        self.button_report_timer_history = ttk.Button(self.labelframe_timer_reporting, text='Report Timer History')
-        self.button_report_timer_history.pack(side='left', padx=10, pady=10, anchor='w')
-        self.hovertip_button_report_timer_history = Hovertip(self.button_report_timer_history, 'Report all jump timers in history.\nRequires having certain PTN roles, which you can verify using the button "Verify PTN Roles".', hover_delay=TOOLTIP_HOVER_DELAY, background=TOOLTIP_BACKGROUND, foreground=TOOLTIP_FOREGROUND)
-        self.button_delete_account = ttk.Button(self.labelframe_timer_reporting, text='Delete Account', style='Danger.TButton')
-        self.button_delete_account.pack(side='left', padx=10, pady=10, anchor='w')
-
-        self.labelframe_settings = ttk.Labelframe(self.tab_options.scrollable_frame, text='Settings')
-        self.labelframe_settings.grid(row=2, column=0, padx=10, pady=10, sticky='w')
-        self.button_reload_settings = ttk.Button(self.labelframe_settings, text='Reload Settings File')
-        self.button_reload_settings.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_open_settings = ttk.Button(self.labelframe_settings, text='Open Settings File')
-        self.button_open_settings.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_open_settings_dir = ttk.Button(self.labelframe_settings, text='Open Settings Directory')
-        self.button_open_settings_dir.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_reset_settings = ttk.Button(self.labelframe_settings, text='Reset Settings to Defaults', style='Danger.TButton')
-        self.button_reset_settings.pack(side='left', padx=10, pady=10, anchor='w')
-
-        self.labelframe_testing = ttk.Labelframe(self.tab_options.scrollable_frame, text='Testing')
-        self.labelframe_testing.grid(row=3, column=0, padx=10, pady=10, sticky='w')
-        self.button_test_trade_post = ttk.Button(self.labelframe_testing, text='Test Trade Post')
-        self.button_test_trade_post.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_test_wine_unload = ttk.Button(self.labelframe_testing, text='Test Wine Unload')
-        self.button_test_wine_unload.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_test_discord = ttk.Button(self.labelframe_testing, text='Test Discord Webhook')
-        self.button_test_discord.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
-        self.button_test_discord_ping.pack(side='left', padx=10, pady=10, anchor='w')
 
         # Active Journals tab
         self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals')
@@ -264,6 +208,8 @@ class CarrierView:
         self.button_go_to_github.pack(side='left', padx=10, pady=10, anchor='w')
         self.button_clear_cache = ttk.Button(self.labelframe_EDCM, text='Clear Cache and Reload')
         self.button_clear_cache.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_check_time_skew = ttk.Button(self.labelframe_EDCM, text='Check Time Skew')
+        self.button_check_time_skew.pack(side='left', padx=10, pady=10, anchor='w')
         self.checkbox_show_active_journals_var = tk.BooleanVar()
         self.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.toggle_active_journals_tab())
         self.checkbox_show_active_journals = ttk.Checkbutton(
@@ -294,6 +240,8 @@ class CarrierView:
         self.button_report_timer_history = ttk.Button(self.labelframe_timer_reporting, text='Report Timer History')
         self.button_report_timer_history.pack(side='left', padx=10, pady=10, anchor='w')
         self.hovertip_button_report_timer_history = Hovertip(self.button_report_timer_history, 'Report all jump timers in history.\nRequires having certain PTN roles, which you can verify using the button "Verify PTN Roles".', hover_delay=TOOLTIP_HOVER_DELAY, background=TOOLTIP_BACKGROUND, foreground=TOOLTIP_FOREGROUND)
+        self.button_timer_contributions = ttk.Button(self.labelframe_timer_reporting, text='My Contributions')
+        self.button_timer_contributions.pack(side='left', padx=10, pady=10, anchor='w')
         self.button_delete_account = ttk.Button(self.labelframe_timer_reporting, text='Delete Account', style='Danger.TButton')
         self.button_delete_account.pack(side='left', padx=10, pady=10, anchor='w')
 
@@ -387,7 +335,7 @@ class CarrierView:
 
     def toggle_active_journals_tab(self):
         state = 'normal' if self.checkbox_show_active_journals_var.get() else 'hidden'
-        self.tab_controler.tab(self.tab_active_journals, state=state)
+        self.tab_controller.tab(self.tab_active_journals, state=state)
 
     def update_time(self, time:str):
         self.clock_utc.configure(text=time)
@@ -395,11 +343,8 @@ class CarrierView:
     def update_timer_stat(self, text:str):
         self.label_timer_stat.configure(text=text)
 
-    def show_message_box_info(self, title:str, message:str):
-        show_message_box_info(self.root, title, message)
-
-    def show_message_box_info_no_topmost(self, title:str, message:str):
-        show_message_box_info_no_topmost(self.root, title, message)
+    def show_message_box_info(self, title:str, message:str, grab_focus: bool=True, topmost: bool=True):
+        show_message_box_info(self.root, title, message, grab_focus=grab_focus, topmost=topmost)
 
     def show_non_blocking_info(self, title: str, message: str):
         show_non_blocking_info(self.root, title, message)
@@ -415,6 +360,12 @@ class CarrierView:
 
     def show_indeterminate_progress_bar(self, title: str, message: str):
         return show_indeterminate_progress_bar(self.root, title, message)
+    
+    def show_message_box_info_checkbox(self, title: str, message: str, checkbox_text: str, checkbox_value: bool=False) -> bool:
+        return show_message_box_info_checkbox(self.root, title, message, checkbox_text, checkbox_value)
+    
+    def show_message_box_warning_checkbox(self, title: str, message: str, checkbox_text: str, checkbox_value: bool=False) -> bool:
+        return show_message_box_warning_checkbox(self.root, title, message, checkbox_text, checkbox_value)
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
@@ -472,7 +423,7 @@ class TradePostView:
         self.label_stock.pack(side='left', padx=2)
         self.label_market_updated = ttk.Label(self.frame_market, text='')
         self.label_market_updated.pack(side='left', padx=2)
-        self.button_post = ttk.Button(self.popup, text='OK')
+        self.button_post = ttk.Button(self.popup, text='Copy to clipboard')
         self.button_post.grid(row=2, column=0, columnspan=14, pady=10)
         
         self.station_selected(None)
@@ -513,9 +464,11 @@ class ManualTimerView:
         self.label_timer_desp = ttk.Label(self.popup, text='Enter timer:')
         self.label_timer_desp.pack(side='top', pady=4, padx=8)
         self.entry_timer = ttk.Entry(self.popup)
+        self.entry_timer.focus()
         self.entry_timer.pack(side='top', pady=4, padx=8)
         self.button_post = ttk.Button(self.popup, text='OK')
         self.button_post.pack(side='bottom', ipadx=8, ipady=2, pady=4)
+        self.popup.bind('<Return>', lambda _: self.button_post.invoke())
 
         self.popup.attributes('-topmost', True)
         center_window_relative_to_parent(self.popup, root)

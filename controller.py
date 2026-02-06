@@ -22,11 +22,12 @@ import asyncio
 import pandas as pd
 from string import Template
 from playsound3 import playsound
-from tkinter import Tk
+
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
-from humanize import naturaltime
+from humanize import naturaltime, ordinal
+from concurrent.futures import ThreadPoolExecutor
 from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
@@ -36,7 +37,8 @@ from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
-from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY
+from time_checker import TimeChecker
+from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD, TIME_SKEW_CHECK_CD
 
 if TYPE_CHECKING: 
     import tksheet
@@ -84,13 +86,15 @@ class CarrierController:
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
+        self.view.button_check_time_skew.configure(command=lambda: self.check_time_skew(silent=False))
         self.view.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'show_active_journals_tab', value=self.view.checkbox_show_active_journals_var.get()))
         self.view.checkbox_minimize_to_tray_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'minimize_to_tray', value=self.view.checkbox_minimize_to_tray_var.get()))
         self.view.checkbox_minimize_to_tray.configure(command=lambda: self.setup_tray_icon())
         self.view.checkbox_enable_timer_reporting_var.trace_add('write', lambda *args: self.settings.set_config('timer_reporting', 'enabled', value=self.view.checkbox_enable_timer_reporting_var.get()))
         self.view.button_login.configure(command=self.button_click_login)
-        self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
         self.view.button_verify_roles.configure(command=self.button_click_verify_roles)
+        self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
+        self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
 
         # initial load
@@ -103,6 +107,13 @@ class CarrierController:
             self._observer.schedule(handler, watch_dir, recursive=False)
         self._observer.daemon = True
         self._observer.start()
+
+        # check time skew
+        self.last_time_skew_check = datetime.min
+        self.last_time_skew_warned = datetime.min
+        self.time_skew_warning_suppressed = False
+        self.time_checker = TimeChecker()
+        self.check_time_skew()
 
         self.set_current_version()
         self.redraw_fast()
@@ -176,7 +187,7 @@ class CarrierController:
                             open_file(settings_file)
                         except Exception as e:
                             self.view.show_message_box_warning('Error', f'Could not open settings file:\n{e}')
-                        self.view.show_message_box_info_no_topmost('Waiting', 'Click OK when you are done editing and saved the file')
+                        self.view.show_message_box_info('Waiting', 'Click OK when you are done editing and saved the file', grab_focus=False, topmost=False)
                 else:
                     self.view.show_message_box_info('Settings', 'Using default settings')
                     settings_file=getSettingsDefaultPath()
@@ -390,6 +401,39 @@ class CarrierController:
             else:
                 self.view.root.destroy()
     
+    def check_time_skew(self, silent: bool = True):
+        if datetime.now() - self.last_time_skew_check < TIME_SKEW_CHECK_CD and silent:
+            return
+        if datetime.now() - self.last_time_skew_warned < TIME_SKEW_WARN_CD and silent:
+            return
+        if self.time_skew_warning_suppressed and silent:
+            return
+        if not silent:
+            progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
+        self._executioner = ThreadPoolExecutor(max_workers=1)
+        future_skew = self._executioner.submit(self.time_checker.check_and_warn)
+        def handle_skew_result(future):
+            if not silent:
+                    progress_win.destroy()
+            try:
+                warn, message = future.result()
+                print(message)
+                if warn:
+                    if silent:
+                        self.time_skew_warning_suppressed = self.view.show_message_box_warning_checkbox('Time Skew Warning', message, 'Don\'t show this warning again for the rest of this session', checkbox_value=self.time_skew_warning_suppressed)
+                    else:
+                        self.view.show_message_box_warning('Time Skew Warning', message)
+                    self.last_time_skew_warned = datetime.now()
+                elif not silent:
+                    self.view.show_message_box_info('Time Skew Check', message)
+                self.last_time_skew_check = datetime.now()
+            except Exception as e:
+                print(f'Error checking time skew: {e}')
+                if not silent:
+                    self.view.show_message_box_warning('Time Skew Check Error', f'Error checking time skew:\n{e}')
+
+        future_skew.add_done_callback(handle_skew_result)
+    
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
         if selected_row is not None:
@@ -573,7 +617,7 @@ class CarrierController:
         except Exception as e:
             self.view.show_message_box_warning('Error', f'Error while generating trade post string\n{e}')
         else:
-            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}')
+            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your trade post looks like:\n{post_string}\n\nIt has been copied to your clipboard as well')
 
     def button_click_test_wine_unload(self):
         from config import test_wine_unload_data
@@ -582,7 +626,7 @@ class CarrierController:
         except Exception as e:
             self.view.show_message_box_warning('Error', f'Error while generating wine unload post string\n{e}')
         else:
-            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your wine unload post looks like:\n{post_string}')
+            self.copy_to_clipboard(post_string, 'Generated!', f'This is what your wine unload post looks like:\n{post_string}\n\nIt has been copied to your clipboard as well')
 
     def button_click_test_discord_webhook(self):
         try:
@@ -641,6 +685,7 @@ class CarrierController:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
             self.model.manual_timers[carrierID] = {'time': timer, 'reminded': False, 'plot_warned': False}
             self.manual_timer_view.popup.destroy()
+            self.check_time_skew(silent=True)
     
     def button_click_post_departure(self):
         selected_row = self.get_selected_row()
@@ -704,11 +749,11 @@ class CarrierController:
             elif timer['time'] - warn <= now and not timer['plot_warned']:
                 timer['plot_warned'] = True
                 m, s = divmod(warn.total_seconds(), 60)
-                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
+                self.view.show_message_box_info('Plot imminent!', f'Plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False, topmost=True)
             elif timer['time'] - remind <= now and not timer['reminded']:
                 timer['reminded'] = True
                 m, s = divmod(remind.total_seconds(), 60)
-                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s')
+                self.view.show_message_box_info('Get ready!', f'Be ready to plot {self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) in {m:02.0f} m {s:02.0f} s', grab_focus=False, topmost=True)
         if len(self.model.manual_timers) > 0:
             self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
     
@@ -955,7 +1000,7 @@ class CarrierController:
                 return 0, None, None
             def _chunks(seq: list[dict[str, any]], size: int):
                 for i in range(0, len(seq), size):
-                    yield seq[i:i+size]
+                    raise RuntimeError(f"Error reporting jump timer: {response.get('error')}")
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
                 response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)
@@ -1012,6 +1057,18 @@ class CarrierController:
         self.view.root.after(0, lambda:
             getattr(self.view, f'show_message_box_{box}')(title, msg)
         )
+
+    def button_click_timer_contributions(self):
+        if not self.auth_handler.is_logged_in():
+            return self.view.show_message_box_warning('Not logged in', 'You need to be logged in to view timer contributions')
+        else:
+            response = self.auth_handler.invoke_edge("timer_contributions")
+            if 'error' in response:
+                return self.view.show_message_box_warning('Error', f"Error fetching timer contributions: {response['error']}")
+            submissions, rank = response.get('submissions', 0), response.get('rank', 'N/A')
+            if submissions == 0:
+                return self.view.show_message_box_info('Timer Contributions', 'You have not submitted any jump timers yet.')
+            return self.view.show_message_box_info('Timer Contributions', f'You have submitted {submissions} jump timers.\nYou have the {ordinal(rank)} most reports among all users.\nThank you for your support!')
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():
