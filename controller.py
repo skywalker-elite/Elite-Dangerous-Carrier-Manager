@@ -22,7 +22,7 @@ import asyncio
 import pandas as pd
 from string import Template
 from playsound3 import playsound
-from tkinter import Tk
+
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
@@ -410,8 +410,8 @@ class CarrierController:
             return
         if not silent:
             progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
-        executioner = ThreadPoolExecutor(max_workers=1)
-        future_skew = executioner.submit(self.time_checker.check_and_warn)
+        self._executioner = ThreadPoolExecutor(max_workers=1)
+        future_skew = self._executioner.submit(self.time_checker.check_and_warn)
         def handle_skew_result(future):
             if not silent:
                     progress_win.destroy()
@@ -1000,7 +1000,7 @@ class CarrierController:
                 return 0, None, None
             def _chunks(seq: list[dict[str, any]], size: int):
                 for i in range(0, len(seq), size):
-                    yield seq[i:i+size]
+                    raise RuntimeError(f"Error reporting jump timer: {response.get('error')}")
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
                 response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)
