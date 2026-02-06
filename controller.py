@@ -22,11 +22,11 @@ import asyncio
 import pandas as pd
 from string import Template
 from playsound3 import playsound
-from tkinter import Tk
+
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
 from supabase import FunctionsHttpError
-from humanize import naturaltime
+from humanize import naturaltime, ordinal
 from concurrent.futures import ThreadPoolExecutor
 from numpy import datetime64
 from auth import AuthHandler
@@ -92,8 +92,9 @@ class CarrierController:
         self.view.checkbox_minimize_to_tray.configure(command=lambda: self.setup_tray_icon())
         self.view.checkbox_enable_timer_reporting_var.trace_add('write', lambda *args: self.settings.set_config('timer_reporting', 'enabled', value=self.view.checkbox_enable_timer_reporting_var.get()))
         self.view.button_login.configure(command=self.button_click_login)
-        self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
         self.view.button_verify_roles.configure(command=self.button_click_verify_roles)
+        self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
+        self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
 
         # initial load
@@ -409,8 +410,8 @@ class CarrierController:
             return
         if not silent:
             progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
-        executioner = ThreadPoolExecutor(max_workers=1)
-        future_skew = executioner.submit(self.time_checker.check_and_warn)
+        self._executioner = ThreadPoolExecutor(max_workers=1)
+        future_skew = self._executioner.submit(self.time_checker.check_and_warn)
         def handle_skew_result(future):
             if not silent:
                     progress_win.destroy()
@@ -999,7 +1000,7 @@ class CarrierController:
                 return 0, None, None
             def _chunks(seq: list[dict[str, any]], size: int):
                 for i in range(0, len(seq), size):
-                    yield seq[i:i+size]
+                    raise RuntimeError(f"Error reporting jump timer: {response.get('error')}")
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
                 response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)
@@ -1056,6 +1057,18 @@ class CarrierController:
         self.view.root.after(0, lambda:
             getattr(self.view, f'show_message_box_{box}')(title, msg)
         )
+
+    def button_click_timer_contributions(self):
+        if not self.auth_handler.is_logged_in():
+            return self.view.show_message_box_warning('Not logged in', 'You need to be logged in to view timer contributions')
+        else:
+            response = self.auth_handler.invoke_edge("timer_contributions")
+            if 'error' in response:
+                return self.view.show_message_box_warning('Error', f"Error fetching timer contributions: {response['error']}")
+            submissions, rank = response.get('submissions', 0), response.get('rank', 'N/A')
+            if submissions == 0:
+                return self.view.show_message_box_info('Timer Contributions', 'You have not submitted any jump timers yet.')
+            return self.view.show_message_box_info('Timer Contributions', f'You have submitted {submissions} jump timers.\nYou have the {ordinal(rank)} most reports among all users.\nThank you for your support!')
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():
