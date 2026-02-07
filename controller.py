@@ -500,7 +500,12 @@ class CarrierController:
                     market_ids = [market_ids[i] for i in L + M]
                     market_updated = [market_updated[i] for i in L + M]
                     if len(stations) > 0:
-                        trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
+                        if system == 'Gali':
+                            chadwick_index = next((i for i, station in enumerate(stations) if station == 'Chadwick Dock'), None)
+                            if chadwick_index is not None:
+                                trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price, default_station_index=chadwick_index)
+                        else:
+                            trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
                         trade_post_view.button_post.configure(command=lambda: self.button_click_post(trade_post_view=trade_post_view, carrier_name=carrier_name, carrier_callsign=carrier_callsign, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
                     else:
                         self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
