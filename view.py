@@ -369,7 +369,7 @@ class CarrierView:
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
-                 market_ids:list[str], market_updated:list[str], price:str|int):
+                 market_ids:list[str], market_updated:list[str], price:str|int, default_station_index:int=0):
         self.trade_type = trade_type
         self.commodity = commodity
         self.pad_sizes = pad_sizes
@@ -394,7 +394,7 @@ class TradePostView:
         self.label_from_to = ttk.Label(self.popup, text='from' if trade_type=='loading' else 'to')
         self.label_from_to.grid(row=0, column=4, padx=2)
         self.cbox_stations = ttk.Combobox(self.popup, values=stations)
-        self.cbox_stations.current(0)
+        self.cbox_stations.current(default_station_index)
         self.cbox_stations.bind('<<ComboboxSelected>>', self.station_selected)
         self.cbox_stations.grid(row=0, column=5, padx=2)
         self.cbox_pad_size = ttk.Combobox(self.popup, values=['L', 'M'], state='readonly', width=2)
