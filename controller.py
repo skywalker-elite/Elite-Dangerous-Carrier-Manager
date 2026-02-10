@@ -21,7 +21,6 @@ import pickle
 import asyncio
 import pandas as pd
 from string import Template
-from playsound3 import playsound
 
 from pystray import Icon, Menu, MenuItem
 from PIL import Image
@@ -38,6 +37,7 @@ from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescriptio
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
+from playsound_patch import Playsound3Patch
 from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD, TIME_SKEW_CHECK_CD
 
 if TYPE_CHECKING: 
@@ -128,6 +128,8 @@ class CarrierController:
         # self._start_realtime_listener()
         self.check_app_update()
         self.minimize_hint_sent = False
+
+        self.playsound_patch = Playsound3Patch()
 
         threading.Thread(target=self.save_cache).start()
 
@@ -354,7 +356,7 @@ class CarrierController:
 
     def play_sound(self, sound_file:str, block:bool=False):
         if path.exists(sound_file):
-            self.sound = playsound(sound_file, block=block)
+            self.sound = self.playsound_patch.play_sound(sound_file, block=block)
         else:
             self.view.show_message_box_warning('Error', f'Sound file {sound_file} not found')
 
