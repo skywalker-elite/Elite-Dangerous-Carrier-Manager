@@ -88,6 +88,7 @@ class CarrierController:
         self.view.button_test_sound_jump_completed.configure(command=self.button_click_test_sound_jump_completed)
         self.view.button_test_sound_jump_cancelled.configure(command=self.button_click_test_sound_jump_cancelled)
         self.view.button_test_sound_cooldown_finished.configure(command=self.button_click_test_sound_cooldown_finished)
+        self.view.button_test_sound_stop.configure(command=self.button_click_test_sound_stop)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
         self.view.button_check_time_skew.configure(command=lambda: self.check_time_skew(silent=False))
@@ -653,16 +654,22 @@ class CarrierController:
             self.view.show_message_box_info('Success!', 'Test message sent to discord with ping')
 
     def button_click_test_sound_jump_plotted(self):
-        self.play_sound(self.notification_settings.get('jump_plotted_sound_file'), block=True)
+        self.play_sound(self.notification_settings.get('jump_plotted_sound_file'), block=False)
 
     def button_click_test_sound_jump_completed(self):
-        self.play_sound(self.notification_settings.get('jump_completed_sound_file'), block=True)
+        self.play_sound(self.notification_settings.get('jump_completed_sound_file'), block=False)
     
     def button_click_test_sound_jump_cancelled(self):
-        self.play_sound(self.notification_settings.get('jump_cancelled_sound_file'), block=True)
+        self.play_sound(self.notification_settings.get('jump_cancelled_sound_file'), block=False)
 
     def button_click_test_sound_cooldown_finished(self):
-        self.play_sound(self.notification_settings.get('cooldown_finished_sound_file'), block=True)
+        self.play_sound(self.notification_settings.get('cooldown_finished_sound_file'), block=False)
+
+    def button_click_test_sound_stop(self):
+        if hasattr(self, 'sound'):
+            self.sound.stop()
+        else:
+            self.view.show_message_box_warning('Error', 'No sound is currently playing')
     
     def button_click_manual_timer(self):
         selected_row = self.get_selected_row()

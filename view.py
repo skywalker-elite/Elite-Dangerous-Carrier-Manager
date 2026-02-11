@@ -281,6 +281,8 @@ class CarrierView:
         self.button_test_sound_jump_cancelled.pack(side='left', padx=10, pady=10, anchor='w')
         self.button_test_sound_cooldown_finished = ttk.Button(self.labelframe_testing_sound, text='Cooldown Finished')
         self.button_test_sound_cooldown_finished.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_test_sound_stop = ttk.Button(self.labelframe_testing_sound, text='Stop Sound')
+        self.button_test_sound_stop.pack(side='left', padx=10, pady=10, anchor='w')
 
     def configure_sheet(self, sheet:Sheet):
         sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
