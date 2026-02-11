@@ -504,16 +504,27 @@ class ScrollableFrame(ttk.Frame):
         self.scrollbar.pack(side="right", fill="y")
 
         # whenever content or viewport changes, update scrollregion & bar‐visibility
-        self.scrollable_frame .bind("<Configure>", lambda e: self._update())
+        self.scrollable_frame.bind("<Configure>", lambda e: self._update())
         self.canvas.bind("<Configure>", lambda e: self._update())
 
-        # wheel‐scroll
-        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.canvas.bind("<Button-4>", self._on_mousewheel)  # For Linux with wheel scroll up
-        self.canvas.bind("<Button-5>", self._on_mousewheel)  # For Linux with wheel scroll down
+        # enable wheel scrolling when cursor is over the scrollable area
+        self.scrollable_frame.bind("<Enter>", self._bind_mousewheel)
+        self.scrollable_frame.bind("<Leave>", self._unbind_mousewheel)
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
 
         # run once after idle to hide if unnecessary
         self.after_idle(self._update)
+
+    def _bind_mousewheel(self, _event):
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows / macOS
+        self.canvas.bind_all("<Button-4>", self._on_mousewheel)    # Linux up
+        self.canvas.bind_all("<Button-5>", self._on_mousewheel)    # Linux down
+
+    def _unbind_mousewheel(self, _event):
+        self.canvas.unbind_all("<MouseWheel>")
+        self.canvas.unbind_all("<Button-4>")
+        self.canvas.unbind_all("<Button-5>")
 
     def _update(self):
         # 1) update scrollregion
