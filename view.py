@@ -495,9 +495,9 @@ class ScrollableFrame(ttk.Frame):
     """A scrollable frame that can contain other widgets."""
     def __init__(self, container, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
-        self.canvas    = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame     = ttk.Frame(self.canvas)
+        self.scrollable_frame = ttk.Frame(self.canvas)
 
         self.canvas.create_window((0,0), window=self.scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -547,11 +547,13 @@ class ScrollableFrame(ttk.Frame):
             self.scrollbar.pack_forget()
 
     def _on_mousewheel(self, e):
-        delta = int(-1 * (e.delta / 120))
-        # only scroll if there’s overflow
-        bbox = self.canvas.bbox("all")
-        if bbox and (bbox[3] - bbox[1]) > self.canvas.winfo_height():
-            self.canvas.yview_scroll(delta, "units")
+        # mirror tksheet: only direction, fixed step of 1
+        if e.delta < 0 or e.num == 5:
+            self.canvas.yview_scroll(1, "units")
+        elif e.delta >= 0 or e.num == 4:
+            if self.canvas.canvasy(0) <= 0:
+                return "break"
+            self.canvas.yview_scroll(-1, "units")
         return "break"
 
 if __name__ == '__main__':
