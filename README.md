@@ -106,10 +106,16 @@ Currently Windows 11 and Linux are supported. Windows 7/8/10 *should* work fine 
 - The backend just see the timer (Example: 15m42s), and when it was plotted (Example: 00:42:37 UTC). It is linked to your discord account, but not which carrier, where it is at or jumping to etc.
 - For specifics on what data is collected, please see [Data Collection](#data-collection)
 ## Installation
-For Windows, download the EDCM-setup-x.x.x.exe file from the <a href="https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest">releases page</a>. Run the installer and follow the prompts to install EDCM.
-
-For Linux, download the EDCM-x.x.x.deb file from the <a href="https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest">releases page</a> if your distribution supports .deb packages (Debian, Ubuntu, etc.). For other distributions, you can download the tar.gz file and extract it to a folder of your choice. 
-
+### Windows
+Download the EDCM-setup-x.x.x.exe file from the <a href="https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest">releases page</a>. Run the installer and follow the prompts to install EDCM.
+### Linux
+#### Debian/Ubuntu
+Download the EDCM-x.x.x.deb file from the <a href="https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest">releases page</a>.
+#### Arch
+Only run from source is supported. See [run from source](#Run-from-Source)
+#### Other Distributions
+You can try the tar.gz file and extract it to a folder of your choice. If it doesn't work, <a href=##Run-from-Source>run from source</a>
+## First Launch
 The first time you run EDCM, it will ask if you want to create a settings file. Click yes and it will create one using the default settings.
 You can edit the settings file using any text editor to change the settings to your liking.
 ## Settings
@@ -137,6 +143,34 @@ The settings file is a toml file that contains all the settings for EDCM. You ca
 You can pass the following arguments when launching EDCM:
 - `-p <paths>`: Specify custom path(s) to the journal folder(s)
   - example: `-p C:\Path\To\Journal1 C:\Path\To\Journal2`
+## Run from Source
+Exact process varies by OS. Below is a minimal example using **Ubuntu + Conda**.
+
+1. Install Python (via Conda or system Python).
+   - Conda: https://www.anaconda.com/download
+2. Create a virtual environment (Python **3.12.7** recommended):
+```bash
+conda create -n EDCM python=3.12.7
+```
+3. Activate the environment:
+```bash
+conda activate EDCM
+```
+4. Clone the repository:
+```bash
+git clone https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager.git
+cd Elite-Dangerous-Carrier-Manager
+```
+5. Install dependencies:
+```bash
+pip install -r requirements.txt
+```
+6. Launch EDCM:
+```bash
+python main.py
+```
+
+Optional: create a shell alias to activate the env and launch EDCM in one step.
 ## Limitations
 Some limitations may be addressed in later updates thoon, maybe, eventually... don't count on it
 - EDCM is currently English only
@@ -150,6 +184,7 @@ Some limitations may be addressed in later updates thoon, maybe, eventually... d
     1. Set a buy order for the commodity with ghost sell
     2. Cancel the buy order
   - You can follow the similar steps for buy orders, but those only affects EDCM, not the in-game carrier management menu
+  - A toggle "Filter ghost buys" is available as a best-effort way to hide ghost buys, but is not gauranteed
   - TL;DR: Any trade orders you haven't manually cancelled in-game will show up
 - The post trade function
   - It uses <a href=https://www.edsm.net>EDSM</a> to retrieve the list of stations in system. It may result in an error if it can't reach it
