@@ -102,6 +102,8 @@ class CarrierController:
         self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
 
+        self.playsound_patch = Playsound3Patch()
+
         # initial load
         self.update_journals()
 
@@ -128,8 +130,6 @@ class CarrierController:
         # self._start_realtime_listener()
         self.check_app_update()
         self.minimize_hint_sent = False
-
-        self.playsound_patch = Playsound3Patch()
 
         threading.Thread(target=self.save_cache).start()
 
