@@ -1027,7 +1027,7 @@ class CarrierController:
                 return 0, None, None
             def _chunks(seq: list[dict[str, any]], size: int):
                 for i in range(0, len(seq), size):
-                    raise RuntimeError(f"Error reporting jump timer: {response.get('error')}")
+                    yield seq[i:i+size]
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
                 response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)
