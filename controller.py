@@ -129,7 +129,7 @@ class CarrierController:
         self.check_app_update()
         self.minimize_hint_sent = False
 
-        threading.Thread(target=self.save_cache).start()
+        threading.Thread(target=self.save_cache, daemon=True).start()
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in(show_message=False)
@@ -700,13 +700,18 @@ class CarrierController:
             carrierID = self.manual_timer_view.carrierID
             timer = self.manual_timer_view.entry_timer.get()
             timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
-            timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
+            timer = datetime.combine(datetime.now(timezone.utc).date(), timer, tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             if timer < now_utc:
                 timer += timedelta(days=1)
+            if timer - now_utc > timedelta(days=1):
+                timer -= timedelta(days=1)
             assert timer > now_utc, f'Timer must be in the future, {timer}, {now_utc}'
+            assert timer - now_utc < timedelta(days=1), f'Timer must be within 24 hours, {timer}, {now_utc}'
             if timer - now_utc > timedelta(hours=1, minutes=15):
                 if not self.view.show_message_box_askyesno('Warning', 'Timer set more than 1 hour 15 minutes in the future, are you sure?'):
+                    self.manual_timer_view.popup.focus_force()
+                    self.manual_timer_view.entry_timer.focus()
                     return
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
@@ -852,7 +857,7 @@ class CarrierController:
     #     else:
     #         print(f"Subscription state={state}, exception={exception!r}")
 
-    def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]:
+    def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]|None:
         if sheet is None:
             sheet = self.view.sheet_jumps
         selected_rows = sheet.get_selected_rows(get_cells=False, get_cells_as_rows=True, return_tuple=True)
