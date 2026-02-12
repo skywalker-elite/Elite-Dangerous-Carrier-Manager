@@ -548,9 +548,9 @@ class ScrollableFrame(ttk.Frame):
 
     def _on_mousewheel(self, e):
         # mirror tksheet: only direction, fixed step of 1
-        if e.delta < 0 or e.num == 5:
+        if getattr(e, 'delta', 0) < 0 or getattr(e, 'num', None) == 5:
             self.canvas.yview_scroll(1, "units")
-        elif e.delta >= 0 or e.num == 4:
+        elif getattr(e, 'delta', 0) >= 0 or getattr(e, 'num', None) == 4:
             if self.canvas.canvasy(0) <= 0:
                 return "break"
             self.canvas.yview_scroll(-1, "units")
