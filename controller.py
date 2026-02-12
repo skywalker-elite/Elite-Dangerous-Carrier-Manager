@@ -700,13 +700,18 @@ class CarrierController:
             carrierID = self.manual_timer_view.carrierID
             timer = self.manual_timer_view.entry_timer.get()
             timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
-            timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
+            timer = datetime.combine(datetime.now(timezone.utc).today(), timer, tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             if timer < now_utc:
                 timer += timedelta(days=1)
+            if timer - now_utc > timedelta(days=1):
+                timer -= timedelta(days=1)
             assert timer > now_utc, f'Timer must be in the future, {timer}, {now_utc}'
+            assert timer - now_utc < timedelta(days=1), f'Timer must be within 24 hours, {timer}, {now_utc}'
             if timer - now_utc > timedelta(hours=1, minutes=15):
                 if not self.view.show_message_box_askyesno('Warning', 'Timer set more than 1 hour 15 minutes in the future, are you sure?'):
+                    self.manual_timer_view.popup.focus_force()
+                    self.manual_timer_view.entry_timer.focus()
                     return
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
