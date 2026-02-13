@@ -52,7 +52,7 @@ class JournalEventHandler(FileSystemEventHandler):
     on_created = on_modified
 
 class CarrierController:
-    def __init__(self, root:Tk, model:CarrierModel):
+    def __init__(self, root:Tk, model:CarrierModel, no_cache:bool=False):
         self.root = root
         self.model = model
         self.tray_icon = None
@@ -129,7 +129,8 @@ class CarrierController:
         self.check_app_update()
         self.minimize_hint_sent = False
 
-        threading.Thread(target=self.save_cache, daemon=True).start()
+        if not self.model.dropout and not no_cache:
+            threading.Thread(target=self.save_cache, daemon=True).start()
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in(show_message=False)
