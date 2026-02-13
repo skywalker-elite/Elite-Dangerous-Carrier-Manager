@@ -52,9 +52,10 @@ class JournalEventHandler(FileSystemEventHandler):
     on_created = on_modified
 
 class CarrierController:
-    def __init__(self, root:Tk, model:CarrierModel):
+    def __init__(self, root:Tk, model:CarrierModel, no_cache:bool=False):
         self.root = root
         self.model = model
+        self.no_cache = no_cache
         self.tray_icon = None
         self.notification_settings = {}
         self.notification_settings_carrier = {}
@@ -84,6 +85,11 @@ class CarrierController:
         self.view.button_test_wine_unload.configure(command=self.button_click_test_wine_unload)
         self.view.button_test_discord.configure(command=self.button_click_test_discord_webhook)
         self.view.button_test_discord_ping.configure(command=self.button_click_test_discord_webhook_ping)
+        self.view.button_test_sound_jump_plotted.configure(command=self.button_click_test_sound_jump_plotted)
+        self.view.button_test_sound_jump_completed.configure(command=self.button_click_test_sound_jump_completed)
+        self.view.button_test_sound_jump_cancelled.configure(command=self.button_click_test_sound_jump_cancelled)
+        self.view.button_test_sound_cooldown_finished.configure(command=self.button_click_test_sound_cooldown_finished)
+        self.view.button_test_sound_stop.configure(command=self.button_click_test_sound_stop)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
         self.view.button_check_time_skew.configure(command=lambda: self.check_time_skew(silent=False))
@@ -124,7 +130,8 @@ class CarrierController:
         self.check_app_update()
         self.minimize_hint_sent = False
 
-        threading.Thread(target=self.save_cache).start()
+        if not self.model.dropout and not self.no_cache:
+            threading.Thread(target=self.save_cache, daemon=True).start()
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in(show_message=False)
@@ -500,7 +507,11 @@ class CarrierController:
                     market_ids = [market_ids[i] for i in L + M]
                     market_updated = [market_updated[i] for i in L + M]
                     if len(stations) > 0:
-                        trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
+                        if system == 'Gali':
+                            chadwick_index = next((i for i, station in enumerate(stations) if station == 'Chadwick Dock'), None)
+                            trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price, default_station_index=chadwick_index)
+                        else:
+                            trade_post_view = TradePostView(self.view.root, carrier_name=carrier_name, trade_type=trade_type, commodity=commodity, stations=stations, pad_sizes=pad_sizes, system=system, amount=amount, market_ids=market_ids, market_updated=market_updated, price=price)
                         trade_post_view.button_post.configure(command=lambda: self.button_click_post(trade_post_view=trade_post_view, carrier_name=carrier_name, carrier_callsign=carrier_callsign, trade_type=trade_type, commodity=commodity, system=system, amount=amount))
                     else:
                         self.view.show_message_box_warning('No station', f'There are no stations in this system ({system})')
@@ -643,6 +654,24 @@ class CarrierController:
             self.view.show_message_box_warning('Error', f'Error while sending discord ping\n{e}')
         else:
             self.view.show_message_box_info('Success!', 'Test message sent to discord with ping')
+
+    def button_click_test_sound_jump_plotted(self):
+        self.play_sound(self.notification_settings.get('jump_plotted_sound_file'), block=False)
+
+    def button_click_test_sound_jump_completed(self):
+        self.play_sound(self.notification_settings.get('jump_completed_sound_file'), block=False)
+    
+    def button_click_test_sound_jump_cancelled(self):
+        self.play_sound(self.notification_settings.get('jump_cancelled_sound_file'), block=False)
+
+    def button_click_test_sound_cooldown_finished(self):
+        self.play_sound(self.notification_settings.get('cooldown_finished_sound_file'), block=False)
+
+    def button_click_test_sound_stop(self):
+        if hasattr(self, 'sound'):
+            self.sound.stop()
+        else:
+            self.view.show_message_box_warning('Error', 'No sound is currently playing')
     
     def button_click_manual_timer(self):
         selected_row = self.get_selected_row()
@@ -673,13 +702,18 @@ class CarrierController:
             carrierID = self.manual_timer_view.carrierID
             timer = self.manual_timer_view.entry_timer.get()
             timer = datetime.strptime(timer, '%H:%M:%S').replace(tzinfo=timezone.utc).time()
-            timer = datetime.combine(date.today(), timer, tzinfo=timezone.utc)
+            timer = datetime.combine(datetime.now(timezone.utc).date(), timer, tzinfo=timezone.utc)
             now_utc = datetime.now(timezone.utc)
             if timer < now_utc:
                 timer += timedelta(days=1)
+            if timer - now_utc > timedelta(days=1):
+                timer -= timedelta(days=1)
             assert timer > now_utc, f'Timer must be in the future, {timer}, {now_utc}'
+            assert timer - now_utc < timedelta(days=1), f'Timer must be within 24 hours, {timer}, {now_utc}'
             if timer - now_utc > timedelta(hours=1, minutes=15):
                 if not self.view.show_message_box_askyesno('Warning', 'Timer set more than 1 hour 15 minutes in the future, are you sure?'):
+                    self.manual_timer_view.popup.focus_force()
+                    self.manual_timer_view.entry_timer.focus()
                     return
             if len(self.model.manual_timers) == 0:
                 self.view.root.after(REMIND_INTERVAL, self.check_manual_timer)
@@ -825,7 +859,7 @@ class CarrierController:
     #     else:
     #         print(f"Subscription state={state}, exception={exception!r}")
 
-    def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]:
+    def get_selected_row(self, sheet=None, allow_multiple:bool=False) -> int|tuple[int]|None:
         if sheet is None:
             sheet = self.view.sheet_jumps
         selected_rows = sheet.get_selected_rows(get_cells=False, get_cells_as_rows=True, return_tuple=True)
@@ -846,11 +880,11 @@ class CarrierController:
             try:
                 self._save_cache(cache_path)
             except Exception as e:
-                self.view.show_message_box_warning('Error', f'Error while saving cache\n{traceback.format_exc()}')
+                self.view.root.after(0, self.view.show_message_box_warning, 'Error', f'Error while saving cache\n{traceback.format_exc()}')
             else:
                 self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
         else:
-            self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
+            self.view.root.after(0, self.view.show_message_box_warning, 'Warning', 'Cache path is not set, cannot save cache')
 
     def _save_cache(self, cache_path:str):
         if cache_path is not None:
@@ -879,7 +913,8 @@ class CarrierController:
             progress_win.update()
             time.sleep(0.0001)
         progress_win.destroy()
-        self.save_cache()
+        if not self.no_cache:
+            self.save_cache()
 
     def _reload(self):
         self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
@@ -1000,7 +1035,7 @@ class CarrierController:
                 return 0, None, None
             def _chunks(seq: list[dict[str, any]], size: int):
                 for i in range(0, len(seq), size):
-                    raise RuntimeError(f"Error reporting jump timer: {response.get('error')}")
+                    yield seq[i:i+size]
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
             for chunk in _chunks(df.to_dict(orient='records'), 500):
                 response = self.auth_handler.invoke_edge("submit-bulk-report", body=chunk)

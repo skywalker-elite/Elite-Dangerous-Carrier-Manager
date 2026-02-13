@@ -258,14 +258,31 @@ class CarrierView:
 
         self.labelframe_testing = ttk.Labelframe(self.tab_options.scrollable_frame, text='Testing')
         self.labelframe_testing.grid(row=3, column=0, padx=10, pady=10, sticky='w')
-        self.button_test_trade_post = ttk.Button(self.labelframe_testing, text='Test Trade Post')
+        self.labelframe_testing_trade = ttk.Labelframe(self.labelframe_testing, text='Trade')
+        self.labelframe_testing_trade.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.button_test_trade_post = ttk.Button(self.labelframe_testing_trade, text='Test Trade Post')
         self.button_test_trade_post.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_test_wine_unload = ttk.Button(self.labelframe_testing, text='Test Wine Unload')
+        self.button_test_wine_unload = ttk.Button(self.labelframe_testing_trade, text='Test Wine Unload')
         self.button_test_wine_unload.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_test_discord = ttk.Button(self.labelframe_testing, text='Test Discord Webhook')
+        self.labelframe_testing_discord = ttk.Labelframe(self.labelframe_testing, text='Discord')
+        self.labelframe_testing_discord.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.button_test_discord = ttk.Button(self.labelframe_testing_discord, text='Test Discord Webhook')
         self.button_test_discord.pack(side='left', padx=10, pady=10, anchor='w')
-        self.button_test_discord_ping = ttk.Button(self.labelframe_testing, text='Test Discord Ping')
+        self.button_test_discord_ping = ttk.Button(self.labelframe_testing_discord, text='Test Discord Ping')
         self.button_test_discord_ping.pack(side='left', padx=10, pady=10, anchor='w')
+        
+        self.labelframe_testing_sound = ttk.Labelframe(self.labelframe_testing, text='Sound')
+        self.labelframe_testing_sound.grid(row=1, column=0, columnspan=2, padx=10, pady=10, sticky='w')
+        self.button_test_sound_jump_plotted = ttk.Button(self.labelframe_testing_sound, text='Jump Plotted')
+        self.button_test_sound_jump_plotted.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_test_sound_jump_completed = ttk.Button(self.labelframe_testing_sound, text='Jump Completed')
+        self.button_test_sound_jump_completed.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_test_sound_jump_cancelled = ttk.Button(self.labelframe_testing_sound, text='Jump Cancelled')
+        self.button_test_sound_jump_cancelled.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_test_sound_cooldown_finished = ttk.Button(self.labelframe_testing_sound, text='Cooldown Finished')
+        self.button_test_sound_cooldown_finished.pack(side='left', padx=10, pady=10, anchor='w')
+        self.button_test_sound_stop = ttk.Button(self.labelframe_testing_sound, text='Stop Sound')
+        self.button_test_sound_stop.pack(side='left', padx=10, pady=10, anchor='w')
 
     def configure_sheet(self, sheet:Sheet):
         sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
@@ -369,7 +386,7 @@ class CarrierView:
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
-                 market_ids:list[str], market_updated:list[str], price:str|int):
+                 market_ids:list[str], market_updated:list[str], price:str|int, default_station_index:int=0):
         self.trade_type = trade_type
         self.commodity = commodity
         self.pad_sizes = pad_sizes
@@ -394,7 +411,7 @@ class TradePostView:
         self.label_from_to = ttk.Label(self.popup, text='from' if trade_type=='loading' else 'to')
         self.label_from_to.grid(row=0, column=4, padx=2)
         self.cbox_stations = ttk.Combobox(self.popup, values=stations)
-        self.cbox_stations.current(0)
+        self.cbox_stations.current(default_station_index)
         self.cbox_stations.bind('<<ComboboxSelected>>', self.station_selected)
         self.cbox_stations.grid(row=0, column=5, padx=2)
         self.cbox_pad_size = ttk.Combobox(self.popup, values=['L', 'M'], state='readonly', width=2)
@@ -478,9 +495,9 @@ class ScrollableFrame(ttk.Frame):
     """A scrollable frame that can contain other widgets."""
     def __init__(self, container, *args, **kwargs):
         super().__init__(container, *args, **kwargs)
-        self.canvas    = tk.Canvas(self, borderwidth=0, highlightthickness=0)
+        self.canvas = tk.Canvas(self, borderwidth=0, highlightthickness=0)
         self.scrollbar = ttk.Scrollbar(self, orient="vertical", command=self.canvas.yview)
-        self.scrollable_frame     = ttk.Frame(self.canvas)
+        self.scrollable_frame = ttk.Frame(self.canvas)
 
         self.canvas.create_window((0,0), window=self.scrollable_frame, anchor="nw")
         self.canvas.configure(yscrollcommand=self.scrollbar.set)
@@ -489,16 +506,27 @@ class ScrollableFrame(ttk.Frame):
         self.scrollbar.pack(side="right", fill="y")
 
         # whenever content or viewport changes, update scrollregion & bar‐visibility
-        self.scrollable_frame .bind("<Configure>", lambda e: self._update())
+        self.scrollable_frame.bind("<Configure>", lambda e: self._update())
         self.canvas.bind("<Configure>", lambda e: self._update())
 
-        # wheel‐scroll
-        self.canvas.bind("<MouseWheel>", self._on_mousewheel)
-        self.canvas.bind("<Button-4>", self._on_mousewheel)  # For Linux with wheel scroll up
-        self.canvas.bind("<Button-5>", self._on_mousewheel)  # For Linux with wheel scroll down
+        # enable wheel scrolling when cursor is over the scrollable area
+        self.scrollable_frame.bind("<Enter>", self._bind_mousewheel)
+        self.scrollable_frame.bind("<Leave>", self._unbind_mousewheel)
+        self.canvas.bind("<Enter>", self._bind_mousewheel)
+        self.canvas.bind("<Leave>", self._unbind_mousewheel)
 
         # run once after idle to hide if unnecessary
         self.after_idle(self._update)
+
+    def _bind_mousewheel(self, _event):
+        self.canvas.bind_all("<MouseWheel>", self._on_mousewheel)  # Windows / macOS
+        self.canvas.bind_all("<Button-4>", self._on_mousewheel)    # Linux up
+        self.canvas.bind_all("<Button-5>", self._on_mousewheel)    # Linux down
+
+    def _unbind_mousewheel(self, _event):
+        self.canvas.unbind_all("<MouseWheel>")
+        self.canvas.unbind_all("<Button-4>")
+        self.canvas.unbind_all("<Button-5>")
 
     def _update(self):
         # 1) update scrollregion
@@ -519,11 +547,13 @@ class ScrollableFrame(ttk.Frame):
             self.scrollbar.pack_forget()
 
     def _on_mousewheel(self, e):
-        delta = int(-1 * (e.delta / 120))
-        # only scroll if there’s overflow
-        bbox = self.canvas.bbox("all")
-        if bbox and (bbox[3] - bbox[1]) > self.canvas.winfo_height():
-            self.canvas.yview_scroll(delta, "units")
+        # mirror tksheet: only direction, fixed step of 1
+        if getattr(e, 'delta', 0) < 0 or getattr(e, 'num', None) == 5:
+            self.canvas.yview_scroll(1, "units")
+        elif getattr(e, 'delta', 0) >= 0 or getattr(e, 'num', None) == 4:
+            if self.canvas.canvasy(0) <= 0:
+                return "break"
+            self.canvas.yview_scroll(-1, "units")
         return "break"
 
 if __name__ == '__main__':
