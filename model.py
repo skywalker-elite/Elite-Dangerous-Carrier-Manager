@@ -53,7 +53,7 @@ class JournalReader:
                     print(f'{(self.tracked_items + ["carrier_owners"])[i]} was dropped')
             else:
                 print('Dropout mode active, journal data is dropped')
-                self.droplist = [self.tracked_items + ["carrier_owners"].index(i) for i in self.droplist]
+                self.droplist = [(self.tracked_items + ["carrier_owners"]).index(i) for i in self.droplist]
                 for i in self.droplist:
                     print(f'{(self.tracked_items + ["carrier_owners"])[i]} was dropped')
 
@@ -137,7 +137,7 @@ class JournalReader:
                 self._jump_cancels.append(item)
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
-                if fid is not None and item.get('CarrierType', None) != 'SquadronCarrier':
+                if (fid is not None or fid_last is not None) and item.get('CarrierType', None) != 'SquadronCarrier':
                     self._carrier_owners[item['CarrierID']] = fid if fid is not None else fid_last
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
