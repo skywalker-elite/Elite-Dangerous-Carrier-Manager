@@ -289,7 +289,8 @@ class CarrierModel:
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
                 self.carriers[stat['CarrierID']]['Services'] = df_services.copy()
-                self.carriers[stat['CarrierID']]['PendingDecom'] = stat['PendingDecommission']    
+                self.carriers[stat['CarrierID']]['PendingDecom'] = stat['PendingDecommission']
+                self.carriers[stat['CarrierID']]['DockingPerm'] = {'DockingAccess': stat['DockingAccess'], 'AllowNotorious': stat['AllowNotorious']}
 
     def process_carrier_buys(self, carrier_buys, first_read:bool=True):
         for carrier_buy in carrier_buys:
@@ -312,7 +313,8 @@ class CarrierModel:
         for docking_perm in docking_perms:
             if docking_perm['CarrierID'] in self.carriers.keys():
                 if not first_read or 'DockingPerm' not in self.carriers[docking_perm['CarrierID']].keys():
-                    self.carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
+                    if datetime.strptime(docking_perm['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > self.carriers[docking_perm['CarrierID']]['StatTime'] if 'StatTime' in self.carriers[docking_perm['CarrierID']].keys() else datetime.min.replace(tzinfo=timezone.utc):
+                        self.carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
 
     def process_carrier_locations(self, carrier_locations, first_read:bool=True):
         for carrier_location in carrier_locations:
