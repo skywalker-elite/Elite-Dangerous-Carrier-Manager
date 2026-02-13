@@ -52,9 +52,10 @@ class JournalEventHandler(FileSystemEventHandler):
     on_created = on_modified
 
 class CarrierController:
-    def __init__(self, root:Tk, model:CarrierModel):
+    def __init__(self, root:Tk, model:CarrierModel, no_cache:bool=False):
         self.root = root
         self.model = model
+        self.no_cache = no_cache
         self.tray_icon = None
         self.notification_settings = {}
         self.notification_settings_carrier = {}
@@ -129,7 +130,8 @@ class CarrierController:
         self.check_app_update()
         self.minimize_hint_sent = False
 
-        threading.Thread(target=self.save_cache, daemon=True).start()
+        if not self.model.dropout and not self.no_cache:
+            threading.Thread(target=self.save_cache, daemon=True).start()
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in(show_message=False)
@@ -878,11 +880,11 @@ class CarrierController:
             try:
                 self._save_cache(cache_path)
             except Exception as e:
-                self.view.show_message_box_warning('Error', f'Error while saving cache\n{traceback.format_exc()}')
+                self.view.root.after(0, self.view.show_message_box_warning, 'Error', f'Error while saving cache\n{traceback.format_exc()}')
             else:
                 self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
         else:
-            self.view.show_message_box_warning('Warning', 'Cache path is not set, cannot save cache')
+            self.view.root.after(0, self.view.show_message_box_warning, 'Warning', 'Cache path is not set, cannot save cache')
 
     def _save_cache(self, cache_path:str):
         if cache_path is not None:
@@ -911,7 +913,8 @@ class CarrierController:
             progress_win.update()
             time.sleep(0.0001)
         progress_win.destroy()
-        self.save_cache()
+        if not self.no_cache:
+            self.save_cache()
 
     def _reload(self):
         self.model = CarrierModel(journal_paths=self.model.journal_paths, journal_reader=None, dropout=self.model.dropout, droplist=self.model.droplist)
