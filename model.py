@@ -38,8 +38,8 @@ class JournalReader:
         self._trit_deposits = []
         self._carrier_owners = {}
         self._docking_perms = []
-        self._squadron_startup = {}
-        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms']
+        self._squadron_startup = []
+        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup']
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
@@ -48,14 +48,14 @@ class JournalReader:
         if self.dropout == True:
             if self.droplist is None:
                 print('Dropout mode active, journal data is randomly dropped')
-                self.droplist = [i for i in range(10) if random() < 0.5]
+                self.droplist = [i for i in range(len(self.tracked_items) + 1) if random() < 0.5]
                 for i in self.droplist:
-                    print(f'{self.tracked_items + ["carrier_owners"][i]} was dropped')
+                    print(f'{(self.tracked_items + ["carrier_owners"])[i]} was dropped')
             else:
                 print('Dropout mode active, journal data is dropped')
                 self.droplist = [self.tracked_items + ["carrier_owners"].index(i) for i in self.droplist]
                 for i in self.droplist:
-                    print(f'{self.tracked_items + ["carrier_owners"][i]} was dropped')
+                    print(f'{(self.tracked_items + ["carrier_owners"])[i]} was dropped')
 
     def read_journals(self):
         latest_journal_info = {}
@@ -95,7 +95,7 @@ class JournalReader:
                     print(f'{journal_path} {e}')
                     continue
         
-        parsed_fid, is_active = self._parse_items(items)
+        parsed_fid, is_active = self._parse_items(items, fid_last)
         if fid_last is None:
             fid = parsed_fid
         elif parsed_fid is not None and parsed_fid != fid_last:
@@ -120,7 +120,7 @@ class JournalReader:
             self.journal_processed.append(journal_path)
 
 
-    def _parse_items(self, items:list) -> tuple[str|None, bool]:
+    def _parse_items(self, items:list, fid_last:str|None=None) -> tuple[str|None, bool]:
         fid = None
         fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
         if len(fid_temp) > 0:
@@ -138,7 +138,7 @@ class JournalReader:
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
                 if fid is not None and item.get('CarrierType', None) != 'SquadronCarrier':
-                    self._carrier_owners[item['CarrierID']] = fid
+                    self._carrier_owners[item['CarrierID']] = fid if fid is not None else fid_last
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
             if item['event'] == 'CarrierTradeOrder':
@@ -148,15 +148,15 @@ class JournalReader:
             if item['event'] == 'CarrierDockingPermission':
                 self._docking_perms.append(item)
             if item['event'] == 'SquadronStartup':
-                if fid is not None:
-                    self._squadron_startup[fid] = item['SquadronName']
+                item['FID'] = fid if fid is not None else fid_last
+                self._squadron_startup.append(item)
                 
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid, is_active
     
     def _get_parsed_items(self):
         return [sorted(getattr(self, f'_{item_type}'), key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True)
-                for item_type in self.tracked_items] + [self._squadron_startup, self._carrier_owners]
+                for item_type in self.tracked_items] + [self._carrier_owners]
     
     def get_items(self) -> list:
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
@@ -172,7 +172,7 @@ class JournalReader:
         for item_type in self.tracked_items:
             items.append(getattr(self, f'_{item_type}')[self._last_items_count[item_type]:])
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
-        return items + [self._squadron_startup,self._carrier_owners]
+        return items + [self._carrier_owners]
     
     def update_items_count(self):
         self._last_items_count = self._last_items_count_pending.copy()
@@ -200,6 +200,7 @@ class CarrierModel:
         self.carriers_updated = {}
         self.cmdr_balances = {}
         self.cmdr_names = {}
+        self.cmdr_squadrons = {}
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
@@ -384,9 +385,12 @@ class CarrierModel:
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame(fc_active_trades.values(), columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price']).sort_values('timestamp', ascending=True).reset_index(drop=True).copy()
                 
     def process_squadrons(self, squadrons, first_read:bool=True):
+        for squadron in squadrons:
+            if squadron['FID'] is not None and (squadron['FID'] not in self.cmdr_squadrons.keys() or not first_read):
+                self.cmdr_squadrons[squadron['FID']] = squadron['SquadronName']
         for carrierID in self.carriers.keys():
             if self.carriers[carrierID].get('SquadronName', None) is None or not first_read:
-                self.carriers[carrierID]['SquadronName'] = squadrons.get(self.carrier_owners.get(carrierID, None), None)
+                self.carriers[carrierID]['SquadronName'] = self.cmdr_squadrons.get(self.carrier_owners.get(carrierID, None), None)
 
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
