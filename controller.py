@@ -72,6 +72,8 @@ class CarrierController:
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
+        self.view.button_inara_system.configure(command=self.button_click_inara_system)
+        self.view.button_inara_carrier.configure(command=self.button_click_inara_carrier)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
@@ -741,6 +743,29 @@ class CarrierController:
                     self.view.show_message_box_warning('Warning', 'Only movements to and from N3 and up are supported')
             else:
                 self.view.show_message_box_warning('Warning', f'{carrier_name} ({carrier_callsign}) doesn\'t have a jump plotted')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def button_click_inara_system(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            system = self.model.get_current_or_destination_system(carrierID=carrierID)
+            if system is not None:
+                inara_url = f'https://inara.cz/elite/starsystem/?search={system.replace(" ", "+")}'
+                open_file(inara_url)
+            else:
+                self.view.show_message_box_warning('Warning', 'No current or destination system found for this carrier')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row and one row only!')
+
+    def button_click_inara_carrier(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            carrier_callsign = self.model.get_callsign(carrierID)
+            inara_url = f'https://inara.cz/elite/station/?search={carrier_callsign}'
+            open_file(inara_url)
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
 

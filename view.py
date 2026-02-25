@@ -123,6 +123,11 @@ class CarrierView:
         # Departure notice
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
+        # Inara link
+        self.button_inara_system = ttk.Button(self.bottom_bar, text='View System on Inara')
+        self.button_inara_system.pack(side='left')
+        self.button_inara_carrier = ttk.Button(self.bottom_bar, text='View Carrier on Inara')
+        self.button_inara_carrier.pack(side='left')
 
         # Trade tab
         self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade')
