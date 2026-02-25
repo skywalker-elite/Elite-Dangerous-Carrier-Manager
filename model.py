@@ -15,6 +15,17 @@ from collections import namedtuple
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
+_SINGLE_DIGIT_TOKEN = re.compile(r'(?<!\d)(\d)(?!\d)')
+
+def format_local_datetime_aligned(dt: datetime) -> str:
+    """
+    Keep user's locale date/time format (%x %X), but pad single-digit numeric
+    fields so visual width is consistent (e.g. 8 -> 08, 2/3 -> 02/03).
+    Works on Windows + Linux.
+    """
+    s = dt.astimezone().strftime('%x %X')
+    return _SINGLE_DIGIT_TOKEN.sub(r'0\1', s)
+
 class JournalReader:
     @classmethod
     def version_hash(cls) -> str:
@@ -818,7 +829,7 @@ class CarrierModel:
 
     def generate_info_time_bought(self, carrierID: int) -> str:
         time_bought = self.get_time_bought(carrierID=carrierID)
-        return time_bought.astimezone().strftime('%x %X') if time_bought is not None else 'Unknown'
+        return format_local_datetime_aligned(time_bought) if time_bought is not None else 'Unknown'
     
     def get_time_bought(self, carrierID: int) -> datetime|None:
         return self.get_carriers()[carrierID]['TimeBought']
@@ -988,7 +999,7 @@ class CarrierModel:
             active_trades = active_trades[active_trades['Commodity'].notna()]
             active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
             active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1)
-            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: format_local_datetime_aligned(datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)))
             if filter_ghost_buys:
                 unloading_trades = active_trades[active_trades['Trade Type'] == 'Unloading'].copy()
                 likely_active_trades = self.filter_likely_active_trades(active_trades)
