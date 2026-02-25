@@ -598,12 +598,12 @@ class ScrollableFrame(ttk.Frame):
         return "break"
     
 class TradeHistoryView:
-    def __init__(self, root, data:list[list]):
+    def __init__(self, root, data:list[list], total:str, loads:str, unloads:str, carrier_name:str, window_size:str=WINDOW_SIZE):
         self.popup = tk.Toplevel(root)
-        self.popup.geometry(WINDOW_SIZE)
+        self.popup.geometry(window_size)
         self.popup.transient(root)
         apply_theme_to_titlebar(self.popup)
-        self.popup.title(f'Trade History')
+        self.popup.title(f'Trade History for {carrier_name}')
         self.popup.focus_force()
         self.popup.rowconfigure(0, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
@@ -620,6 +620,7 @@ class TradeHistoryView:
         self.sheet_trade_history['G'].align('right')
 
         self.sheet_trade_history.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.popup.grid_rowconfigure(0, weight=2)
         self.sheet_trade_history.change_theme('dark', redraw=False)
         self.sheet_trade_history.set_options(**{
             'table_bg':    '#1c1c1e',  # main window surface
@@ -640,7 +641,20 @@ class TradeHistoryView:
         self.sheet_trade_history.set_sheet_data(data, reset_col_positions=False)
         self.sheet_trade_history.set_all_column_widths()
 
-        self.popup.attributes('-topmost', True)
+        self.label_history_stats_total = ttk.Label(self.popup, text=total)
+        self.label_history_stats_loads = ttk.Label(self.popup, text=loads)
+        self.label_history_stats_unloads = ttk.Label(self.popup, text=unloads)
+
+        self.label_history_stats_total.grid(row=1, column=0, padx=10, pady=5, sticky='e')
+        self.label_history_stats_loads.grid(row=1, column=1, padx=10, pady=5, sticky='e')
+        self.label_history_stats_unloads.grid(row=1, column=2, padx=10, pady=5, sticky='e')
+
+        self.bottom_bar_trade_history = ttk.Frame(self.popup)
+        self.bottom_bar_trade_history.grid(row=2, column=0, columnspan=3, sticky='ew')
+
+        self.button_export_csv = ttk.Button(self.bottom_bar_trade_history, text='Export to CSV')
+        self.button_export_csv.pack(side='left', padx=10, pady=10, anchor='w')
+
         center_window_relative_to_parent(self.popup, root)
         self.popup.focus_set()
 
