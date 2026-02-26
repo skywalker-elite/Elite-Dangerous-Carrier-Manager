@@ -8,10 +8,18 @@ from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND
 from station_parser import getStockPrice
 
+class MenuOption(NamedTuple):
+        label: str
+        func: callable
+        table_menu: bool = True
+        index_menu: bool = False
+        header_menu: bool = False
+        empty_space_menu: bool = False
+
 class CarrierView:
-    def __init__(self, root: tk.Tk, window_size:str|None=None, actions:dict[str, dict[str, callable]]|None=None):
+    def __init__(self, root: tk.Tk, window_size:str|None=None, menu_options:dict[str, list[MenuOption]]|None=None):
         self.root = root
-        self.actions = actions
+        self.menu_options = menu_options
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -124,11 +132,6 @@ class CarrierView:
         # Departure notice
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
-        # Inara link
-        self.button_inara_system = ttk.Button(self.bottom_bar, text='View System on Inara')
-        self.button_inara_system.pack(side='left')
-        self.button_inara_carrier = ttk.Button(self.bottom_bar, text='View Carrier on Inara')
-        self.button_inara_carrier.pack(side='left')
 
         # Trade tab
         self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade')
@@ -290,6 +293,8 @@ class CarrierView:
         self.button_test_sound_stop = ttk.Button(self.labelframe_testing_sound, text='Stop Sound')
         self.button_test_sound_stop.pack(side='left', padx=10, pady=10, anchor='w')
 
+        self.setup_right_click_menu()
+
     def configure_sheet(self, sheet:Sheet):
         sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
         sheet.change_theme('dark', redraw=False)
@@ -331,20 +336,14 @@ class CarrierView:
         self.root.option_add("*Listbox*Font", ("Calibri", size, "normal"))
         self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
 
-    class MenuOption(NamedTuple):
-        label: str
-        func: callable
-        table_menu: bool = True
-        index_menu: bool = False
-        header_menu: bool = False
-        empty_space_menu: bool = False
-
-    def setup_right_click_menu(self, menu_options:dict[str, list[MenuOption]]):
-        for sheet_name, menu_option_list in menu_options.items():
+    def setup_right_click_menu(self):
+        for sheet_name, menu_option_list in self.menu_options.items():
             sheet:Sheet|None = getattr(self, f"sheet_{sheet_name}", None)
             if sheet is not None:
                 for menu_option in menu_option_list:
-                    sheet.popup_menu_add_command(**dict(menu_option))
+                    sheet.popup_menu_add_command(**menu_option._asdict())
+            else:
+                print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
