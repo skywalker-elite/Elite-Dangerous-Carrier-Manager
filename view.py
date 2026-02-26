@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tksheet import Sheet
-from typing import Literal
+from typing import Literal, NamedTuple
 import tkinter.font as tkfont
 from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
 from idlelib.tooltip import Hovertip
@@ -9,8 +9,9 @@ from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_B
 from station_parser import getStockPrice
 
 class CarrierView:
-    def __init__(self, root: tk.Tk, window_size:str|None=None):
+    def __init__(self, root: tk.Tk, window_size:str|None=None, actions:dict[str, dict[str, callable]]|None=None):
         self.root = root
+        self.actions = actions
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -329,6 +330,21 @@ class CarrierView:
         # 5) some pure-tk popups (Combobox listbox, Menu) still need an option_add
         self.root.option_add("*Listbox*Font", ("Calibri", size, "normal"))
         self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
+
+    class MenuOption(NamedTuple):
+        label: str
+        func: callable
+        table_menu: bool = True
+        index_menu: bool = False
+        header_menu: bool = False
+        empty_space_menu: bool = False
+
+    def setup_right_click_menu(self, menu_options:dict[str, list[MenuOption]]):
+        for sheet_name, menu_option_list in menu_options.items():
+            sheet:Sheet|None = getattr(self, f"sheet_{sheet_name}", None)
+            if sheet is not None:
+                for menu_option in menu_option_list:
+                    sheet.popup_menu_add_command(**dict(menu_option))
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
