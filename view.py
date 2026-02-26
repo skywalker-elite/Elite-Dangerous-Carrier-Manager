@@ -1,7 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
 from tksheet import Sheet
-from typing import Literal, NamedTuple
+from typing import Literal, NamedTuple, Callable
 import tkinter.font as tkfont
 from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
 from idlelib.tooltip import Hovertip
@@ -10,7 +10,7 @@ from station_parser import getStockPrice
 
 class MenuOption(NamedTuple):
         label: str
-        func: callable
+        func: Callable[..., None]
         table_menu: bool = True
         index_menu: bool = False
         header_menu: bool = False
@@ -337,6 +337,8 @@ class CarrierView:
         self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
 
     def setup_right_click_menu(self):
+        if self.menu_options is None:
+            return
         for sheet_name, menu_option_list in self.menu_options.items():
             sheet:Sheet|None = getattr(self, f"sheet_{sheet_name}", None)
             if sheet is not None:
