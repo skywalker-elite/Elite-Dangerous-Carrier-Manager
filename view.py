@@ -132,7 +132,7 @@ class CarrierView:
             'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
         ])
         self.sheet_trade['C'].align('right')
-        self.sheet_trade['E'].align('right')
+        self.sheet_trade['E:F'].align('right')
 
         self.configure_sheet(self.sheet_trade)
 
@@ -178,7 +178,7 @@ class CarrierView:
         self.sheet_misc.headers([
             'Carrier Name', 'Squadron', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ])
-        self.sheet_misc['B:J'].align('right')
+        self.sheet_misc['B:L'].align('right')
 
         self.configure_sheet(self.sheet_misc)
 
