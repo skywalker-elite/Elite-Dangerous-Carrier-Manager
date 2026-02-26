@@ -32,7 +32,7 @@ from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
-from view import CarrierView, TradePostView, ManualTimerView
+from view import CarrierView, TradePostView, ManualTimerView, MenuOption
 from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
@@ -62,7 +62,17 @@ class CarrierController:
         self.webhook_handler = None
         self.webhook_handler_carrier = {}
         self.auth_handler = AuthHandler()
-        self.view = CarrierView(root)
+        menu_options: dict[str, list[MenuOption]] = {
+            'jumps': [
+                MenuOption('Copy name (ID)', self.menu_click_copy_name_callsign),
+                MenuOption('Inara System', self.button_click_inara_system), 
+                MenuOption('Inara Carrier', self.button_click_inara_carrier)
+            ],
+            'services': [
+                MenuOption('Copy name (ID) and services', self.menu_click_copy_name_callsign_services),
+            ]
+        }
+        self.view = CarrierView(root, menu_options=menu_options)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
         self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None}
@@ -72,8 +82,6 @@ class CarrierController:
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
-        self.view.button_inara_system.configure(command=self.button_click_inara_system)
-        self.view.button_inara_carrier.configure(command=self.button_click_inara_carrier)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
@@ -104,11 +112,6 @@ class CarrierController:
         self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
         self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
-
-        menu_options: dict[str, list[CarrierView.MenuOption]] = {
-            'jumps': [CarrierView.MenuOption('Inara System', self.button_click_inara_system), CarrierView.MenuOption('Inara Carrier', self.button_click_inara_carrier), CarrierView.MenuOption('Post Departure', self.button_click_post_departure)],
-        }
-        self.view.setup_right_click_menu(menu_options)
 
         # initial load
         self.update_journals()
@@ -1134,6 +1137,35 @@ class CarrierController:
             if submissions == 0:
                 return self.view.show_message_box_info('Timer Contributions', 'You have not submitted any jump timers yet.')
             return self.view.show_message_box_info('Timer Contributions', f'You have submitted {submissions} jump timers.\nYou have the {ordinal(rank)} most reports among all users.\nThank you for your support!')
+
+    def menu_click_copy_name_callsign(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            carrier_name = self.model.get_name(carrierID)
+            carrier_callsign = self.model.get_callsign(carrierID)
+            self.copy_to_clipboard(f'{carrier_name} ({carrier_callsign})', None, None)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def menu_click_copy_name_callsign_services(self):
+        selected_row = self.get_selected_row(sheet=self.view.sheet_services)
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            carrier_name = self.model.get_name(carrierID)
+            carrier_callsign = self.model.get_callsign(carrierID)
+            services = pd.DataFrame([self.model.generate_info_services(carrierID)], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
+            services[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = services[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
+            services.columns = ['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket']
+            services = services.T
+            services = services[services['Status'] == 'Active']
+            services_str = ', '.join(services.index)
+            services_str = services_str.replace('Refuel, Repair, Rearm', '3Rs')
+            if services_str == '':
+                services_str = 'No active services'
+            self.copy_to_clipboard(f'{carrier_name} ({carrier_callsign}) - {services_str}', None, None)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():
