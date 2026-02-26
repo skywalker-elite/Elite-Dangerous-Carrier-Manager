@@ -1,16 +1,25 @@
 import tkinter as tk
 from tkinter import ttk
 from tksheet import Sheet
-from typing import Literal
+from typing import Literal, NamedTuple, Callable
 import tkinter.font as tkfont
 from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND
 from station_parser import getStockPrice
 
+class MenuOption(NamedTuple):
+        label: str
+        func: Callable[..., None]
+        table_menu: bool = True
+        index_menu: bool = False
+        header_menu: bool = False
+        empty_space_menu: bool = False
+
 class CarrierView:
-    def __init__(self, root: tk.Tk, window_size:str|None=None):
+    def __init__(self, root: tk.Tk, window_size:str|None=None, menu_options:dict[str, list[MenuOption]]|None=None):
         self.root = root
+        self.menu_options = menu_options
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -284,6 +293,8 @@ class CarrierView:
         self.button_test_sound_stop = ttk.Button(self.labelframe_testing_sound, text='Stop Sound')
         self.button_test_sound_stop.pack(side='left', padx=10, pady=10, anchor='w')
 
+        self.setup_right_click_menu()
+
     def configure_sheet(self, sheet:Sheet):
         sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
         sheet.change_theme('dark', redraw=False)
@@ -324,6 +335,17 @@ class CarrierView:
         # 5) some pure-tk popups (Combobox listbox, Menu) still need an option_add
         self.root.option_add("*Listbox*Font", ("Calibri", size, "normal"))
         self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
+
+    def setup_right_click_menu(self):
+        if self.menu_options is None:
+            return
+        for sheet_name, menu_option_list in self.menu_options.items():
+            sheet:Sheet|None = getattr(self, f"sheet_{sheet_name}", None)
+            if sheet is not None:
+                for menu_option in menu_option_list:
+                    sheet.popup_menu_add_command(**menu_option._asdict())
+            else:
+                print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
