@@ -105,6 +105,11 @@ class CarrierController:
         self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
 
+        menu_options: dict[str, list[CarrierView.MenuOption]] = {
+            'jumps': [CarrierView.MenuOption('Inara System', self.button_click_inara_system), CarrierView.MenuOption('Inara Carrier', self.button_click_inara_carrier), CarrierView.MenuOption('Post Departure', self.button_click_post_departure)],
+        }
+        self.view.setup_right_click_menu(menu_options)
+
         # initial load
         self.update_journals()
 
