@@ -6,6 +6,8 @@ from controller import CarrierController
 from model import CarrierModel, JournalReader
 import sys
 import pickle
+import dotenv
+dotenv.load_dotenv()
 from PIL import Image, ImageTk
 from utility import getResourcePath, getJournalPath, getCachePath
 from config import WINDOW_SIZE
@@ -36,6 +38,8 @@ def main():
     args = parser.parse_args()
     if args.paths:
         journal_paths = args.paths
+    elif os.getenv('EDCM_JOURNAL_PATHS', None) is not None:
+        journal_paths = os.getenv('EDCM_JOURNAL_PATHS').split(';')
     else:
         journal_path = getJournalPath()
         journal_paths = [journal_path] if journal_path else None
