@@ -853,9 +853,11 @@ class CarrierModel:
                         if carrier_id is not None:
                             station = self.get_name(carrier_id)
                             system = self.get_current_system(carrier_id)
-                    return f"{system} - {station}"
+                            system = get_custom_system_name(system) if system is not None else system
+
                 else:
-                    return f"{system} - Undocked"
+                    station = 'Undocked'
+            return f"{system} - {station}" if system is not None else 'Unknown'
         return 'Unknown'
     
     def generate_info_squadron_name(self, carrierID: int) -> str:
