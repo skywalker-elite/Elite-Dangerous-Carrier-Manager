@@ -187,7 +187,7 @@ class CarrierView:
         self.sheet_misc.headers([
             'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated', 'CMDR Location'
         ])
-        self.sheet_misc['B:L'].align('right')
+        self.sheet_misc['B:K'].align('right')
 
         self.configure_sheet(self.sheet_misc)
 

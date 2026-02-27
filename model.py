@@ -854,7 +854,7 @@ class CarrierModel:
                             system = self.get_current_system(carrier_id)
                     return f"{system} - {station}"
                 else:
-                    return f"{system} - undocked"
+                    return f"{system} - Undocked"
         return 'Unknown'
     
     def generate_info_squadron_name(self, carrierID: int) -> str:
