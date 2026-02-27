@@ -163,9 +163,9 @@ class CarrierView:
 
         # Set column headers
         self.sheet_finance.headers([
-            'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'CMDR Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ])
-        self.sheet_finance['C:K'].align('right')
+        self.sheet_finance['D:K'].align('right')
 
         self.configure_sheet(self.sheet_finance)
 
@@ -185,7 +185,7 @@ class CarrierView:
 
         # Set column headers
         self.sheet_misc.headers([
-            'Carrier Name', 'Squadron', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated', 'CMDR Location'
         ])
         self.sheet_misc['B:L'].align('right')
 
