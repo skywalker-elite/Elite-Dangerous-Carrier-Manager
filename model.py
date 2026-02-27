@@ -16,6 +16,7 @@ from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 _SINGLE_DIGIT_TOKEN = re.compile(r'(?<!\d)(\d)(?!\d)')
+_CARRIER_CALLSIGN_PATTERN = re.compile(r'^[A-Z0-9]{3}-[A-Z0-9]{3}$')
 
 def format_local_datetime_aligned(dt: datetime) -> str:
     """
@@ -53,7 +54,7 @@ class JournalReader:
         self._docked = []
         self._undocked = []
         self._fsd_jumps = []
-        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup', "docked", "undocked", "fsd_jumps"]
+        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup', 'docked', 'undocked', 'fsd_jumps']
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
@@ -847,7 +848,7 @@ class CarrierModel:
             system, station = self.get_cmdr_current_location(fid)
             if system is not None:
                 if station is not None:
-                    if re.match(r'^[A-Z0-9]{3}-[A-Z0-9]{3}$', station):
+                    if _CARRIER_CALLSIGN_PATTERN.match(station):
                         carrier_id = self.get_id_by_callsign(station)
                         if carrier_id is not None:
                             station = self.get_name(carrier_id)
