@@ -406,7 +406,6 @@ class CarrierController:
             time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
 
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
-        print('Updating timer stats')
         self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"] = getExpectedJumpTimer()
     
     def update_journals(self):
@@ -434,7 +433,6 @@ class CarrierController:
                     progress_win.destroy()
             try:
                 warn, message = future.result()
-                print(message)
                 if warn:
                     if silent:
                         self.time_skew_warning_suppressed = self.view.show_message_box_warning_checkbox('Time Skew Warning', message, 'Don\'t show this warning again for the rest of this session', checkbox_value=self.time_skew_warning_suppressed)
@@ -1229,5 +1227,4 @@ class CarrierController:
 
     @debounce(10)
     def _on_configure(self, event):
-        print('Saving window size:', f'{self.root.winfo_width()}x{self.root.winfo_height()}')
         self.settings.set_config('UI', 'window_size', value=f'{self.root.winfo_width()}x{self.root.winfo_height()}')
