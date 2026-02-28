@@ -153,7 +153,7 @@ class JournalReader:
                 self._jump_cancels.append(item)
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
-                if (fid is not None or fid_last is not None) and item.get('CarrierType', None) != 'SquadronCarrier':
+                if fid is not None and item.get('CarrierType', None) != 'SquadronCarrier':
                     self._carrier_owners[item['CarrierID']] = fid
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
@@ -263,7 +263,7 @@ class CarrierModel:
         # self.read_counter += 1
         self.process_load_games(load_games, first_read)
 
-        self.process_itinerary(docked, undocked, fsd_jumps)
+        self.process_itinerary(docked, undocked, fsd_jumps, first_read)
         
         self.process_stats(stats, first_read)
         
@@ -296,56 +296,45 @@ class CarrierModel:
             if not first_read or load_game['FID'] not in self.cmdr_names.keys():
                 self.cmdr_names[load_game['FID']] = load_game['Commander']
     
-    def process_itinerary(self, docked, undocked, fsd_jumps):
-        df_events = pd.DataFrame(docked + undocked + fsd_jumps, columns=['timestamp', 'event', 'StationName', 'StarSystem', 'MarketID', 'FID'])
+    def process_itinerary(self, docked, undocked, fsd_jumps, first_read:bool=True):
+        df_events = pd.DataFrame(docked + undocked + fsd_jumps, columns=['timestamp', 'event', 'StationName', 'StarSystem', 'MarketID', 'FID'], )
         df_events['timestamp'] = df_events['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
-        df_events = df_events.sort_values(by='timestamp', ascending=False).reset_index(drop=True)
-        if __name__ == '__main__':
-            print('Itinerary events:')
-            print(df_events)
+        df_events = df_events.sort_values(by='timestamp', ascending=True).reset_index(drop=True)
+        df_events = df_events.astype({'MarketID': 'Int64'})
+
         for fid in df_events['FID'].unique():
             df_fid = df_events[df_events['FID'] == fid].copy()
             if df_fid.empty:
                 if fid not in self.cmdr_locations.keys():
                     self.cmdr_locations[fid] = pd.DataFrame(columns=['StarSystem', 'StationName', 'MarketID', 'DockedAt', 'UndockedAt', 'JumpedInAt'])
             else:
-                if __name__ == '__main__':
-                    print(f'Latest itinerary events for {self.cmdr_names[fid]} ({fid}):')
-                    print(df_fid)
-
-                itinerary = []
+                df_old:pd.DataFrame = self.cmdr_locations.get(fid, pd.DataFrame(columns=['StarSystem', 'StationName', 'MarketID', 'DockedAt', 'UndockedAt', 'JumpedInAt'])).copy()
+                df_old = df_old.astype({'MarketID': 'Int64'})
+                itinerary = df_old.to_dict('records')
                 for i in range(df_fid.shape[0]):
                     event = df_fid.iloc[i]
                     if event['event'] == 'Docked':
-                        if i == 0 or itinerary[-1]['MarketID'] != event['MarketID'] or itinerary[-1]['DockedAt'] is not None:
+                        if len(itinerary) == 0 or itinerary[-1]['StarSystem'] != event['StarSystem'] or pd.notna(itinerary[-1]['DockedAt']):
                             itinerary.append({'StarSystem': event['StarSystem'], 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': event['timestamp'], 'UndockedAt': None, 'JumpedInAt': None})
                         else:
                             itinerary[-1]['DockedAt'] = event['timestamp']
                             itinerary[-1]['StationName'] = event['StationName']
-                            itinerary[-1]['StarSystem'] = event['StarSystem']
+                            itinerary[-1]['MarketID'] = event['MarketID']
                     elif event['event'] == 'Undocked':
-                        itinerary.append({'StarSystem': None, 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': None, 'UndockedAt': event['timestamp'], 'JumpedInAt': None})
-                    elif event['event'] == 'FSDJump':
-                        if i == 0 or itinerary[-1]['StarSystem'] != event['StarSystem'] or itinerary[-1]['JumpedInAt'] is not None:
-                            itinerary.append({'StarSystem': event['StarSystem'], 'StationName': None, 'MarketID': None, 'DockedAt': None, 'UndockedAt': None, 'JumpedInAt': event['timestamp']})
+                        if len(itinerary) == 0 or itinerary[-1]['MarketID'] != event['MarketID'] or pd.notna(itinerary[-1]['UndockedAt']):
+                            itinerary.append({'StarSystem': None, 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': None, 'UndockedAt': event['timestamp'], 'JumpedInAt': None})
                         else:
-                            itinerary[-1]['JumpedInAt'] = event['timestamp']
-                            itinerary[-1]['StarSystem'] = event['StarSystem']
+                            itinerary[-1]['UndockedAt'] = event['timestamp']
+                            itinerary[-1]['StationName'] = event['StationName']
+                            if pd.notna(itinerary[-1]['StarSystem']) and itinerary[-1]['StationName'] == event['StationName']:
+                                itinerary[-1]['StarSystem'] = itinerary[-1]['StarSystem']
+                    elif event['event'] == 'FSDJump':
+                        itinerary.append({'StarSystem': event['StarSystem'], 'StationName': None, 'MarketID': None, 'DockedAt': None, 'UndockedAt': None, 'JumpedInAt': event['timestamp']})
                     else:
                         raise ValueError(f'Unknown event type {event["event"]} in itinerary events')
 
                 df_itinerary = pd.DataFrame(itinerary)
-                if self.cmdr_locations.get(fid, None) is not None:
-                    df_old = self.cmdr_locations[fid].copy()
-                    if df_itinerary.iloc[-1]['MarketID'] == df_old.iloc[0]['MarketID']:
-                        if df_itinerary.iloc[-1]['DockedAt'] is None:
-                            df_itinerary.iloc[-1]['DockedAt'] = df_old.iloc[0]['DockedAt']
-                        if df_itinerary.iloc[-1]['UndockedAt'] is None:
-                            df_itinerary.iloc[-1]['UndockedAt'] = df_old.iloc[0]['UndockedAt']
-                    df_itinerary = pd.concat([df_itinerary, df_old[1:]]).reset_index(drop=True)
-                if __name__ == '__main__':
-                    print(f'Itinerary for {self.cmdr_names[fid]} ({fid}):')
-                    print(df_itinerary)
+                df_itinerary = df_itinerary.astype({'MarketID': 'Int64'})
                 self.cmdr_locations[fid] = df_itinerary.copy()
 
     def process_stats(self, stats, first_read:bool=True):
@@ -855,7 +844,6 @@ class CarrierModel:
                             station = self.get_name(carrier_id)
                             system = self.get_current_system(carrier_id)
                             system = get_custom_system_name(system) if system is not None else system
-
                 else:
                     station = 'Undocked'
             return f"{system} - {station}" if system is not None else 'Unknown'
@@ -1013,13 +1001,13 @@ class CarrierModel:
             df_jumped = df[(df['JumpedInAt'].notna()) & (df['JumpedInAt'] <= time)]
             if df_jumped.empty:
                 return None, None
-            return df_jumped.iloc[0]['StarSystem'], None
-        return df_docked.iloc[0]['StarSystem'], df_docked.iloc[0]['StationName']
+            return df_jumped.iloc[-1]['StarSystem'], None
+        return df_docked.iloc[-1]['StarSystem'], df_docked.iloc[-1]['StationName']
 
     def get_cmdr_current_location(self, fid:str) -> tuple[str|None, str|None]:
         if fid not in self.cmdr_locations.keys() or self.cmdr_locations[fid].empty:
             return None, None
-        last_location = self.cmdr_locations[fid].iloc[0]
+        last_location = self.cmdr_locations[fid].iloc[-1]
         if pd.isna(last_location['DockedAt']) or pd.notna(last_location['UndockedAt']):
             return last_location['StarSystem'], None
         return last_location['StarSystem'], last_location['StationName']
@@ -1225,7 +1213,7 @@ if __name__ == '__main__':
             'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer'
         ]))
     print(pd.DataFrame(model.get_data_finance(), columns=[
-            'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'CMDR Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ]))
     print(pd.DataFrame(model.get_data_trade()[0], columns=[
             'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
@@ -1234,7 +1222,7 @@ if __name__ == '__main__':
             'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
         ]))
     print(pd.DataFrame(model.get_data_misc(), columns=[
-            'Carrier Name', 'Squadron Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated', 'CMDR Location'
         ]))
     # print(model.df_upkeeps)
     
