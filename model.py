@@ -136,11 +136,12 @@ class JournalReader:
 
 
     def _parse_items(self, items:list, fid_last:str|None=None) -> tuple[str|None, bool]:
-        fid = None
+        fid_parsed = None
         fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
         if len(fid_temp) > 0:
             if all(i == fid_temp[0] for i in fid_temp):
-                fid = fid_temp[0]
+                fid_parsed = fid_temp[0]
+        fid = fid_parsed if fid_parsed is not None else fid_last
         for item in items:
             if item['event'] == 'LoadGame':
                 self._load_games.append(item)
@@ -153,7 +154,7 @@ class JournalReader:
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
                 if (fid is not None or fid_last is not None) and item.get('CarrierType', None) != 'SquadronCarrier':
-                    self._carrier_owners[item['CarrierID']] = fid if fid is not None else fid_last
+                    self._carrier_owners[item['CarrierID']] = fid
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
             if item['event'] == 'CarrierTradeOrder':
@@ -163,7 +164,7 @@ class JournalReader:
             if item['event'] == 'CarrierDockingPermission':
                 self._docking_perms.append(item)
             if item['event'] == 'SquadronStartup':
-                item['FID'] = fid if fid is not None else fid_last
+                item['FID'] = fid
                 self._squadron_startup.append(item)
             if item['event'] == 'Docked':
                 item['FID'] = fid
@@ -176,7 +177,7 @@ class JournalReader:
                 self._fsd_jumps.append(item)
                 
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
-        return fid, is_active
+        return fid_parsed, is_active
     
     def _get_parsed_items(self):
         return [sorted(getattr(self, f'_{item_type}'), key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True)
