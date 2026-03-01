@@ -746,15 +746,15 @@ class CarrierModel:
                 )
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'CMDR Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         idx_squadron_carriers = [i for i in range(len(self.sorted_ids_display())) if self.is_squadron_carrier(self.sorted_ids_display()[i])]
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
         df.insert(4, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
-        df = pd.concat([df, pd.DataFrame([['Total'] + ['']*2 +[df.iloc[:,i].astype(int).sum() for i in range(3, 8)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
+        df = pd.concat([df, pd.DataFrame([['Total'] + [''] +[df.iloc[:,i].astype(int).sum() for i in range(2, 7)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
-        df.iloc[:, 3:] = df.iloc[:, 3:].apply(lambda x: [f'{int(xi):,}' if isinstance(xi, (int, float)) else xi for xi in x])
+        df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if isinstance(xi, (int, float)) else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
         df.loc[idx_squadron_carriers, 'CMDR Balance'] = 'N/A'
         return df.values.tolist()
@@ -764,7 +764,7 @@ class CarrierModel:
         upkeep = self.calculate_upkeep(carrierID=carrierID)
         jump_cost = self.calculate_average_jump_costs(carrierID=carrierID)
         afloat_time = self.calculate_afloat_time(carrierID=carrierID, carrier_balance=finance[0], upkeep=upkeep, jump_cost=jump_cost)
-        return (self.get_name(carrierID=carrierID), self.generate_info_cmdr_name(carrierID), self.generate_info_squadron_name(carrierID), *finance, upkeep, jump_cost, afloat_time)
+        return (self.get_name(carrierID=carrierID), self.generate_info_squadron_name(carrierID), *finance, upkeep, jump_cost, afloat_time)
 
     def get_finance(self, carrierID: int):
         return self.get_carriers()[carrierID]['Finance']
@@ -816,6 +816,15 @@ class CarrierModel:
     def get_services(self, carrierID: int):
         return self.get_carriers()[carrierID]['Services']
     
+    def get_data_cmdr(self):
+        df = pd.DataFrame()
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['CMDR Name'] = [self.generate_info_cmdr_name(carrierID) for carrierID in self.sorted_ids_display()]
+        cmdr_locations = [self.generate_info_cmdr_location(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Current System'] = [cmdr_locations[i][0] for i in range(len(cmdr_locations))]
+        df['Current Station'] = [cmdr_locations[i][1] for i in range(len(cmdr_locations))]
+        return df[['Carrier Name', 'CMDR Name', 'Current System', 'Current Station']].values.tolist()
+    
     def get_data_misc(self):
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
@@ -829,10 +838,9 @@ class CarrierModel:
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids_display()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
-        df['CMDR Location'] = [self.generate_info_cmdr_location(carrierID) for carrierID in self.sorted_ids_display()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated', 'CMDR Location']].values.tolist()
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
-    def generate_info_cmdr_location(self, carrierID: int) -> str:
+    def generate_info_cmdr_location(self, carrierID: int) -> tuple[str, str]:
         fid = self.carrier_owners.get(carrierID, None)
         if fid is not None:
             system, station = self.get_cmdr_current_location(fid)
@@ -842,12 +850,13 @@ class CarrierModel:
                         carrier_id = self.get_id_by_callsign(station)
                         if carrier_id is not None:
                             station = self.get_name(carrier_id)
-                            system = self.get_current_system(carrier_id)
-                            system = get_custom_system_name(system) if system is not None else system
+                            system_carrier = self.get_current_system(carrier_id)
+                            system = system_carrier if system_carrier is not None else system
+                            system = get_custom_system_name(system)
                 else:
                     station = 'Undocked'
-            return f"{system} - {station}" if system is not None else 'Unknown'
-        return 'Unknown'
+            return (system if system is not None else 'Unknown', station)
+        return ('Unknown', 'Unknown')
     
     def generate_info_squadron_name(self, carrierID: int) -> str:
         squadron_name = self.get_squadron_name(carrierID=carrierID)
@@ -1222,7 +1231,7 @@ if __name__ == '__main__':
             'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
         ]))
     print(pd.DataFrame(model.get_data_misc(), columns=[
-            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated', 'CMDR Location'
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
     
