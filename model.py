@@ -816,6 +816,15 @@ class CarrierModel:
     def get_services(self, carrierID: int):
         return self.get_carriers()[carrierID]['Services']
     
+    def get_data_cmdr(self):
+        df = pd.DataFrame()
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['CMDR Name'] = [self.generate_info_cmdr_name(carrierID) for carrierID in self.sorted_ids_display()]
+        cmdr_locations = [self.generate_info_cmdr_location(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Current System'] = [cmdr_locations[i][0] for i in range(len(cmdr_locations))]
+        df['Current Station'] = [cmdr_locations[i][1] for i in range(len(cmdr_locations))]
+        return df[['Carrier Name', 'CMDR Name', 'Current System', 'Current Station']].values.tolist()
+    
     def get_data_misc(self):
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
@@ -829,10 +838,9 @@ class CarrierModel:
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids_display()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
-        df['CMDR Location'] = [self.generate_info_cmdr_location(carrierID) for carrierID in self.sorted_ids_display()]
-        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated', 'CMDR Location']].values.tolist()
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
-    def generate_info_cmdr_location(self, carrierID: int) -> str:
+    def generate_info_cmdr_location(self, carrierID: int) -> tuple[str, str]:
         fid = self.carrier_owners.get(carrierID, None)
         if fid is not None:
             system, station = self.get_cmdr_current_location(fid)
@@ -842,12 +850,13 @@ class CarrierModel:
                         carrier_id = self.get_id_by_callsign(station)
                         if carrier_id is not None:
                             station = self.get_name(carrier_id)
-                            system = self.get_current_system(carrier_id)
-                            system = get_custom_system_name(system) if system is not None else system
+                            system_carrier = self.get_current_system(carrier_id)
+                            system = system_carrier if system_carrier is not None else system
+                            system = get_custom_system_name(system)
                 else:
                     station = 'Undocked'
-            return f"{system} - {station}" if system is not None else 'Unknown'
-        return 'Unknown'
+            return (system if system is not None else 'Unknown', station)
+        return ('Unknown', 'Unknown')
     
     def generate_info_squadron_name(self, carrierID: int) -> str:
         squadron_name = self.get_squadron_name(carrierID=carrierID)

@@ -395,6 +395,7 @@ class CarrierController:
         self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
         self.view.update_table_trade(*self.model.get_data_trade(filter_ghost_buys=self.view.checkbox_filter_ghost_buys_var.get())) #TODO: reduce update rate for performance
         self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance
+        self.view.update_table_cmdr(self.model.get_data_cmdr()) #TODO: reduce update rate for performance
         self.view.update_table_misc(self.model.get_data_misc(), pending_decom) #TODO: reduce update rate for performance
 
     def update_time(self, now):
