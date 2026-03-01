@@ -70,7 +70,11 @@ class CarrierController:
             ],
             'services': [
                 MenuOption('Copy name (ID) and services', self.menu_click_copy_name_callsign_services),
-            ]
+            ],
+            'cmdr': [
+                MenuOption('Inara System', self.button_click_inara_system_cmdr),
+                MenuOption('Inara Station', self.button_click_inara_station_cmdr),
+            ],
         }
         self.view = CarrierView(root, menu_options=menu_options)
         self.model.register_status_change_callback(self.status_change)
@@ -775,6 +779,40 @@ class CarrierController:
             open_file(inara_url)
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def button_click_inara_system_cmdr(self):
+        selected_row = self.get_selected_row(self.view.sheet_cmdr)
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            fid = self.model.carrier_owners.get(carrierID, None)
+            if fid is not None:
+                system, _ = self.model.get_cmdr_current_location(fid)
+                if system is not None:
+                    inara_url = f'https://inara.cz/elite/starsystem/?search={system.replace(" ", "+")}'
+                    open_file(inara_url)
+                else:
+                    self.view.show_message_box_warning('Warning', 'Current system unknown for this cmdr')
+            else:
+                self.view.show_message_box_warning('Warning', 'Unknown cmdr, no inara link available')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row and one row only!')
+
+    def button_click_inara_station_cmdr(self):
+        selected_row = self.get_selected_row(self.view.sheet_cmdr)
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            fid = self.model.carrier_owners.get(carrierID, None)
+            if fid is not None:
+                system, station = self.model.get_cmdr_current_location(fid)
+                if station is not None:
+                    inara_url = f'https://inara.cz/elite/station/?search={station.replace(" ", "+")}%20[{system.replace(" ", "+")}]'
+                    open_file(inara_url)
+                else:
+                    self.view.show_message_box_warning('Warning', 'Current station unknown for this cmdr')
+            else:
+                self.view.show_message_box_warning('Warning', 'Unknown cmdr, no inara link available')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row and one row only!')
 
     def button_click_open_journal(self):
         selected_row = self.get_selected_row(sheet=self.view.sheet_active_journals)
