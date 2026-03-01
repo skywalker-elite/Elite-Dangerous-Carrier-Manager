@@ -14,7 +14,7 @@ from webbrowser import open_new_tab
 from datetime import datetime, timezone, timedelta, date
 from os import makedirs, path, remove
 from shutil import copyfile
-from tkinter import Tk
+from tkinter import Tk, filedialog
 import traceback
 import tomllib
 import pickle
@@ -32,7 +32,7 @@ from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
-from view import CarrierView, TradePostView, ManualTimerView
+from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
@@ -62,7 +62,21 @@ class CarrierController:
         self.webhook_handler = None
         self.webhook_handler_carrier = {}
         self.auth_handler = AuthHandler()
-        self.view = CarrierView(root)
+        menu_options: dict[str, list[MenuOption]] = {
+            'jumps': [
+                MenuOption('Copy name (ID)', self.menu_click_copy_name_callsign),
+                MenuOption('Inara System', self.button_click_inara_system), 
+                MenuOption('Inara Carrier', self.button_click_inara_carrier)
+            ],
+            'services': [
+                MenuOption('Copy name (ID) and services', self.menu_click_copy_name_callsign_services),
+            ],
+            'cmdr': [
+                MenuOption('Inara System', self.button_click_inara_system_cmdr),
+                MenuOption('Inara Station', self.button_click_inara_station_cmdr),
+            ],
+        }
+        self.view = CarrierView(root, menu_options=menu_options)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
         self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None}
@@ -73,6 +87,7 @@ class CarrierController:
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.button_trade_history.configure(command=self.button_click_trade_history)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
@@ -385,6 +400,7 @@ class CarrierController:
         self.view.update_table_finance(self.model.get_data_finance(), pending_decom)
         self.view.update_table_trade(*self.model.get_data_trade(filter_ghost_buys=self.view.checkbox_filter_ghost_buys_var.get())) #TODO: reduce update rate for performance
         self.view.update_table_services(self.model.get_data_services(), pending_decom) #TODO: reduce update rate for performance
+        self.view.update_table_cmdr(self.model.get_data_cmdr()) #TODO: reduce update rate for performance
         self.view.update_table_misc(self.model.get_data_misc(), pending_decom) #TODO: reduce update rate for performance
 
     def update_time(self, now):
@@ -396,7 +412,6 @@ class CarrierController:
             time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
 
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
-        print('Updating timer stats')
         self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"] = getExpectedJumpTimer()
     
     def update_journals(self):
@@ -424,7 +439,6 @@ class CarrierController:
                     progress_win.destroy()
             try:
                 warn, message = future.result()
-                print(message)
                 if warn:
                     if silent:
                         self.time_skew_warning_suppressed = self.view.show_message_box_warning_checkbox('Time Skew Warning', message, 'Don\'t show this warning again for the rest of this session', checkbox_value=self.time_skew_warning_suppressed)
@@ -600,6 +614,33 @@ class CarrierController:
             to_from=to_from
         )
         return post_string
+    
+    def button_click_trade_history(self):
+        selected_carrier = self.view.show_dropdown_popup('Trade History', 'Select carrier:', [f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})' for carrierID in self.model.sorted_ids_display()])
+        if selected_carrier is not None:
+            carrierID = list(self.model.sorted_ids_display())[selected_carrier]
+            carrier_name = self.model.get_name(carrierID)
+            data=self.model.get_trade_history(carrierID=carrierID)
+            data_loads = data[data['Trade Type'] == 'Loading']
+            data_unloads = data[data['Trade Type'] == 'Unloading']
+            count = f'Total {len(data):,} orders, {len(data_loads):,} loads and {len(data_unloads):,} unloads'
+            amount = f'Total {data["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons, {data_loads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,}t loads and {data_unloads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,}t unloads'
+            value = f'Order value {sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data.values.tolist()):,} cr, {sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_loads.values.tolist()):,} cr loads and {sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_unloads.values.tolist()):,} cr unloads'
+            total = f'Total\n{len(data):,} orders\n{data["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons\n{sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data.values.tolist()):,} cr value'
+            loads = f'Loads\n{len(data_loads):,} orders\n{data_loads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons\n{sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_loads.values.tolist()):,} cr value'
+            unloads = f'Unloads\n{len(data_unloads):,} orders\n{data_unloads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons\n{sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_unloads.values.tolist()):,} cr value'
+            trade_history_view = TradeHistoryView(self.view.root, data=data.values.tolist(), total=total, loads=loads, unloads=unloads, carrier_name=carrier_name, window_size=self.settings.get('UI', 'window_size'))
+            trade_history_view.button_export_csv.configure(command=lambda: self.save_df_as_csv(data, file_name=f'trade_history_{carrier_name}.csv'))
+
+    def save_df_as_csv(self, data: pd.DataFrame, file_name: str=None):
+        file_path = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV files', '*.csv')], initialfile=file_name, title='Save trade history as CSV', parent=self.view.root)
+        if file_path:
+            try:
+                data.to_csv(file_path, index=False)
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while saving CSV file:\n{e}')
+            else:
+                self.view.show_message_box_info('Success!', f'Trade history exported to {file_path}')
 
     def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str, timed_unload:bool=False) -> str:
         if not timed_unload:
@@ -743,6 +784,63 @@ class CarrierController:
                 self.view.show_message_box_warning('Warning', f'{carrier_name} ({carrier_callsign}) doesn\'t have a jump plotted')
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def button_click_inara_system(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            system = self.model.get_current_or_destination_system(carrierID=carrierID)
+            if system is not None:
+                inara_url = f'https://inara.cz/elite/starsystem/?search={system.replace(" ", "+")}'
+                open_file(inara_url)
+            else:
+                self.view.show_message_box_warning('Warning', 'No current or destination system found for this carrier')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row and one row only!')
+
+    def button_click_inara_carrier(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            carrier_callsign = self.model.get_callsign(carrierID)
+            inara_url = f'https://inara.cz/elite/station/?search={carrier_callsign}'
+            open_file(inara_url)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def button_click_inara_system_cmdr(self):
+        selected_row = self.get_selected_row(self.view.sheet_cmdr)
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            fid = self.model.carrier_owners.get(carrierID, None)
+            if fid is not None:
+                system, _ = self.model.get_cmdr_current_location(fid)
+                if system is not None:
+                    inara_url = f'https://inara.cz/elite/starsystem/?search={system.replace(" ", "+")}'
+                    open_file(inara_url)
+                else:
+                    self.view.show_message_box_warning('Warning', 'Current system unknown for this cmdr')
+            else:
+                self.view.show_message_box_warning('Warning', 'Unknown cmdr, no inara link available')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row and one row only!')
+
+    def button_click_inara_station_cmdr(self):
+        selected_row = self.get_selected_row(self.view.sheet_cmdr)
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            fid = self.model.carrier_owners.get(carrierID, None)
+            if fid is not None:
+                system, station = self.model.get_cmdr_current_location(fid)
+                if station is not None:
+                    inara_url = f'https://inara.cz/elite/station/?search={station.replace(" ", "+")}%20[{system.replace(" ", "+")}]'
+                    open_file(inara_url)
+                else:
+                    self.view.show_message_box_warning('Warning', 'Current station unknown for this cmdr')
+            else:
+                self.view.show_message_box_warning('Warning', 'Unknown cmdr, no inara link available')
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one row and one row only!')
 
     def button_click_open_journal(self):
         selected_row = self.get_selected_row(sheet=self.view.sheet_active_journals)
@@ -1105,6 +1203,35 @@ class CarrierController:
                 return self.view.show_message_box_info('Timer Contributions', 'You have not submitted any jump timers yet.')
             return self.view.show_message_box_info('Timer Contributions', f'You have submitted {submissions} jump timers.\nYou have the {ordinal(rank)} most reports among all users.\nThank you for your support!')
 
+    def menu_click_copy_name_callsign(self):
+        selected_row = self.get_selected_row()
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            carrier_name = self.model.get_name(carrierID)
+            carrier_callsign = self.model.get_callsign(carrierID)
+            self.copy_to_clipboard(f'{carrier_name} ({carrier_callsign})', None, None)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def menu_click_copy_name_callsign_services(self):
+        selected_row = self.get_selected_row(sheet=self.view.sheet_services)
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            carrier_name = self.model.get_name(carrierID)
+            carrier_callsign = self.model.get_callsign(carrierID)
+            services = pd.DataFrame([self.model.generate_info_services(carrierID)], columns=['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Exploration', 'VistaGenomics', 'PioneerSupplies', 'Bartender', 'VoucherRedemption', 'BlackMarket'])
+            services[['VistaGenomics', 'PioneerSupplies', 'Bartender']] = services[['VistaGenomics', 'PioneerSupplies', 'Bartender']].fillna('Off')
+            services.columns = ['Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket']
+            services = services.T
+            services = services[services['Status'] == 'Active']
+            services_str = ', '.join(services.index)
+            services_str = services_str.replace('Refuel, Repair, Rearm', '3Rs')
+            if services_str == '':
+                services_str = 'No active services'
+            self.copy_to_clipboard(f'{carrier_name} ({carrier_callsign}) - {services_str}', None, None)
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():
             if sys.platform in ['win32', 'linux']:
@@ -1167,5 +1294,4 @@ class CarrierController:
 
     @debounce(10)
     def _on_configure(self, event):
-        print('Saving window size:', f'{self.root.winfo_width()}x{self.root.winfo_height()}')
         self.settings.set_config('UI', 'window_size', value=f'{self.root.winfo_width()}x{self.root.winfo_height()}')

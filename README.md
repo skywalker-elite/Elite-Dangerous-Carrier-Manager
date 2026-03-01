@@ -143,6 +143,11 @@ The settings file is a toml file that contains all the settings for EDCM. You ca
 You can pass the following arguments when launching EDCM:
 - `-p <paths>`: Specify custom path(s) to the journal folder(s)
   - example: `-p C:\Path\To\Journal1 C:\Path\To\Journal2`
+## Environment Variables
+You can set the following environment variables to specify custom paths to the journal folder(s):
+- `EDCM_JOURNAL_PATHS`: A list of paths to the journal folder(s) separated by semicolons
+  - example (Windows): `C:\Path\To\Journal1;C:\Path\To\Journal2`
+  - example (Linux/macOS): `/path/to/journal1;/path/to/journal2`
 ## Run from Source
 Exact process varies by OS. Below is a minimal example using **Ubuntu + Conda**.
 

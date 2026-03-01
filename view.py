@@ -1,16 +1,25 @@
 import tkinter as tk
 from tkinter import ttk
 from tksheet import Sheet
-from typing import Literal
+from typing import Literal, NamedTuple, Callable
 import tkinter.font as tkfont
-from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
+from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox, show_dropdown_popup
 from idlelib.tooltip import Hovertip
-from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND
+from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
 from station_parser import getStockPrice
 
+class MenuOption(NamedTuple):
+        label: str
+        func: Callable[..., None]
+        table_menu: bool = True
+        index_menu: bool = False
+        header_menu: bool = False
+        empty_space_menu: bool = False
+
 class CarrierView:
-    def __init__(self, root: tk.Tk, window_size:str|None=None):
+    def __init__(self, root: tk.Tk, window_size:str|None=None, menu_options:dict[str, list[MenuOption]]|None=None):
         self.root = root
+        self.menu_options = menu_options
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -64,6 +73,7 @@ class CarrierView:
         self.tab_finance = ttk.Frame(self.tab_controller)
         self.tab_trade = ttk.Frame(self.tab_controller)
         self.tab_services = ttk.Frame(self.tab_controller)
+        self.tab_cmdr = ttk.Frame(self.tab_controller)
         self.tab_misc = ttk.Frame(self.tab_controller)
         self.tab_options = ScrollableFrame(self.tab_controller)
         self.tab_active_journals = ttk.Frame(self.tab_controller)
@@ -72,6 +82,7 @@ class CarrierView:
         self.tab_controller.add(self.tab_trade, text='Trade')
         self.tab_controller.add(self.tab_finance, text='Finance')
         self.tab_controller.add(self.tab_services, text='Services')
+        self.tab_controller.add(self.tab_cmdr, text='CMDR')
         self.tab_controller.add(self.tab_misc, text='Misc')
         self.tab_controller.add(self.tab_active_journals, text='Active Journals', state='hidden')
         self.tab_controller.add(self.tab_options, text='Options')
@@ -81,7 +92,7 @@ class CarrierView:
             tab.rowconfigure(0, pad=1, weight=1)
             tab.columnconfigure(0, pad=1, weight=1)
 
-        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_misc, self.tab_active_journals]:
+        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_cmdr, self.tab_misc, self.tab_active_journals]:
             configure_tab_grid(tab)
 
         self.tab_controller.pack(expand=True, fill='both')
@@ -132,7 +143,7 @@ class CarrierView:
             'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
         ])
         self.sheet_trade['C'].align('right')
-        self.sheet_trade['E'].align('right')
+        self.sheet_trade['E:F'].align('right')
 
         self.configure_sheet(self.sheet_trade)
 
@@ -145,6 +156,9 @@ class CarrierView:
         # self.button_post_trade.grid(row=0, column=0, sticky='sw')
         self.button_post_trade_trade.pack(side='left')
 
+        self.button_trade_history = ttk.Button(self.bottom_bar_trade, text='View Trade History')
+        self.button_trade_history.pack(side='left')
+
         self.checkbox_filter_ghost_buys_var = tk.BooleanVar()
         self.checkbox_filter_ghost_buys = ttk.Checkbutton(self.bottom_bar_trade, text='Filter Ghost Buys', variable=self.checkbox_filter_ghost_buys_var)
         self.checkbox_filter_ghost_buys.pack(side='right')
@@ -154,9 +168,9 @@ class CarrierView:
 
         # Set column headers
         self.sheet_finance.headers([
-            'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ])
-        self.sheet_finance['C:K'].align('right')
+        self.sheet_finance['C:J'].align('right')
 
         self.configure_sheet(self.sheet_finance)
 
@@ -171,14 +185,22 @@ class CarrierView:
 
         self.configure_sheet(self.sheet_services)
 
+        # cmdr tab
+        self.sheet_cmdr = Sheet(self.tab_cmdr, name='sheet_cmdr')
+        self.sheet_cmdr.headers([
+            'Carrier Name', 'CMDR Name', 'Current System', 'Current Station'
+        ])
+        
+        self.configure_sheet(self.sheet_cmdr)
+
         # Misc tab
         self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc')
 
         # Set column headers
         self.sheet_misc.headers([
-            'Carrier Name', 'Squadron', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ])
-        self.sheet_misc['B:J'].align('right')
+        self.sheet_misc['B:K'].align('right')
 
         self.configure_sheet(self.sheet_misc)
 
@@ -284,6 +306,8 @@ class CarrierView:
         self.button_test_sound_stop = ttk.Button(self.labelframe_testing_sound, text='Stop Sound')
         self.button_test_sound_stop.pack(side='left', padx=10, pady=10, anchor='w')
 
+        self.setup_right_click_menu()
+
     def configure_sheet(self, sheet:Sheet):
         sheet.grid(row=0, column=0, columnspan=3, sticky='nswe')
         sheet.change_theme('dark', redraw=False)
@@ -298,7 +322,7 @@ class CarrierView:
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
 
         # 1) resize all tksheets
-        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc, self.sheet_active_journals]:
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
 
@@ -325,6 +349,17 @@ class CarrierView:
         self.root.option_add("*Listbox*Font", ("Calibri", size, "normal"))
         self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
 
+    def setup_right_click_menu(self):
+        if self.menu_options is None:
+            return
+        for sheet_name, menu_option_list in self.menu_options.items():
+            sheet:Sheet|None = getattr(self, f"sheet_{sheet_name}", None)
+            if sheet is not None:
+                for menu_option in menu_option_list:
+                    sheet.popup_menu_add_command(**menu_option._asdict())
+            else:
+                print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
+
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
         table.dehighlight_all(redraw=False)
@@ -343,6 +378,9 @@ class CarrierView:
 
     def update_table_services(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_services, data, rows_pending_decomm)
+
+    def update_table_cmdr(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_cmdr, data, rows_pending_decomm)
     
     def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_misc, data, rows_pending_decomm)
@@ -383,6 +421,9 @@ class CarrierView:
     
     def show_message_box_warning_checkbox(self, title: str, message: str, checkbox_text: str, checkbox_value: bool=False) -> bool:
         return show_message_box_warning_checkbox(self.root, title, message, checkbox_text, checkbox_value)
+    
+    def show_dropdown_popup(self, title: str, prompt: str, options: list[str]) -> int|None:
+        return show_dropdown_popup(self.root, title, prompt, options)
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
@@ -555,6 +596,67 @@ class ScrollableFrame(ttk.Frame):
                 return "break"
             self.canvas.yview_scroll(-1, "units")
         return "break"
+    
+class TradeHistoryView:
+    def __init__(self, root, data:list[list], total:str, loads:str, unloads:str, carrier_name:str, window_size:str=WINDOW_SIZE):
+        self.popup = tk.Toplevel(root)
+        self.popup.geometry(window_size)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Trade History for {carrier_name}')
+        self.popup.focus_force()
+        self.popup.rowconfigure(0, pad=1, weight=1)
+        self.popup.columnconfigure(0, pad=1, weight=1)
+
+        self.sheet_trade_history = Sheet(self.popup, name='sheet_trade_history')
+
+        # Set column headers
+        self.sheet_trade_history.headers([
+            'Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'
+        ])
+        self.sheet_trade_history['C:G'].align('right')
+
+        self.sheet_trade_history.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.popup.grid_rowconfigure(0, weight=2)
+        self.sheet_trade_history.change_theme('dark', redraw=False)
+        self.sheet_trade_history.set_options(**{
+            'table_bg':    '#1c1c1e',  # main window surface
+            'header_bg':   "#202021",  # secondary surface
+            'header_fg':   '#f3f3f5',  # light text
+            'index_bg':    '#202021',  # secondary surface
+            'index_fg':    "#C2C2C4",  # dim light text
+            'top_left_bg':  '#202021',  # secondary surface
+            'cell_bg':     '#1c1c1e',  # main window surface
+            'cell_fg':     '#f3f3f5',  # light text
+            'selected_bg': '#0a84ff',  # Fluent accent blue
+            'selected_fg': '#ffffff',  # white text on selection
+        })
+        self.sheet_trade_history.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
+        self.sheet_trade_history.column_width_resize_enabled = False
+        self.sheet_trade_history.row_height_resize_enabled = False
+
+        self.sheet_trade_history.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_trade_history.set_all_column_widths()
+
+        self.stats_bar_trade_history = ttk.Frame(self.popup)
+        self.stats_bar_trade_history.grid(row=1, column=0, columnspan=3, sticky='ew')
+
+        self.label_history_stats_total = ttk.Label(self.stats_bar_trade_history, text=total, justify='right')
+        self.label_history_stats_loads = ttk.Label(self.stats_bar_trade_history, text=loads, justify='right')
+        self.label_history_stats_unloads = ttk.Label(self.stats_bar_trade_history, text=unloads, justify='right')
+
+        self.label_history_stats_total.pack(side='left', padx=10, pady=5, anchor='w')
+        self.label_history_stats_loads.pack(side='left', padx=10, pady=5, anchor='w')
+        self.label_history_stats_unloads.pack(side='left', padx=10, pady=5, anchor='w')
+
+        self.bottom_bar_trade_history = ttk.Frame(self.popup)
+        self.bottom_bar_trade_history.grid(row=2, column=0, columnspan=3, sticky='ew')
+
+        self.button_export_csv = ttk.Button(self.bottom_bar_trade_history, text='Export to CSV')
+        self.button_export_csv.pack(side='left', padx=10, pady=10, anchor='w')
+
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
 
 if __name__ == '__main__':
     import sv_ttk

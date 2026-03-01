@@ -15,6 +15,18 @@ from collections import namedtuple
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
+_SINGLE_DIGIT_TOKEN = re.compile(r'(?<!\d)(\d)(?!\d)')
+_CARRIER_CALLSIGN_PATTERN = re.compile(r'^[A-Z0-9]{3}-[A-Z0-9]{3}$')
+
+def format_local_datetime_aligned(dt: datetime) -> str:
+    """
+    Keep user's locale date/time format (%x %X), but pad single-digit numeric
+    fields so visual width is consistent (e.g. 8 -> 08, 2/3 -> 02/03).
+    Works on Windows + Linux.
+    """
+    s = dt.astimezone().strftime('%x %X')
+    return _SINGLE_DIGIT_TOKEN.sub(r'0\1', s)
+
 class JournalReader:
     @classmethod
     def version_hash(cls) -> str:
@@ -39,7 +51,10 @@ class JournalReader:
         self._carrier_owners = {}
         self._docking_perms = []
         self._squadron_startup = []
-        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup']
+        self._docked = []
+        self._undocked = []
+        self._fsd_jumps = []
+        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup', 'docked', 'undocked', 'fsd_jumps']
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
@@ -121,11 +136,12 @@ class JournalReader:
 
 
     def _parse_items(self, items:list, fid_last:str|None=None) -> tuple[str|None, bool]:
-        fid = None
+        fid_parsed = None
         fid_temp = [i['FID'] for i in items if i['event'] =='Commander']
         if len(fid_temp) > 0:
             if all(i == fid_temp[0] for i in fid_temp):
-                fid = fid_temp[0]
+                fid_parsed = fid_temp[0]
+        fid = fid_parsed if fid_parsed is not None else fid_last
         for item in items:
             if item['event'] == 'LoadGame':
                 self._load_games.append(item)
@@ -137,8 +153,8 @@ class JournalReader:
                 self._jump_cancels.append(item)
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
-                if (fid is not None or fid_last is not None) and item.get('CarrierType', None) != 'SquadronCarrier':
-                    self._carrier_owners[item['CarrierID']] = fid if fid is not None else fid_last
+                if fid is not None and item.get('CarrierType', None) != 'SquadronCarrier':
+                    self._carrier_owners[item['CarrierID']] = fid
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
             if item['event'] == 'CarrierTradeOrder':
@@ -148,11 +164,20 @@ class JournalReader:
             if item['event'] == 'CarrierDockingPermission':
                 self._docking_perms.append(item)
             if item['event'] == 'SquadronStartup':
-                item['FID'] = fid if fid is not None else fid_last
+                item['FID'] = fid
                 self._squadron_startup.append(item)
+            if item['event'] == 'Docked':
+                item['FID'] = fid
+                self._docked.append(item)
+            if item['event'] == 'Undocked':
+                item['FID'] = fid
+                self._undocked.append(item)
+            if item['event'] == 'FSDJump':
+                item['FID'] = fid
+                self._fsd_jumps.append(item)
                 
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
-        return fid, is_active
+        return fid_parsed, is_active
     
     def _get_parsed_items(self):
         return [sorted(getattr(self, f'_{item_type}'), key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True)
@@ -201,6 +226,7 @@ class CarrierModel:
         self.cmdr_balances = {}
         self.cmdr_names = {}
         self.cmdr_squadrons = {}
+        self.cmdr_locations = {}
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
@@ -232,10 +258,12 @@ class CarrierModel:
     def read_journals(self):
         self.journal_reader.read_journals()
         first_read = self.carriers == {}
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, squadrons, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, squadrons, docked, undocked, fsd_jumps, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
         # print(self.read_counter, first_read, len(load_games), len(carrier_locations), len(jump_requests), len(jump_cancels), len(stats), len(trade_orders), len(carrier_buys), len(trit_deposits), len(docking_perms))
         # self.read_counter += 1
         self.process_load_games(load_games, first_read)
+
+        self.process_itinerary(docked, undocked, fsd_jumps, first_read)
         
         self.process_stats(stats, first_read)
         
@@ -267,6 +295,47 @@ class CarrierModel:
                 self.cmdr_balances[load_game['FID']] = load_game['Credits']
             if not first_read or load_game['FID'] not in self.cmdr_names.keys():
                 self.cmdr_names[load_game['FID']] = load_game['Commander']
+    
+    def process_itinerary(self, docked, undocked, fsd_jumps, first_read:bool=True):
+        df_events = pd.DataFrame(docked + undocked + fsd_jumps, columns=['timestamp', 'event', 'StationName', 'StarSystem', 'MarketID', 'FID'], )
+        df_events['timestamp'] = df_events['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
+        df_events = df_events.sort_values(by='timestamp', ascending=True).reset_index(drop=True)
+        df_events = df_events.astype({'MarketID': 'Int64'})
+
+        for fid in df_events['FID'].unique():
+            df_fid = df_events[df_events['FID'] == fid].copy()
+            if df_fid.empty:
+                if fid not in self.cmdr_locations.keys():
+                    self.cmdr_locations[fid] = pd.DataFrame(columns=['StarSystem', 'StationName', 'MarketID', 'DockedAt', 'UndockedAt', 'JumpedInAt'])
+            else:
+                df_old:pd.DataFrame = self.cmdr_locations.get(fid, pd.DataFrame(columns=['StarSystem', 'StationName', 'MarketID', 'DockedAt', 'UndockedAt', 'JumpedInAt'])).copy()
+                df_old = df_old.astype({'MarketID': 'Int64'})
+                itinerary = df_old.to_dict('records')
+                for i in range(df_fid.shape[0]):
+                    event = df_fid.iloc[i]
+                    if event['event'] == 'Docked':
+                        if len(itinerary) == 0 or itinerary[-1]['StarSystem'] != event['StarSystem'] or pd.notna(itinerary[-1]['DockedAt']):
+                            itinerary.append({'StarSystem': event['StarSystem'], 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': event['timestamp'], 'UndockedAt': None, 'JumpedInAt': None})
+                        else:
+                            itinerary[-1]['DockedAt'] = event['timestamp']
+                            itinerary[-1]['StationName'] = event['StationName']
+                            itinerary[-1]['MarketID'] = event['MarketID']
+                    elif event['event'] == 'Undocked':
+                        if len(itinerary) == 0 or itinerary[-1]['MarketID'] != event['MarketID'] or pd.notna(itinerary[-1]['UndockedAt']):
+                            itinerary.append({'StarSystem': None, 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': None, 'UndockedAt': event['timestamp'], 'JumpedInAt': None})
+                        else:
+                            itinerary[-1]['UndockedAt'] = event['timestamp']
+                            itinerary[-1]['StationName'] = event['StationName']
+                            if pd.notna(itinerary[-1]['StarSystem']) and itinerary[-1]['StationName'] == event['StationName']:
+                                itinerary[-1]['StarSystem'] = itinerary[-1]['StarSystem']
+                    elif event['event'] == 'FSDJump':
+                        itinerary.append({'StarSystem': event['StarSystem'], 'StationName': None, 'MarketID': None, 'DockedAt': None, 'UndockedAt': None, 'JumpedInAt': event['timestamp']})
+                    else:
+                        raise ValueError(f'Unknown event type {event["event"]} in itinerary events')
+
+                df_itinerary = pd.DataFrame(itinerary)
+                df_itinerary = df_itinerary.astype({'MarketID': 'Int64'})
+                self.cmdr_locations[fid] = df_itinerary.copy()
 
     def process_stats(self, stats, first_read:bool=True):
         for stat in stats:
@@ -376,6 +445,7 @@ class CarrierModel:
                     df_active_trades = self.carriers[carrierID]['active_trades']
                     fc_active_trades = {df_active_trades.iloc[i]['Commodity']: df_active_trades.iloc[i].to_dict() for i in range(len(df_active_trades))}
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID]
+                self.carriers[carrierID]['trade_history'] = fc_trade_orders[fc_trade_orders['CancelTrade'] != True].copy()
                 if len(fc_trade_orders) > 0:
                     for i in range(len(fc_trade_orders)):
                         order = fc_trade_orders.iloc[i].to_dict()
@@ -677,7 +747,7 @@ class CarrierModel:
                 )
     
     def get_data_finance(self):
-        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
+        df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
         idx_squadron_carriers = [i for i in range(len(self.sorted_ids_display())) if self.is_squadron_carrier(self.sorted_ids_display()[i])]
@@ -695,7 +765,7 @@ class CarrierModel:
         upkeep = self.calculate_upkeep(carrierID=carrierID)
         jump_cost = self.calculate_average_jump_costs(carrierID=carrierID)
         afloat_time = self.calculate_afloat_time(carrierID=carrierID, carrier_balance=finance[0], upkeep=upkeep, jump_cost=jump_cost)
-        return (self.get_name(carrierID=carrierID), self.generate_info_cmdr_name(carrierID), *finance, upkeep, jump_cost, afloat_time)
+        return (self.get_name(carrierID=carrierID), self.generate_info_squadron_name(carrierID), *finance, upkeep, jump_cost, afloat_time)
 
     def get_finance(self, carrierID: int):
         return self.get_carriers()[carrierID]['Finance']
@@ -747,10 +817,18 @@ class CarrierModel:
     def get_services(self, carrierID: int):
         return self.get_carriers()[carrierID]['Services']
     
+    def get_data_cmdr(self):
+        df = pd.DataFrame()
+        df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
+        df['CMDR Name'] = [self.generate_info_cmdr_name(carrierID) for carrierID in self.sorted_ids_display()]
+        cmdr_locations = [self.generate_info_cmdr_location(carrierID) for carrierID in self.sorted_ids_display()]
+        df['Current System'] = [cmdr_locations[i][0] for i in range(len(cmdr_locations))]
+        df['Current Station'] = [cmdr_locations[i][1] for i in range(len(cmdr_locations))]
+        return df[['Carrier Name', 'CMDR Name', 'Current System', 'Current Station']].values.tolist()
+    
     def get_data_misc(self):
         df = pd.DataFrame()
         df['Carrier Name'] = [self.get_name(carrierID) for carrierID in self.sorted_ids_display()]
-        df['Squadron Name'] = [self.generate_info_squadron_name(carrierID) for carrierID in self.sorted_ids_display()]
         df['Docking Permission'] = [self.generate_info_docking_perm(carrierID)[0] for carrierID in self.sorted_ids_display()]
         df['Allow Notorious'] = [self.generate_info_docking_perm(carrierID)[1] for carrierID in self.sorted_ids_display()]
         df['Services'] = [self.generate_info_space_usage(carrierID)[0] for carrierID in self.sorted_ids_display()]
@@ -761,8 +839,26 @@ class CarrierModel:
         df['FreeSpace'] = [self.generate_info_space_usage(carrierID)[5] for carrierID in self.sorted_ids_display()]
         df['Time Bought'] = [self.generate_info_time_bought(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
         df['Last Updated'] = [self.generate_info_stat_time(carrierID=carrierID) for carrierID in self.sorted_ids_display()]
-        return df[['Carrier Name', 'Squadron Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
+        return df[['Carrier Name', 'Docking Permission', 'Allow Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought', 'Last Updated']].values.tolist()
 
+    def generate_info_cmdr_location(self, carrierID: int) -> tuple[str, str]:
+        fid = self.carrier_owners.get(carrierID, None)
+        if fid is not None:
+            system, station = self.get_cmdr_current_location(fid)
+            if system is not None:
+                if station is not None:
+                    if _CARRIER_CALLSIGN_PATTERN.match(station):
+                        carrier_id = self.get_id_by_callsign(station)
+                        if carrier_id is not None:
+                            station = self.get_name(carrier_id)
+                            system_carrier = self.get_current_system(carrier_id)
+                            system = system_carrier if system_carrier is not None else system
+                            system = get_custom_system_name(system)
+                else:
+                    station = 'Undocked'
+            return (system if system is not None else 'Unknown', station)
+        return ('Unknown', 'Unknown')
+    
     def generate_info_squadron_name(self, carrierID: int) -> str:
         squadron_name = self.get_squadron_name(carrierID=carrierID)
         if squadron_name is None:
@@ -818,7 +914,7 @@ class CarrierModel:
 
     def generate_info_time_bought(self, carrierID: int) -> str:
         time_bought = self.get_time_bought(carrierID=carrierID)
-        return time_bought.astimezone().strftime('%x %X') if time_bought is not None else 'Unknown'
+        return format_local_datetime_aligned(time_bought) if time_bought is not None else 'Unknown'
     
     def get_time_bought(self, carrierID: int) -> datetime|None:
         return self.get_carriers()[carrierID]['TimeBought']
@@ -905,6 +1001,26 @@ class CarrierModel:
             if self.get_callsign(carrierID) == callsign:
                 return carrierID
         return None
+    
+    def get_cmdr_location(self, fid:str, time:datetime) -> tuple[str|None, str|None]:
+        if fid not in self.cmdr_locations.keys():
+            return None, None
+        df = self.cmdr_locations[fid]
+        df_docked = df[(df['DockedAt'].notna()) & (df['DockedAt'] <= time) & ((df['UndockedAt'].isna()) | (df['UndockedAt'] > time))]
+        if df_docked.empty:
+            df_jumped = df[(df['JumpedInAt'].notna()) & (df['JumpedInAt'] <= time)]
+            if df_jumped.empty:
+                return None, None
+            return df_jumped.iloc[-1]['StarSystem'], None
+        return df_docked.iloc[-1]['StarSystem'], df_docked.iloc[-1]['StationName']
+
+    def get_cmdr_current_location(self, fid:str) -> tuple[str|None, str|None]:
+        if fid not in self.cmdr_locations.keys() or self.cmdr_locations[fid].empty:
+            return None, None
+        last_location = self.cmdr_locations[fid].iloc[-1]
+        if pd.isna(last_location['DockedAt']) or pd.notna(last_location['UndockedAt']):
+            return last_location['StarSystem'], None
+        return last_location['StarSystem'], last_location['StationName']
 
     def sorted_ids(self) -> list[int]:
         ids = self.get_carriers().keys()
@@ -988,7 +1104,7 @@ class CarrierModel:
             active_trades = active_trades[active_trades['Commodity'].notna()]
             active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
             active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1)
-            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: format_local_datetime_aligned(datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)))
             if filter_ghost_buys:
                 unloading_trades = active_trades[active_trades['Trade Type'] == 'Unloading'].copy()
                 likely_active_trades = self.filter_likely_active_trades(active_trades)
@@ -1004,6 +1120,24 @@ class CarrierModel:
 
     def get_active_trades(self, carrierID: int) -> pd.DataFrame:
         return self.get_carriers()[carrierID]['active_trades'].copy()
+    
+    def get_trade_history(self, carrierID: int) -> pd.DataFrame:
+        carrier_name = self.get_name(carrierID)
+        active_trades = self.carriers[carrierID]['trade_history'].copy()
+        if len(active_trades) == 0:
+            return pd.DataFrame({}, columns=['Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'])
+        else:
+            active_trades['CarrierID'] = self.get_callsign(carrierID)
+            active_trades['Carrier Name'] = carrier_name
+            active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
+            active_trades = active_trades[active_trades['Commodity'].notna()]
+            active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
+            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1)
+            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            active_trades = active_trades.sort_values('timestamp', ascending=False)
+            active_trades['Amount'] = active_trades['Amount'].apply(lambda x: f'{int(x):,}')
+            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
+            return active_trades[['Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)']]
 
     def get_owned_carrier(self, fid: str) -> str|None:
         for carrierID, owner_fid in self.carrier_owners.items():
@@ -1107,7 +1241,7 @@ if __name__ == '__main__':
             'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer'
         ]))
     print(pd.DataFrame(model.get_data_finance(), columns=[
-            'Carrier Name', 'CMDR Name', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'CMDR Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ]))
     print(pd.DataFrame(model.get_data_trade()[0], columns=[
             'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
@@ -1116,7 +1250,7 @@ if __name__ == '__main__':
             'Carrier Name', 'Refuel', 'Repair', 'Rearm', 'Shipyard', 'Outfitting', 'Cartos', 'Genomics', 'Pioneer', 'Bar', 'Redemption', 'BlackMarket'
         ]))
     print(pd.DataFrame(model.get_data_misc(), columns=[
-            'Carrier Name', 'Squadron Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
     
