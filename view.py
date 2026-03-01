@@ -73,6 +73,7 @@ class CarrierView:
         self.tab_finance = ttk.Frame(self.tab_controller)
         self.tab_trade = ttk.Frame(self.tab_controller)
         self.tab_services = ttk.Frame(self.tab_controller)
+        self.tab_cmdr = ttk.Frame(self.tab_controller)
         self.tab_misc = ttk.Frame(self.tab_controller)
         self.tab_options = ScrollableFrame(self.tab_controller)
         self.tab_active_journals = ttk.Frame(self.tab_controller)
@@ -81,6 +82,7 @@ class CarrierView:
         self.tab_controller.add(self.tab_trade, text='Trade')
         self.tab_controller.add(self.tab_finance, text='Finance')
         self.tab_controller.add(self.tab_services, text='Services')
+        self.tab_controller.add(self.tab_cmdr, text='CMDR')
         self.tab_controller.add(self.tab_misc, text='Misc')
         self.tab_controller.add(self.tab_active_journals, text='Active Journals', state='hidden')
         self.tab_controller.add(self.tab_options, text='Options')
@@ -90,7 +92,7 @@ class CarrierView:
             tab.rowconfigure(0, pad=1, weight=1)
             tab.columnconfigure(0, pad=1, weight=1)
 
-        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_misc, self.tab_active_journals]:
+        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_cmdr, self.tab_misc, self.tab_active_journals]:
             configure_tab_grid(tab)
 
         self.tab_controller.pack(expand=True, fill='both')
@@ -163,9 +165,9 @@ class CarrierView:
 
         # Set column headers
         self.sheet_finance.headers([
-            'Carrier Name', 'CMDR Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ])
-        self.sheet_finance['D:K'].align('right')
+        self.sheet_finance['C:J'].align('right')
 
         self.configure_sheet(self.sheet_finance)
 
@@ -180,12 +182,20 @@ class CarrierView:
 
         self.configure_sheet(self.sheet_services)
 
+        # cmdr tab
+        self.sheet_cmdr = Sheet(self.tab_cmdr, name='sheet_cmdr')
+        self.sheet_cmdr.headers([
+            'Carrier Name', 'CMDR Name', 'Current System', 'Current Station'
+        ])
+        
+        self.configure_sheet(self.sheet_cmdr)
+
         # Misc tab
         self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc')
 
         # Set column headers
         self.sheet_misc.headers([
-            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated', 'CMDR Location'
+            'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ])
         self.sheet_misc['B:K'].align('right')
 
@@ -309,7 +319,7 @@ class CarrierView:
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
 
         # 1) resize all tksheets
-        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_misc, self.sheet_active_journals]:
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
 
@@ -365,6 +375,9 @@ class CarrierView:
 
     def update_table_services(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_services, data, rows_pending_decomm)
+
+    def update_table_cmdr(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_cmdr, data, rows_pending_decomm)
     
     def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_misc, data, rows_pending_decomm)
