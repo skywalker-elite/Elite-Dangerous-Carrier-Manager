@@ -3,9 +3,9 @@ from tkinter import ttk
 from tksheet import Sheet
 from typing import Literal, NamedTuple, Callable
 import tkinter.font as tkfont
-from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox
+from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox, show_dropdown_popup
 from idlelib.tooltip import Hovertip
-from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND
+from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
 from station_parser import getStockPrice
 
 class MenuOption(NamedTuple):
@@ -155,6 +155,9 @@ class CarrierView:
         self.button_post_trade_trade = ttk.Button(self.bottom_bar_trade, text='Post Trade')
         # self.button_post_trade.grid(row=0, column=0, sticky='sw')
         self.button_post_trade_trade.pack(side='left')
+
+        self.button_trade_history = ttk.Button(self.bottom_bar_trade, text='View Trade History')
+        self.button_trade_history.pack(side='left')
 
         self.checkbox_filter_ghost_buys_var = tk.BooleanVar()
         self.checkbox_filter_ghost_buys = ttk.Checkbutton(self.bottom_bar_trade, text='Filter Ghost Buys', variable=self.checkbox_filter_ghost_buys_var)
@@ -418,6 +421,9 @@ class CarrierView:
     
     def show_message_box_warning_checkbox(self, title: str, message: str, checkbox_text: str, checkbox_value: bool=False) -> bool:
         return show_message_box_warning_checkbox(self.root, title, message, checkbox_text, checkbox_value)
+    
+    def show_dropdown_popup(self, title: str, prompt: str, options: list[str]) -> int|None:
+        return show_dropdown_popup(self.root, title, prompt, options)
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
@@ -590,6 +596,67 @@ class ScrollableFrame(ttk.Frame):
                 return "break"
             self.canvas.yview_scroll(-1, "units")
         return "break"
+    
+class TradeHistoryView:
+    def __init__(self, root, data:list[list], total:str, loads:str, unloads:str, carrier_name:str, window_size:str=WINDOW_SIZE):
+        self.popup = tk.Toplevel(root)
+        self.popup.geometry(window_size)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Trade History for {carrier_name}')
+        self.popup.focus_force()
+        self.popup.rowconfigure(0, pad=1, weight=1)
+        self.popup.columnconfigure(0, pad=1, weight=1)
+
+        self.sheet_trade_history = Sheet(self.popup, name='sheet_trade_history')
+
+        # Set column headers
+        self.sheet_trade_history.headers([
+            'Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'
+        ])
+        self.sheet_trade_history['C:G'].align('right')
+
+        self.sheet_trade_history.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.popup.grid_rowconfigure(0, weight=2)
+        self.sheet_trade_history.change_theme('dark', redraw=False)
+        self.sheet_trade_history.set_options(**{
+            'table_bg':    '#1c1c1e',  # main window surface
+            'header_bg':   "#202021",  # secondary surface
+            'header_fg':   '#f3f3f5',  # light text
+            'index_bg':    '#202021',  # secondary surface
+            'index_fg':    "#C2C2C4",  # dim light text
+            'top_left_bg':  '#202021',  # secondary surface
+            'cell_bg':     '#1c1c1e',  # main window surface
+            'cell_fg':     '#f3f3f5',  # light text
+            'selected_bg': '#0a84ff',  # Fluent accent blue
+            'selected_fg': '#ffffff',  # white text on selection
+        })
+        self.sheet_trade_history.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
+        self.sheet_trade_history.column_width_resize_enabled = False
+        self.sheet_trade_history.row_height_resize_enabled = False
+
+        self.sheet_trade_history.set_sheet_data(data, reset_col_positions=False)
+        self.sheet_trade_history.set_all_column_widths()
+
+        self.stats_bar_trade_history = ttk.Frame(self.popup)
+        self.stats_bar_trade_history.grid(row=1, column=0, columnspan=3, sticky='ew')
+
+        self.label_history_stats_total = ttk.Label(self.stats_bar_trade_history, text=total, justify='right')
+        self.label_history_stats_loads = ttk.Label(self.stats_bar_trade_history, text=loads, justify='right')
+        self.label_history_stats_unloads = ttk.Label(self.stats_bar_trade_history, text=unloads, justify='right')
+
+        self.label_history_stats_total.pack(side='left', padx=10, pady=5, anchor='w')
+        self.label_history_stats_loads.pack(side='left', padx=10, pady=5, anchor='w')
+        self.label_history_stats_unloads.pack(side='left', padx=10, pady=5, anchor='w')
+
+        self.bottom_bar_trade_history = ttk.Frame(self.popup)
+        self.bottom_bar_trade_history.grid(row=2, column=0, columnspan=3, sticky='ew')
+
+        self.button_export_csv = ttk.Button(self.bottom_bar_trade_history, text='Export to CSV')
+        self.button_export_csv.pack(side='left', padx=10, pady=10, anchor='w')
+
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
 
 if __name__ == '__main__':
     import sv_ttk
