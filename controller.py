@@ -14,7 +14,7 @@ from webbrowser import open_new_tab
 from datetime import datetime, timezone, timedelta, date
 from os import makedirs, path, remove
 from shutil import copyfile
-from tkinter import Tk
+from tkinter import Tk, filedialog
 import traceback
 import tomllib
 import pickle
@@ -32,7 +32,7 @@ from numpy import datetime64
 from auth import AuthHandler
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
-from view import CarrierView, TradePostView, ManualTimerView, MenuOption
+from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
 from decos import debounce
@@ -87,6 +87,7 @@ class CarrierController:
         self.view.button_clear_timer.configure(command=self.button_click_clear_timer)
         self.view.button_post_departure.configure(command=self.button_click_post_departure)
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
+        self.view.button_trade_history.configure(command=self.button_click_trade_history)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
@@ -613,6 +614,33 @@ class CarrierController:
             to_from=to_from
         )
         return post_string
+    
+    def button_click_trade_history(self):
+        selected_carrier = self.view.show_dropdown_popup('Trade History', 'Select carrier:', [f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)})' for carrierID in self.model.sorted_ids_display()])
+        if selected_carrier is not None:
+            carrierID = list(self.model.sorted_ids_display())[selected_carrier]
+            carrier_name = self.model.get_name(carrierID)
+            data=self.model.get_trade_history(carrierID=carrierID)
+            data_loads = data[data['Trade Type'] == 'Loading']
+            data_unloads = data[data['Trade Type'] == 'Unloading']
+            count = f'Total {len(data):,} orders, {len(data_loads):,} loads and {len(data_unloads):,} unloads'
+            amount = f'Total {data["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons, {data_loads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,}t loads and {data_unloads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,}t unloads'
+            value = f'Order value {sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data.values.tolist()):,} cr, {sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_loads.values.tolist()):,} cr loads and {sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_unloads.values.tolist()):,} cr unloads'
+            total = f'Total\n{len(data):,} orders\n{data["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons\n{sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data.values.tolist()):,} cr value'
+            loads = f'Loads\n{len(data_loads):,} orders\n{data_loads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons\n{sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_loads.values.tolist()):,} cr value'
+            unloads = f'Unloads\n{len(data_unloads):,} orders\n{data_unloads["Amount"].apply(lambda x: int(x.replace(",", ""))).sum():,} tons\n{sum(int(row[3].replace(",", "")) * int(row[5].replace(",", "")) for row in data_unloads.values.tolist()):,} cr value'
+            trade_history_view = TradeHistoryView(self.view.root, data=data.values.tolist(), total=total, loads=loads, unloads=unloads, carrier_name=carrier_name, window_size=self.settings.get('UI', 'window_size'))
+            trade_history_view.button_export_csv.configure(command=lambda: self.save_df_as_csv(data, file_name=f'trade_history_{carrier_name}.csv'))
+
+    def save_df_as_csv(self, data: pd.DataFrame, file_name: str=None):
+        file_path = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV files', '*.csv')], initialfile=file_name, title='Save trade history as CSV', parent=self.view.root)
+        if file_path:
+            try:
+                data.to_csv(file_path, index=False)
+            except Exception as e:
+                self.view.show_message_box_warning('Error', f'Error while saving CSV file:\n{e}')
+            else:
+                self.view.show_message_box_info('Success!', f'Trade history exported to {file_path}')
 
     def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str, timed_unload:bool=False) -> str:
         if not timed_unload:

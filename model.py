@@ -445,6 +445,7 @@ class CarrierModel:
                     df_active_trades = self.carriers[carrierID]['active_trades']
                     fc_active_trades = {df_active_trades.iloc[i]['Commodity']: df_active_trades.iloc[i].to_dict() for i in range(len(df_active_trades))}
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID]
+                self.carriers[carrierID]['trade_history'] = fc_trade_orders[fc_trade_orders['CancelTrade'] != True].copy()
                 if len(fc_trade_orders) > 0:
                     for i in range(len(fc_trade_orders)):
                         order = fc_trade_orders.iloc[i].to_dict()
@@ -1119,6 +1120,24 @@ class CarrierModel:
 
     def get_active_trades(self, carrierID: int) -> pd.DataFrame:
         return self.get_carriers()[carrierID]['active_trades'].copy()
+    
+    def get_trade_history(self, carrierID: int) -> pd.DataFrame:
+        carrier_name = self.get_name(carrierID)
+        active_trades = self.carriers[carrierID]['trade_history'].copy()
+        if len(active_trades) == 0:
+            return pd.DataFrame({}, columns=['Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'])
+        else:
+            active_trades['CarrierID'] = self.get_callsign(carrierID)
+            active_trades['Carrier Name'] = carrier_name
+            active_trades['Commodity'] = active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
+            active_trades = active_trades[active_trades['Commodity'].notna()]
+            active_trades['Trade Type'] = active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
+            active_trades['Amount'] = active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1)
+            active_trades['Time Set (Local)'] = active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc).astimezone().strftime('%x %X'))
+            active_trades = active_trades.sort_values('timestamp', ascending=False)
+            active_trades['Amount'] = active_trades['Amount'].apply(lambda x: f'{int(x):,}')
+            active_trades['Price'] = active_trades['Price'].apply(lambda x: f'{int(x):,}')
+            return active_trades[['Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)']]
 
     def get_owned_carrier(self, fid: str) -> str|None:
         for carrierID, owner_fid in self.carrier_owners.items():
