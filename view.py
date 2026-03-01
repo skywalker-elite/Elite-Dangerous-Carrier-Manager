@@ -641,13 +641,16 @@ class TradeHistoryView:
         self.sheet_trade_history.set_sheet_data(data, reset_col_positions=False)
         self.sheet_trade_history.set_all_column_widths()
 
-        self.label_history_stats_total = ttk.Label(self.popup, text=total)
-        self.label_history_stats_loads = ttk.Label(self.popup, text=loads)
-        self.label_history_stats_unloads = ttk.Label(self.popup, text=unloads)
+        self.stats_bar_trade_history = ttk.Frame(self.popup)
+        self.stats_bar_trade_history.grid(row=1, column=0, columnspan=3, sticky='ew')
 
-        self.label_history_stats_total.grid(row=1, column=0, padx=10, pady=5, sticky='e')
-        self.label_history_stats_loads.grid(row=1, column=1, padx=10, pady=5, sticky='e')
-        self.label_history_stats_unloads.grid(row=1, column=2, padx=10, pady=5, sticky='e')
+        self.label_history_stats_total = ttk.Label(self.stats_bar_trade_history, text=total, justify='right')
+        self.label_history_stats_loads = ttk.Label(self.stats_bar_trade_history, text=loads, justify='right')
+        self.label_history_stats_unloads = ttk.Label(self.stats_bar_trade_history, text=unloads, justify='right')
+
+        self.label_history_stats_total.pack(side='left', padx=10, pady=5, anchor='w')
+        self.label_history_stats_loads.pack(side='left', padx=10, pady=5, anchor='w')
+        self.label_history_stats_unloads.pack(side='left', padx=10, pady=5, anchor='w')
 
         self.bottom_bar_trade_history = ttk.Frame(self.popup)
         self.bottom_bar_trade_history.grid(row=2, column=0, columnspan=3, sticky='ew')

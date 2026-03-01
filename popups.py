@@ -251,7 +251,7 @@ def show_dropdown_popup(root: tk.Tk, title: str, prompt: str, options: list[str]
 
     selected_var = tk.StringVar(value=options[0] if options else '')
 
-    dropdown = ttk.Combobox(frame, textvariable=selected_var, values=options, state='readonly', width=30, justify='center')
+    dropdown = ttk.Combobox(frame, textvariable=selected_var, values=options, state='readonly', width=30, justify='left')
     dropdown.grid(row=1, column=0, pady=8, padx=8, sticky='ew')
     dropdown.current(0)
 
