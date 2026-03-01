@@ -614,10 +614,7 @@ class TradeHistoryView:
         self.sheet_trade_history.headers([
             'Carrier Name', 'CarrierID', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (Local)'
         ])
-        self.sheet_trade_history['C'].align('right')
-        self.sheet_trade_history['D'].align('right')
-        self.sheet_trade_history['F'].align('right')
-        self.sheet_trade_history['G'].align('right')
+        self.sheet_trade_history['C:G'].align('right')
 
         self.sheet_trade_history.grid(row=0, column=0, columnspan=3, sticky='nswe')
         self.popup.grid_rowconfigure(0, weight=2)

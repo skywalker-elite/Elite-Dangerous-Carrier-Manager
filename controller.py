@@ -633,7 +633,7 @@ class CarrierController:
             trade_history_view.button_export_csv.configure(command=lambda: self.save_df_as_csv(data, file_name=f'trade_history_{carrier_name}.csv'))
 
     def save_df_as_csv(self, data: pd.DataFrame, file_name: str=None):
-        file_path = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV files', '*.csv')], initialfile=file_name, title='Save trade history as CSV')
+        file_path = filedialog.asksaveasfilename(defaultextension='.csv', filetypes=[('CSV files', '*.csv')], initialfile=file_name, title='Save trade history as CSV', parent=self.view.root)
         if file_path:
             try:
                 data.to_csv(file_path, index=False)
