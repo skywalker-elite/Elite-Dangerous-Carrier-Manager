@@ -36,16 +36,19 @@ def main():
                     nargs='+', dest="paths", default=None,
                     help="journal paths: overrides journal path(s)")
     args = parser.parse_args()
+    env_journal_paths = os.getenv('EDCM_JOURNAL_PATHS')
     if args.paths:
         journal_paths = args.paths
-    elif os.getenv('EDCM_JOURNAL_PATHS', None) is not None:
-        journal_paths = os.getenv('EDCM_JOURNAL_PATHS').split(';')
+    elif env_journal_paths is not None and env_journal_paths.strip():
+        journal_paths = [path.strip() for path in env_journal_paths.split(';') if path.strip()]
+        if not journal_paths:
+            journal_paths = None
     else:
         journal_path = getJournalPath()
         journal_paths = [journal_path] if journal_path else None
-    assert journal_paths is not None, f'No default journal path for platform {sys.platform}, please specify one with --paths'
+    assert journal_paths is not None, f'No default journal path for platform {sys.platform}, please specify one with --paths or EDCM_JOURNAL_PATHS environment variable'
     for journal_path in journal_paths:
-        assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --paths if the default is incorrect'
+        assert os.path.exists(journal_path), f'Journal path {journal_path} does not exist, please specify one with --paths or EDCM_JOURNAL_PATHS environment variable if the default is incorrect'
 
     # build first, then splash, then tk root
     if sys.platform == 'darwin':
