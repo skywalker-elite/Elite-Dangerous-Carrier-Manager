@@ -39,7 +39,7 @@ def main():
     if args.paths:
         journal_paths = args.paths
     elif os.getenv('EDCM_JOURNAL_PATHS', None) is not None:
-        journal_paths = os.getenv('EDCM_JOURNAL_PATHS').split(';')
+        journal_paths = [path.strip() for path in os.getenv('EDCM_JOURNAL_PATHS').split(';') if path.strip()]
     else:
         journal_path = getJournalPath()
         journal_paths = [journal_path] if journal_path else None
