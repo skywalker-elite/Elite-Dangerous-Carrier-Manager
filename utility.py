@@ -122,7 +122,14 @@ def getLatestPrereleaseVersion() -> str|None:
     return max(pre_versions, key=lambda t: version.parse(t))
 
 def getPrereleaseUpdateVersion() -> str|None:
-    return max([getLatestPrereleaseVersion(), getLatestVersion()], key=lambda t: version.parse(t))
+    pre = getLatestPrereleaseVersion()
+    stable = getLatestVersion()
+
+    if pre is None and stable is None:
+        return None
+
+    candidates = [v for v in (pre, stable) if v is not None]
+    return max(candidates, key=lambda t: version.parse(t))
 
 def getCurrentVersion() -> str:
     with open(getResourcePath('VERSION'), 'r') as f:
