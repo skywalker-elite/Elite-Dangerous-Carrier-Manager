@@ -40,6 +40,38 @@ def rate_limited(max_calls: int, period: float):
         return wrapper
     return decorator
 
+
+def min_interval_limited(min_interval_seconds: float):
+    """
+    Decorator that enforces a minimum delay between function calls,
+    regardless of arguments.
+
+    Calls are serialized with a lock, and if a call arrives too soon,
+    it waits just long enough before invoking the wrapped function.
+    """
+    if min_interval_seconds < 0:
+        raise ValueError("min_interval_seconds must be >= 0")
+
+    lock = threading.Lock()
+    next_allowed_at = [0.0]
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            with lock:
+                now = time.monotonic()
+                call_at = max(now, next_allowed_at[0])
+                next_allowed_at[0] = call_at + min_interval_seconds
+
+            wait_for = call_at - now
+            if wait_for > 0:
+                time.sleep(wait_for)
+
+            return func(*args, **kwargs)
+        return wrapper
+
+    return decorator
+
 def debounce(wait_seconds):
     """
     Postpone a function’s execution until wait_seconds have elapsed since
