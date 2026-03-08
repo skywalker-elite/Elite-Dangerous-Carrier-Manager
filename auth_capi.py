@@ -20,18 +20,15 @@ import keyring
 import requests
 
 from config import LOCAL_PORT, REDIRECT_URL_CAPI
-from utility import rate_limited
+from utility import getCurrentVersion
+from decos import min_interval_limited, rate_limited
 
 # =========
 # Constants
 # =========
 
 load_dotenv()  # load .env file if present
-# Your Next.js dashboard domain hosting /api/auth/exchange and /api/auth/refresh
-AUTH_SERVER = os.getenv(
-    "AUTH_SERVER",
-    "https://auth.frontierstore.net",
-)
+AUTH_SERVER = "https://auth.frontierstore.net"
 
 # Discord application (reads from env, falls back to your current ID)
 CAPI_CLIENT_ID = os.getenv("CAPI_CLIENT_ID", "")
@@ -43,6 +40,7 @@ KEYRING_SERVICE = "edcm"
 KEYRING_ACCOUNT = "refresh_token_capi"
 KEYRING_ACCOUNT_PREFIX = "refresh_token_capi::"
 KEYRING_ACCOUNT_INDEX = "refresh_token_capi::accounts"
+CAPI_MIN_CALL_INTERVAL_SECONDS = 1.0
 
 UUID_RE = re.compile(
     r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
@@ -109,6 +107,7 @@ def _post_json(url_path: str, payload: dict, timeout: int = 20) -> dict:
         r.raise_for_status()
     return r.json()
 
+@min_interval_limited(CAPI_MIN_CALL_INTERVAL_SECONDS)
 def _get_capi(path: str, auth_header: dict, timeout: int = 20) -> requests.Response:
     url = f"https://companion.orerve.net{path}"
     return requests.get(url, headers=auth_header, timeout=timeout)
@@ -466,7 +465,7 @@ class AuthHandler:
         return (self._access_jwt is None) or (time.time() >= self._access_exp - 30)
     
     def _auth_header(self) -> dict:
-        return {"Authorization": f"{self._token_type} {self._access_jwt}"} if self._access_jwt else {}
+        return {"Authorization": f"{self._token_type} {self._access_jwt}", "User-Agent": f"EliteDangerousCarrierManager-{getCurrentVersion()}"} if self._access_jwt else {}
 
     @staticmethod
     def _as_dict_list(value: Any) -> list[dict[str, Any]]:
@@ -678,7 +677,7 @@ class AuthHandler:
             ]
             result["cargo"] = [
                 {
-                    "commodity": item.get("locName") or item.get("commodity"),
+                    "commodity": item.get("commodity"),
                     "qty": item.get("qty"),
                     "value": item.get("value"),
                     "mission": item.get("mission"),
@@ -724,6 +723,12 @@ class AuthHandler:
             return {}
         summary = snapshot.get("summary")
         return summary if isinstance(summary, dict) else {}
+    
+    def get_fleetcarrier_fuel(self, timeout: int = 20) -> dict[str, Any]:
+        snapshot = self.get_fleetcarrier_snapshot(timeout=timeout)
+        if not isinstance(snapshot, dict):
+            return {}
+        return snapshot.get("summary", {}).get("fuel", {}) if isinstance(snapshot.get("summary"), dict) else {}
 
     def get_fleetcarrier_sales(self, timeout: int = 20) -> list[dict[str, Any]]:
         snapshot = self.get_fleetcarrier_snapshot(timeout=timeout)
@@ -741,7 +746,44 @@ class AuthHandler:
         snapshot = self.get_fleetcarrier_snapshot(timeout=timeout)
         if not isinstance(snapshot, dict):
             return []
-        return self._as_dict_list(snapshot.get("cargo"))
+
+        cargo_items = self._as_dict_list(snapshot.get("cargo"))
+        aggregated: dict[Any, dict[str, Any]] = {}
+
+        def _coerce_int(raw: Any) -> int:
+            if raw is None or isinstance(raw, bool):
+                return 0
+            if isinstance(raw, (int, float)):
+                return int(raw)
+            try:
+                return int(str(raw))
+            except (TypeError, ValueError):
+                return 0
+
+        for item in cargo_items:
+            commodity = item.get("commodity")
+            mission = item.get("mission")
+            stolen = item.get("stolen")
+            key = commodity
+
+            if key not in aggregated:
+                aggregated[key] = {
+                    "commodity": commodity,
+                    "qty": 0,
+                    "value": 0,
+                    "mission": mission,
+                    "stolen": stolen,
+                }
+            else:
+                # Aggregated rows intentionally ignore mission/stolen splits.
+                # If any source row has True, keep that information as True.
+                aggregated[key]["mission"] = bool(aggregated[key].get("mission")) or bool(mission)
+                aggregated[key]["stolen"] = bool(aggregated[key].get("stolen")) or bool(stolen)
+
+            aggregated[key]["qty"] += _coerce_int(item.get("qty"))
+            aggregated[key]["value"] += _coerce_int(item.get("value"))
+
+        return list(aggregated.values())
 
     def logout(self, forget_account: bool = False):
         self._access_jwt = None
@@ -808,6 +850,11 @@ if __name__ == "__main__":
         print("No saved Frontier CAPI accounts found. Starting login flow...")
         first_callsign = manager.add_account_via_login()
         account_callsigns = [first_callsign]
+    else:
+        if input("Add more accounts via login? (y/N) ").strip().lower() == "y":
+            new_callsign = manager.add_account_via_login()
+            if new_callsign not in account_callsigns:
+                account_callsigns.append(new_callsign)
 
     print(f"saved_accounts={', '.join(account_callsigns)}")
 
