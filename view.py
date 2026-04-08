@@ -8,6 +8,11 @@ from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
 from station_parser import getStockPrice
 
+default_jumps_headers = [
+    'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
+    'Status', 'Destination System', 'Body', 'Timer', 'Plot Timer',
+]
+
 class MenuOption(NamedTuple):
         label: str
         func: Callable[..., None]
@@ -101,10 +106,8 @@ class CarrierView:
         self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps')
 
         # Set column headers
-        self.sheet_jumps.headers([
-            'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
-            'Status', 'Destination System', 'Body', 'Timer', 'Plot Timer',
-        ])
+        self.sheet_jumps.headers(default_jumps_headers)
+        self.custom_jumps_headers = []
 
         self.configure_sheet(self.sheet_jumps)
         
@@ -348,6 +351,13 @@ class CarrierView:
         # 5) some pure-tk popups (Combobox listbox, Menu) still need an option_add
         self.root.option_add("*Listbox*Font", ("Calibri", size, "normal"))
         self.root.option_add("*Menu*Font",    ("Calibri", size, "normal"))
+
+    def reset_jumps_headers(self):
+        self.sheet_jumps.headers(default_jumps_headers + self.custom_jumps_headers)
+
+    def set_custom_jumps_headers(self, custom_jumps_headers: list[str]):
+        self.custom_jumps_headers = custom_jumps_headers
+        self.reset_jumps_headers()
 
     def setup_right_click_menu(self):
         if self.menu_options is None:

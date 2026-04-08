@@ -254,6 +254,11 @@ class CarrierController:
                         self.webhook_handler_carrier[callsign + '_public'] = DiscordWebhookHandler(carrier_notification_settings.get('webhook_public'), carrier_notification_settings.get('userID'))
             self.apply_settings_to_model()
             self.view.set_font_size(self.settings.get('font_size', 'UI'), self.settings.get('font_size', 'table'))
+            custom_jumps_headers = []
+            if self.settings.get('advanced', 'show_cmdr_name_on_jumps_tab'): custom_jumps_headers.append('CMDR Name')
+            if self.settings.get('advanced', 'show_squad_name_on_jumps_tab'): custom_jumps_headers.append('Squadron')
+            if self.settings.get('advanced', 'show_free_space_on_jumps_tab'): custom_jumps_headers.append('Free Space')
+            self.view.set_custom_jumps_headers(custom_jumps_headers)
             self.root.geometry(self.settings.get('UI', 'window_size'))
             self.view.checkbox_filter_ghost_buys_var.set(self.settings.get('Trade', 'filter_ghost_buys'))
             self.view.checkbox_show_active_journals_var.set(self.settings.get('UI', 'show_active_journals_tab'))
@@ -271,6 +276,11 @@ class CarrierController:
                 if override[callsign].get('notify_while_ignored', False):
                     self.model.add_notify_while_ignored_list(callsign)
         self.model.set_custom_order(self.settings.get('advanced', 'custom_order'))
+        self.model.set_custom_jumps_columns({
+            'cmdrname': self.settings.get('advanced', 'show_cmdr_name_on_jumps_tab'),
+            'squadname': self.settings.get('advanced', 'show_squad_name_on_jumps_tab'),
+            'freespace': self.settings.get('advanced', 'show_free_space_on_jumps_tab')
+        })
         self.model.set_squadron_abbv_mapping(self.settings.get('name_customization', 'squadron_abbv'))
         self.model.read_journals() # re-read journals to apply ignore list and custom order
     
