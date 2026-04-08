@@ -236,6 +236,7 @@ class CarrierModel:
         self._sfc_white_list = []
         self._notify_while_ignored_list = []
         self.custom_order = []
+        self.custom_jumps_columns = {}
         self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
@@ -518,6 +519,9 @@ class CarrierModel:
     def set_custom_order(self, call_signs: list[str]):
         self.custom_order = call_signs
     
+    def set_custom_jumps_columns(self, custom_jumps_columns: dict):
+        self.custom_jumps_columns = custom_jumps_columns
+
     def add_sfc_whitelist(self, call_signs: list[str]):
         for call_sign in call_signs:
             carrierID = self.get_id_by_callsign(call_sign)
@@ -682,69 +686,60 @@ class CarrierModel:
 
     def generateInfo(self, carrierID: int, now: datetime):
         carrier = self.get_carriers()[carrierID]
+        carrier_cmdr = self.generate_info_cmdr_name(carrierID)
+        carrier_squad = self.generate_info_squadron_name(carrierID)
+        carrier_free_space = self.generate_info_space_usage(carrierID)[5]
         location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
         fuel_level = carrier['Fuel']['FuelLevel']
         timer = self.manual_timers.get(carrierID, None)
         timer = timer['time'].strftime('%H:%M:%S') if timer is not None else ''
+
+        # Destination system/body
         if carrier['status'] == 'jumping':
             destination_system, destination_body = getLocation(carrier['destination_system'], carrier['destination_body'], carrier['destination_body_id'])
+        else:
+            destination_system, destination_body = "", ""
+
+        # Timer
+        if carrier['status'] == 'jumping':
             time_diff = carrier['latest_depart'] - now
-            h, m, s = getHMS(time_diff.total_seconds())
-            return (
-                f"{carrier['Name']}", 
-                f"{carrier['Callsign']}", 
-                f"{fuel_level}",
-                f"{location_system}", 
-                f"{location_body}", 
-                f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
-                f"{destination_system}", 
-                f"{destination_body}", 
-                f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
-                f"{timer}"
-                )
         elif carrier['status'] == 'cool_down':
             time_diff = CD - (now - carrier['latest_depart'])
-            h, m, s = getHMS(time_diff.total_seconds())
-            return (
-                f"{carrier['Name']}", 
-                f"{carrier['Callsign']}", 
-                f"{fuel_level}",
-                f"{location_system}", 
-                f"{location_body}", 
-                f"Cooling Down",
-                f"", 
-                f"",
-                f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
-                f"{timer}"
-                )
         elif carrier['status'] == 'cool_down_cancel':
             time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
+
+        if carrier['status'] in ['jumping', 'cool_down', 'cool_down_cancel']:
             h, m, s = getHMS(time_diff.total_seconds())
-            return (
-                f"{carrier['Name']}", 
-                f"{carrier['Callsign']}", 
-                f"{fuel_level}",
-                f"{location_system}", 
-                f"{location_body}", 
-                f"Cooling Down",
-                f"", 
-                f"",
-                f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
-                f"{timer}"
-                )
+            timer_string = f"{h:.0f} h {m:02.0f} m {s:02.0f} s"
         else:
-            return (
-                f"{carrier['Name']}", 
-                f"{carrier['Callsign']}", 
-                f"{fuel_level}",
-                f"{location_system}", 
-                f"{location_body}", 
-                f"Idle",
-                f"", 
-                f"",
-                f"",
-                f"{timer}"
-                )
+            timer_string = f""
+
+        # Status
+        if carrier['status'] == 'jumping':
+            carrier_status = f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping"
+        elif carrier['status'] in ['cool_down', 'cool_down_cancel']:
+            carrier_status = f"Cooling Down"
+        else:
+            carrier_status = f"Idle"
+
+        returns = [
+            f"{carrier['Name']}", 
+            f"{carrier['Callsign']}", 
+            f"{fuel_level}",
+            f"{location_system}", 
+            f"{location_body}",
+            carrier_status,
+            f"{destination_system}", 
+            f"{destination_body}", 
+            timer_string,
+            f"{timer}",
+        ]
+
+        if self.custom_jumps_columns['cmdrname']: returns.append(f"{carrier_cmdr}")
+        if self.custom_jumps_columns['squadname']: returns.append(f"{carrier_squad}")
+        if self.custom_jumps_columns['freespace']: returns.append(f"{carrier_free_space}")
+
+        return tuple(returns)
     
     def get_data_finance(self):
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])

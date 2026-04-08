@@ -112,6 +112,10 @@ squadron_abbv = [
 # These are advanced settings. You should not need to edit these unless you know what you are doing.
 ignore_list = [] # List of carriers to ignore. This is a list of carrier IDs (example: ["IGN-ORE", "SEC-RET", "A0C-35F"])
 custom_order = [] # Custom order of carriers. This is a list of carrier IDs (example: ["FC0-001", "FC0-002"]). Carriers in this list appear first; all others are sorted by time bought (if available).
+show_cmdr_name_on_jumps_tab = false # Show each carrier owner's CMDR name on Jumps tab
+show_squad_name_on_jumps_tab = false # Show each carrier owner's squadron name on Jumps tab
+show_free_space_on_jumps_tab = false # Show each carrier's free space on Jumps tab
+
 # You can override notification settings for specific carriers using the carrier_notification_overrides setting below.
 # Each entry in the list should be a dictionary where the key is the carrier ID and the value is another dictionary with the settings to override.
 # Valid settings to override are every setting under the [notifications] section (e.g., "jump_completed", "jump_completed_sound", etc.) and the [discord] section (e.g., "webhook", "userID").
