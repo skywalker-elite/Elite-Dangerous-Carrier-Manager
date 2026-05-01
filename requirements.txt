@@ -4,17 +4,17 @@ tksheet==7.2.14
 sv_ttk==2.6.0
 pyperclip==1.9.0
 numpy==2.0.0
-requests==2.32.4
+requests==2.33.0
 humanize==4.12.2
 discord==2.3.2
 playsound3==3.2.3
 watchdog==6.0.0
-Pillow==12.1.1
+Pillow==12.2.0
 pystray==0.19.5
 supabase==2.27.1
 keyring==25.6.0
 dotenv==0.9.9
 supabase-auth==2.27.1 # also dependency of supabase
-PyJWT==2.10.1 # also dependency of supabase-auth
+PyJWT==2.12.0 # also dependency of supabase-auth
 packaging==24.2 # also dependency of PyInstaller
-tornado==6.5.2 # indirect dependency of supabase, added explicitly to fix a environment issue
+tornado==6.5.5 # indirect dependency of supabase, added explicitly to fix a environment issue
