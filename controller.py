@@ -506,6 +506,8 @@ class CarrierController:
 
             if system == 'HIP 58832':
                 self.handle_peak_trade_logic(carrierID, carrier_name, system, carrier_callsign, order)
+            elif system == 'Col 285 Sector YF-D c13-18' and order is not None and order[0] == 'loading' and order[1] == 'Wine':
+                self.handle_N16_trade_logic(carrierID, carrier_name, system, carrier_callsign, order)
             else:
                 if order is not None:
                     trade_type, commodity, amount, price = order
@@ -550,6 +552,15 @@ class CarrierController:
                 _, _, _, price = order
                 if not 21500 < price < 22500:
                     self.view.show_message_box_warning('Price warning', f'You are selling wine at a non-standard price ({price:,} Cr/ton)\nMake sure to follow the guidelines!')
+
+    def handle_N16_trade_logic(self, carrierID: int, carrier_name: str, system: str, carrier_callsign: str, order: tuple[str, str, int | float, int]|None):
+        order_trit = self.model.get_formatted_largest_order(carrierID=carrierID, filter_commodity='Tritium', in_tons=True)
+        if order_trit is not None and order_trit[0] == 'loading' and order_trit[1] == 'Tritium':
+            trit_amount = order_trit[2]
+        else:
+            trit_amount = None
+        post_string = self.generate_wine_load_post_string(carrier_callsign=carrier_callsign, trit_amount=trit_amount)
+        self.copy_to_clipboard(post_string, 'Wine load command copied', 'Wine load command copied')
 
     def button_click_post(self, trade_post_view: TradePostView, carrier_name:str, carrier_callsign:str, trade_type:str, commodity:str, system:str, amount:int|float):
         station = trade_post_view.cbox_stations.get()
@@ -649,6 +660,14 @@ class CarrierController:
         else:
             s = Template(self.settings.get('post_format', 'wine_unload_timed_string'))
             post_string = s.safe_substitute(carrier_callsign=carrier_callsign, planetary_body=planetary_body)
+        return post_string
+    
+    def generate_wine_load_post_string(self, carrier_callsign:str, trit_amount: int | None = None) -> str:
+        t = self.settings.get('post_format', 'wine_load_string')
+        if trit_amount is not None:
+            t += self.settings.get('post_format', 'wine_load_string_trit')
+        s = Template(t)
+        post_string = s.safe_substitute(carrier_callsign=carrier_callsign, trit_amount=trit_amount)
         return post_string
 
     def copy_to_clipboard(self, text: str, success_title: str|None, success_message: str|None, on_success: Callable[[], None]|None=None):
