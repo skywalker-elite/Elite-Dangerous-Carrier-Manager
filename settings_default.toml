@@ -29,6 +29,10 @@ trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${comm
 wine_unload_string = "/wine_unload carrier_id: ${carrier_callsign}"
 # Timed wine unload post format, you should not need to edit this unless the Steve command changes.
 wine_unload_timed_string = "/wine_timed_unload carrier_id: ${carrier_callsign}"
+# Wine load post format, you should not need to edit this unless the Steve command changes.
+wine_load_string = "/wine_load carrier_id: ${carrier_callsign}"
+# Wine load trit argument format, you should not need to edit this unless the Steve command changes.
+wine_load_string_trit = " tritium: ${trit_amount}"
 
 [notifications]
 # These are the settings for the notifications. You can set them to true or false to enable or disable them.
