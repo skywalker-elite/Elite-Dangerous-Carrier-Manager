@@ -83,11 +83,13 @@ Currently Windows 11 and Linux are supported. Windows 7/8/10 *should* work fine 
   - The command will then be copied to your clipboard for you to post it
 ### Booze Cruise Assist
 - Shows N# for systems on the ladder
-  - For example, when your carrier is in the system `Gali`, it will be displayed as `N16 (Gali)`
+  - For example, when your carrier is in the system `HIP 58832`, it will be displayed as `N0 (HIP 58832)`
 - Post departure notice
   - After a jump is plotted to/from above N2, the wine carrier departure command can be generated and copied to your clipboard with click of a button
+- Wine load command
+  - After a wine load order is set and the carrier is at/plotted to N16, a wine load command will be generated and copied to your clipboard after clicking the `Post Trade` button
 - Wine unload command
-  - After wine sell order is set and the carrier is at the peak, a wine unload command will be generated and copied to your clipboard after clicking the `Post Trade` button
+  - After a wine sell order is set and the carrier is at the peak, a wine unload command will be generated and copied to your clipboard after clicking the `Post Trade` button
 - Timer reminder
   - You can enter the plot timer provided to you and you will get a reminder to plot your jump 2 minutes prior and another 10 seconds prior to the swap time (both times can be customized in the settings file)
   - Do Not rely on this feature to plot your jump! You are solely responsible to plot your jump on time, this is only a reminder in case you get distracted
