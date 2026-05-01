@@ -1050,12 +1050,14 @@ class CarrierModel:
         latest_cooldown = self.get_carriers()[carrierID]['last_cancel']['timestamp'] + CD_cancel if self.get_carriers()[carrierID]['last_cancel'] is not None else None
         return getHammerCountdown(latest_cooldown.to_datetime64()) if latest_cooldown is not None else None
 
-    def get_formatted_largest_order(self, carrierID: int) -> tuple[str, str, int | float, int]|None:
+    def get_formatted_largest_order(self, carrierID: int, filter_commodity: str = None, in_tons: bool = False) -> tuple[str, str, int | float, int]|None:
         df_active_trades = self.get_active_trades(carrierID=carrierID)
         df_active_trades['Trade Type'] = df_active_trades.apply(lambda x: 'Loading' if x['PurchaseOrder'] > 0 else 'Unloading', axis=1)
         df_active_trades['Amount'] = df_active_trades.apply(lambda x: x['PurchaseOrder'] if x['PurchaseOrder'] > 0 else x['SaleOrder'], axis=1).astype(float)
         df_active_trades['Commodity'] = df_active_trades['Commodity'].apply(lambda x: self.df_commodities_all.loc[x]['name'] if x in self.df_commodities_all.index else None)
         df_active_trades = df_active_trades[df_active_trades['Commodity'].notna()]
+        if filter_commodity is not None:
+            df_active_trades = df_active_trades[df_active_trades['Commodity'].str.lower() == filter_commodity.lower()]
         df_active_trades['timestamp'] = df_active_trades['timestamp'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
         df_active_trades = df_active_trades.sort_values('timestamp', ascending=False)
         if len(df_active_trades) == 0:
@@ -1067,7 +1069,8 @@ class CarrierModel:
             largest_order = df_active_trades.iloc[0]
             commodity = largest_order['Commodity']
             amount = largest_order['Amount']
-            amount = round(amount / 500) * 500 / 1000
+            if not in_tons:
+                amount = round(amount / 500) * 500 / 1000
             if amount % 1 == 0:
                 amount = int(amount)
             price = int(largest_order['Price'])
