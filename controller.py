@@ -215,6 +215,16 @@ class CarrierController:
                     settings_file=getSettingsDefaultPath()
         try:
             self.settings = Settings(settings_file=settings_file)
+            if self.settings.auto_update_info:
+                if self.view.show_message_box_askyesno('Settings file missing keys', "Your settings file is missing some keys, would you like to add them automatically with default values?\n" + "\n".join(self.settings.auto_update_info) + "\nNote: while your current settings will carry over, if you have custom comments or formatting in your settings.toml, those will be lost during the update. You may want to back up your current settings.toml before proceeding."):
+                    try:
+                        self.settings.merge_user_into_defaults()
+                    except Exception as e:
+                        self.view.show_message_box_warning('Error', f'Could not merge user settings into defaults:\n{e}')
+                else:
+                    self.view.show_message_box_info('Settings', 'Using default values for missing keys, but not updating settings file.\nThe warnings will continue to show until the missing keys are added to the settings file, either manually or by allowing the auto-update.')
+            self.settings = Settings(settings_file=settings_file) # load again to apply any auto updates
+
         except tomllib.TOMLDecodeError as e:
             if settings_file == getSettingsDefaultPath():
                 raise e
