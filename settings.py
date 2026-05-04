@@ -1,8 +1,10 @@
-import tomllib
+import tomlkit
 import json
 from utility import getConfigSettingsDefaultPath, getResourcePath, getSettingsDefaultPath
 from utility import getConfigSettingsPath
 from os.path import join, exists
+from copy import deepcopy
+from tomlkit.items import Table, Array
 from shutil import copy2
 import re
 
@@ -62,7 +64,7 @@ class Settings:
         if settings_file is None:
             settings_file = self.settings_file
         with open(settings_file, 'rb') as f:
-            self._settings = tomllib.load(f)
+            self._settings = tomlkit.load(f)
 
     def fill_default_sound_files(self):
         default_sound_files = {
@@ -79,17 +81,18 @@ class Settings:
         """Raise ValueError if user settings diverge from default structure or types."""
         # load defaults
         with open(getSettingsDefaultPath(), 'rb') as f:
-            defaults = tomllib.load(f)
+            defaults = tomlkit.load(f)
 
         self.validation_errors = []
         self.validation_warnings = []
+        self.auto_update_info = []
 
         def _compare(dflt, curr, path=''):
             # Check all default keys
             for key, dval in dflt.items():
                 full = f"{path}{key}"
                 if key not in curr:
-                    self.validation_warnings.append(f"Missing key: {full}, using default value")
+                    self.auto_update_info.append(f"Missing key: {full}")
                     curr[key] = dval
                     continue
 
@@ -156,6 +159,37 @@ class Settings:
         # if self.validation_warnings:
         #     print("Warnings:\n" + "\n".join(self.validation_warnings))
         # print("Settings validation passed")
+
+    def merge_user_into_defaults(self):
+        # load defaults
+        with open(getSettingsDefaultPath(), 'rb') as f:
+            defaults = tomlkit.load(f)
+        with open(self.settings_file, 'r') as f:
+            user_settings = tomlkit.load(f)
+        
+        def merge_user_into_defaults(default_doc, user_doc):
+            for key, uval in user_doc.items():
+                if key not in default_doc:
+                    # Preserve user-only keys (and their comments)
+                    default_doc.add(key, deepcopy(uval))
+                    continue
+
+                dval = default_doc[key]
+                if isinstance(dval, Table) and isinstance(uval, Table):
+                    merge_user_into_defaults(dval, uval)
+                else:
+                    # Override value while keeping default comments/formatting
+                    default_doc[key] = deepcopy(uval)
+            return default_doc
+        merged = merge_user_into_defaults(defaults, user_settings)
+
+        self._settings = deepcopy(merged)
+        self.save()
+    
+    def save(self):
+        """Write out the user-editable settings toml so they persist."""
+        with open(self.settings_file, 'w', encoding='utf-8', newline='\n') as f:
+            tomlkit.dump(self._settings, f)
 
     def load_config(self, prog_file=None):
         """Load UI-driven overrides (if present)."""

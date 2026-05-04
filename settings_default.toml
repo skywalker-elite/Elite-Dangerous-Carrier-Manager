@@ -1,11 +1,13 @@
 [post_format]
 # The format of the trade post. 
-# The CCO and ACO post formats for the PTN discord server are included, simply uncomment the one you want to use and comment the other one. 
+# The CCO and ACO post formats for the PTN discord server are included, with ACO being the default.
+# If you are a CCO, simply change the trade_post_string to the CCO format shown below. 
 
-# CCO post format
-trade_post_string = "/cco ${trade_type} carrier:${carrier_name} commodity:${commodity} system:${system} station:${station} profit:${profit} pads:${pad_size} ${demand_supply}: ${amount}"
+# CCO post format:
+# "/cco ${trade_type} carrier:${carrier_name} commodity:${commodity} system:${system} station:${station} profit:${profit} pads:${pad_size} ${demand_supply}: ${amount}"
 # ACO post format
-# trade_post_string = "**${carrier_name} (${carrier_callsign})** is ${trading_type} **${commodity}** ${to_from} **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units."
+# "**${carrier_name} (${carrier_callsign})** is ${trading_type} **${commodity}** ${to_from} **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units."
+trade_post_string = "**${carrier_name} (${carrier_callsign})** is ${trading_type} **${commodity}** ${to_from} **${station}** (${pad_size_short} pads) in **${system}**. **${profit}k**/unit profit, **${amount}k** units."
 
 # If you want to customize your post format, you can use any of the variables listed below:
 # ${carrier_name}     - The name of the carrier (example: P.T.N. Carrier Name)
