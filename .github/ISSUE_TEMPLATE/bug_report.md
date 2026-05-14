@@ -25,7 +25,7 @@ If applicable, add screenshots to help explain your problem.
 
 **Please complete the following information:**
 OS and version (e.g., Windows 11): 
-EDCM version (e.g., v0.4.2): 
+EDCM version (e.g., v1.0.0): 
 Does relaunching EDCM fix the issue (yes/no):
 Does relaunching the game fix the issue (yes/no): 
 
