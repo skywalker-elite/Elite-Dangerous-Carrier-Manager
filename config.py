@@ -27,7 +27,8 @@ ASSUME_DECCOM_AFTER = timedelta(weeks=2)
 
 ladder_systems = {
     'Gali': 'Novinophobia',
-    'Col 285 Sector YF-D c13-18': 'N16',
+    'Col 285 Sector YF-D c13-18': 'Wine Cellar',
+    'Wregoe NA-W B57-4': 'N16',
     'Wregoe TO-C b56-0': 'N15B',
     'Wregoe ZE-B c28-2': 'N15',
     'Wregoe OP-D b58-0': 'N14',
