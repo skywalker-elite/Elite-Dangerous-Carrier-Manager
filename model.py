@@ -314,14 +314,14 @@ class CarrierModel:
                 for i in range(df_fid.shape[0]):
                     event = df_fid.iloc[i]
                     if event['event'] == 'Docked':
-                        if len(itinerary) == 0 or itinerary[-1]['StarSystem'] != event['StarSystem'] or pd.notna(itinerary[-1]['DockedAt']):
+                        if len(itinerary) == 0 or pd.isna(event['StarSystem']) or pd.isna(itinerary[-1]['StarSystem']) or itinerary[-1]['StarSystem'] != event['StarSystem'] or pd.notna(itinerary[-1]['DockedAt']):
                             itinerary.append({'StarSystem': event['StarSystem'], 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': event['timestamp'], 'UndockedAt': None, 'JumpedInAt': None})
                         else:
                             itinerary[-1]['DockedAt'] = event['timestamp']
                             itinerary[-1]['StationName'] = event['StationName']
                             itinerary[-1]['MarketID'] = event['MarketID']
                     elif event['event'] == 'Undocked':
-                        if len(itinerary) == 0 or itinerary[-1]['MarketID'] != event['MarketID'] or pd.notna(itinerary[-1]['UndockedAt']):
+                        if len(itinerary) == 0 or pd.isna(event['MarketID']) or pd.isna(itinerary[-1]['MarketID']) or itinerary[-1]['MarketID'] != event['MarketID'] or pd.notna(itinerary[-1]['UndockedAt']):
                             itinerary.append({'StarSystem': None, 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': None, 'UndockedAt': event['timestamp'], 'JumpedInAt': None})
                         else:
                             itinerary[-1]['UndockedAt'] = event['timestamp']
@@ -631,10 +631,10 @@ class CarrierModel:
             elif time_diff_cancel is not None and time_diff_cancel < CD_cancel:
                 self.active_timer = True
                 data['status'] = 'cool_down_cancel'
-                if data['CarrierLocation']['timestamp'] is not None and (len(data['jumps']) == 1 or data['CarrierLocation']['timestamp'] > data['jumps'].iloc[1]['DepartureTime']) and data['CarrierLocation']['timestamp'] < data['last_cancel']['timestamp'] and data['CarrierLocation']['SystemName'] != latest_system:
-                    pre_system = data['CarrierLocation']['SystemName']
-                    pre_body = data['CarrierLocation']['Body']
-                    pre_body_id = data['CarrierLocation']['BodyID']
+                if data['CarrierLocation']['timestamp'] is not None and (len(data['jumps']) <= 1 or data['CarrierLocation']['timestamp'] > data['jumps'].iloc[1]['DepartureTime']) and data['CarrierLocation']['timestamp'] < data['last_cancel']['timestamp'] and data['CarrierLocation']['SystemName'] != latest_system:
+                    latest_system = data['CarrierLocation']['SystemName']
+                    latest_body = data['CarrierLocation']['Body']
+                    latest_body_id = data['CarrierLocation']['BodyID']
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
@@ -856,7 +856,7 @@ class CarrierModel:
                             system = get_custom_system_name(system)
                 else:
                     station = 'Undocked'
-            return (system if system is not None else 'Unknown', station)
+            return (get_custom_system_name(system) if system is not None else 'Unknown', station)
         return ('Unknown', 'Unknown')
     
     def generate_info_squadron_name(self, carrierID: int) -> str:
@@ -1244,7 +1244,7 @@ if __name__ == '__main__':
             'Status', 'Destination System', 'Body', 'Timer', 'Swap Timer'
         ]))
     print(pd.DataFrame(model.get_data_finance(), columns=[
-            'Carrier Name', 'CMDR Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
+            'Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Total', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'
         ]))
     print(pd.DataFrame(model.get_data_trade()[0], columns=[
             'Carrier Name', 'Trade Type', 'Amount', 'Commodity', 'Price', 'Time Set (local)'
