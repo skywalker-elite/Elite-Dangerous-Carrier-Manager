@@ -314,14 +314,14 @@ class CarrierModel:
                 for i in range(df_fid.shape[0]):
                     event = df_fid.iloc[i]
                     if event['event'] == 'Docked':
-                        if len(itinerary) == 0 or itinerary[-1]['StarSystem'] != event['StarSystem'] or pd.notna(itinerary[-1]['DockedAt']):
+                        if len(itinerary) == 0 or pd.isna(event['StarSystem']) or pd.isna(itinerary[-1]['StarSystem']) or itinerary[-1]['StarSystem'] != event['StarSystem'] or pd.notna(itinerary[-1]['DockedAt']):
                             itinerary.append({'StarSystem': event['StarSystem'], 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': event['timestamp'], 'UndockedAt': None, 'JumpedInAt': None})
                         else:
                             itinerary[-1]['DockedAt'] = event['timestamp']
                             itinerary[-1]['StationName'] = event['StationName']
                             itinerary[-1]['MarketID'] = event['MarketID']
                     elif event['event'] == 'Undocked':
-                        if len(itinerary) == 0 or itinerary[-1]['MarketID'] != event['MarketID'] or pd.notna(itinerary[-1]['UndockedAt']):
+                        if len(itinerary) == 0 or pd.isna(event['MarketID']) or pd.isna(itinerary[-1]['MarketID']) or itinerary[-1]['MarketID'] != event['MarketID'] or pd.notna(itinerary[-1]['UndockedAt']):
                             itinerary.append({'StarSystem': None, 'StationName': event['StationName'], 'MarketID': event['MarketID'], 'DockedAt': None, 'UndockedAt': event['timestamp'], 'JumpedInAt': None})
                         else:
                             itinerary[-1]['UndockedAt'] = event['timestamp']
