@@ -34,7 +34,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
-from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer
+from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
@@ -506,7 +506,7 @@ class CarrierController:
 
             if system == 'HIP 58832':
                 self.handle_peak_trade_logic(carrierID, carrier_name, system, carrier_callsign, order)
-            elif system == 'Col 285 Sector YF-D c13-18' and order is not None and order[0] == 'loading' and order[1] == 'Wine':
+            elif system == 'Col 285 Sector YF-D c13-18' and order is not None and order[0] == 'loading' and order[1] == 'Wine' and getCruiseStatus() != 'channels_closed':
                 self.handle_N16_trade_logic(carrierID, carrier_name, system, carrier_callsign, order)
             else:
                 if order is not None:
