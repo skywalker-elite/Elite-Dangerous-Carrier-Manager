@@ -271,5 +271,13 @@ def generateTimerSlopeDescription(slope:float|None) -> str:
     else:
         return 'Timer is stable'
 
+@rate_limited(max_calls=1, period=60)
+def getCruiseStatus() -> str:
+    response = requests.get('https://bc.pilotstradenetwork.org/api/cruises/state')
+    if response.status_code == 200:
+        data = response.json()
+        return data.get('state', None)
+    return 'Error fetching cruise status'
+
 if __name__ == '__main__':
     print(getHumanizedExpectedJumpTimer())
