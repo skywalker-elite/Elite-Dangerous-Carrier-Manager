@@ -632,9 +632,9 @@ class CarrierModel:
                 self.active_timer = True
                 data['status'] = 'cool_down_cancel'
                 if data['CarrierLocation']['timestamp'] is not None and (len(data['jumps']) == 1 or data['CarrierLocation']['timestamp'] > data['jumps'].iloc[1]['DepartureTime']) and data['CarrierLocation']['timestamp'] < data['last_cancel']['timestamp'] and data['CarrierLocation']['SystemName'] != latest_system:
-                    pre_system = data['CarrierLocation']['SystemName']
-                    pre_body = data['CarrierLocation']['Body']
-                    pre_body_id = data['CarrierLocation']['BodyID']
+                    latest_system = data['CarrierLocation']['SystemName']
+                    latest_body = data['CarrierLocation']['Body']
+                    latest_body_id = data['CarrierLocation']['BodyID']
                 data['current_system'] = latest_system
                 data['current_body'] = latest_body
                 data['current_body_id'] = latest_body_id
