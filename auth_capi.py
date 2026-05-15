@@ -818,7 +818,7 @@ class CapiAccountManager:
         self._handlers[callsign] = handler
         return callsign
 
-    def get_handler(self, callsign: str, require_logged_in: bool = True) -> AuthHandler:
+    def get_handler(self, callsign: str, require_logged_in: bool = True) -> AuthHandler | None:
         normalized = _normalize_callsign(callsign)
         if not normalized:
             raise ValueError("A valid carrier callsign is required")
@@ -830,7 +830,9 @@ class CapiAccountManager:
 
         handler = AuthHandler(callsign=normalized, auto_restore=True)
         if require_logged_in and not handler.is_logged_in():
-            raise RuntimeError(f"No active session for account {normalized}")
+            self.remove_account(normalized)
+            print(f"Account {normalized} is not logged in (refresh may have failed or token may be invalid); it has been removed from saved accounts. Please log in again.")
+            return None
 
         self._handlers[normalized] = handler
         return handler
