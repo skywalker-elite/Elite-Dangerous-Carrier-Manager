@@ -98,7 +98,7 @@ class CarrierView:
         self.tab_controller.pack(expand=True, fill='both')
 
         # Initialize the tksheet.Sheet widget
-        self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps')
+        self.sheet_jumps = Sheet(self.tab_jumps, name='sheet_jumps', empty_vertical=0, empty_horizontal=0)
 
         # Set column headers
         self.sheet_jumps.headers([
@@ -136,7 +136,7 @@ class CarrierView:
         self.button_post_departure.pack(side='left')
 
         # Trade tab
-        self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade')
+        self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade', empty_vertical=0, empty_horizontal=0)
 
         # Set column headers
         self.sheet_trade.headers([
@@ -164,7 +164,7 @@ class CarrierView:
         self.checkbox_filter_ghost_buys.pack(side='right')
 
         # finance tab
-        self.sheet_finance = Sheet(self.tab_finance, name='sheet_finance')
+        self.sheet_finance = Sheet(self.tab_finance, name='sheet_finance', empty_vertical=0, empty_horizontal=0)
 
         # Set column headers
         self.sheet_finance.headers([
@@ -175,7 +175,7 @@ class CarrierView:
         self.configure_sheet(self.sheet_finance)
 
         # services tab
-        self.sheet_services = Sheet(self.tab_services, name='sheet_services')
+        self.sheet_services = Sheet(self.tab_services, name='sheet_services', empty_vertical=0, empty_horizontal=0)
 
         # Set column headers
         self.sheet_services.headers([
@@ -186,7 +186,7 @@ class CarrierView:
         self.configure_sheet(self.sheet_services)
 
         # cmdr tab
-        self.sheet_cmdr = Sheet(self.tab_cmdr, name='sheet_cmdr')
+        self.sheet_cmdr = Sheet(self.tab_cmdr, name='sheet_cmdr', empty_vertical=0, empty_horizontal=0)
         self.sheet_cmdr.headers([
             'Carrier Name', 'CMDR Name', 'Current System', 'Current Station'
         ])
@@ -194,7 +194,7 @@ class CarrierView:
         self.configure_sheet(self.sheet_cmdr)
 
         # Misc tab
-        self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc')
+        self.sheet_misc = Sheet(self.tab_misc, name='sheet_misc', empty_vertical=0, empty_horizontal=0)
 
         # Set column headers
         self.sheet_misc.headers([
@@ -205,7 +205,7 @@ class CarrierView:
         self.configure_sheet(self.sheet_misc)
 
         # Active Journals tab
-        self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals')
+        self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals', empty_vertical=0, empty_horizontal=0)
 
         # Set column headers
         self.sheet_active_journals.headers(['FID', 'CMDR Name', 'Carrier Name', 'Journal File'])
