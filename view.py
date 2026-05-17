@@ -453,11 +453,12 @@ class TradePostView:
         self.label_from_to.grid(row=0, column=4, padx=2)
         self.cbox_stations = ttk.Combobox(self.popup, values=stations)
         self.cbox_stations.current(default_station_index)
-        self.cbox_stations.bind('<<ComboboxSelected>>', self.station_selected)
+        self.cbox_stations.bind('<<ComboboxSelected>>', self.on_station_selected)
         self.cbox_stations.grid(row=0, column=5, padx=2)
         self.cbox_pad_size = ttk.Combobox(self.popup, values=['L', 'M'], state='readonly', width=2)
         self.cbox_pad_size.set(pad_sizes[0])
         self.cbox_pad_size.grid(row=0, column=6, padx=2)
+        self.cbox_pad_size.bind('<<ComboboxSelected>>', self.on_pad_size_selected)
         self.label_pad_size_desp = ttk.Label(self.popup, text='Pads')
         self.label_pad_size_desp.grid(row=0, column=7, padx=2)
         self.label_in = ttk.Label(self.popup, text='in')
@@ -467,6 +468,7 @@ class TradePostView:
         self.cbox_profit = ttk.Combobox(self.popup, values=[f'{i}' for i in range(10, 21)], width=5)
         self.cbox_profit.current(0)
         self.cbox_profit.grid(row=0, column=10, padx=2)
+        self.cbox_profit.bind('<<ComboboxSelected>>', self.on_profit_selected)
         self.label_k_per_ton = ttk.Label(self.popup, text='k/unit profit')
         self.label_k_per_ton.grid(row=0, column=11, padx=2)
         self.label_amount = ttk.Label(self.popup, text=amount)
@@ -484,13 +486,15 @@ class TradePostView:
         self.button_post = ttk.Button(self.popup, text='Copy to clipboard')
         self.button_post.grid(row=2, column=0, columnspan=14, pady=10)
         
-        self.station_selected(None)
+        self.on_station_selected(None)
         
         self.popup.attributes('-topmost', True)
         center_window_relative_to_parent(self.popup, root)
         self.popup.focus_set()
     
-    def station_selected(self, event):
+    def on_station_selected(self, event):
+        self.cbox_stations.selection_clear()
+        self.popup.focus_set()
         self.cbox_pad_size.current(0 if self.pad_sizes[self.cbox_stations.current()] == 'L' else 1)
         try:
             stock, price = getStockPrice(self.trade_type, self.market_ids[self.cbox_stations.current()], commodity_name=self.commodity)
@@ -506,6 +510,14 @@ class TradePostView:
             profit = self.price - price if self.trade_type == 'loading' else price - self.price
             profit = int(profit / 1000)
             self.cbox_profit.set(profit)
+
+    def on_pad_size_selected(self, event):
+        self.cbox_pad_size.selection_clear()
+        self.popup.focus_set()
+
+    def on_profit_selected(self, event):
+        self.cbox_profit.selection_clear()
+        self.popup.focus_set()
 
 class ManualTimerView:
     def __init__(self, root, carrierID:str):
