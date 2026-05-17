@@ -91,7 +91,7 @@ class SpanshError(Exception):
     """Custom exception for Spansh API errors."""
     pass
 
-@rate_limited(max_calls=1, period=60)
+@rate_limited(max_calls=1, period=600)
 def getStationsSpansh(system_id:int) -> list[dict]:
     """
     Get station names and types from Spansh API.
