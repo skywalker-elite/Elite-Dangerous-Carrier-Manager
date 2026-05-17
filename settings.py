@@ -167,7 +167,7 @@ class Settings:
         with open(self.settings_file, 'r') as f:
             user_settings = tomlkit.load(f)
         
-        def merge_user_into_defaults(default_doc, user_doc):
+        def _merge_user_into_defaults(default_doc, user_doc):
             for key, uval in user_doc.items():
                 if key not in default_doc:
                     # Preserve user-only keys (and their comments)
@@ -176,12 +176,12 @@ class Settings:
 
                 dval = default_doc[key]
                 if isinstance(dval, Table) and isinstance(uval, Table):
-                    merge_user_into_defaults(dval, uval)
+                    _merge_user_into_defaults(dval, uval)
                 else:
                     # Override value while keeping default comments/formatting
                     default_doc[key] = deepcopy(uval)
             return default_doc
-        merged = merge_user_into_defaults(defaults, user_settings)
+        merged = _merge_user_into_defaults(defaults, user_settings)
 
         self._settings = deepcopy(merged)
         self.save()
