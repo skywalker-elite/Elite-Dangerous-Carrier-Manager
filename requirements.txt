@@ -14,6 +14,7 @@ pystray==0.19.5
 supabase==2.27.1
 keyring==25.6.0
 dotenv==0.9.9
+tomlkit==0.14.0
 supabase-auth==2.27.1 # also dependency of supabase
 PyJWT==2.12.0 # also dependency of supabase-auth
 packaging==24.2 # also dependency of PyInstaller
