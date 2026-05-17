@@ -197,7 +197,6 @@ def hash_folder(folder_path:str, hash_obj) -> str:
                 while chunk := f.read(8192):  # Read file in chunks
                     hash_obj.update(chunk)
 
-
 def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
     cache_dir = getAppDir()
     if cache_dir is None:
@@ -211,7 +210,17 @@ def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
             return os.path.join(cache_dir, 'cache', f'journal_reader_{jr_version}_{h.hexdigest()}.pkl')
         except:
             return None
-        
+
+def getNotesPath() -> str:
+    """
+    Path to the csv file where the app stores carrier notes. 
+    """
+    settings_dir = getSettingsDir()
+    if settings_dir is None:
+        return None
+    else:
+        return os.path.join(settings_dir, 'notes.csv')
+
 def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
     h = hashlib.sha256()
     h.update(journal_timestamp.isoformat().encode('utf-8'))
