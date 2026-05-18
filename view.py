@@ -420,11 +420,11 @@ class CarrierView:
         if len(column_widths) < 3:
             print(f'Warning: Not enough columns to resize note column. Column widths: {column_widths}')
             return
-        print(f"Resizing note column. Table width: {table_width}, current column widths: {column_widths}")
+        # print(f"Resizing note column. Table width: {table_width}, current column widths: {column_widths}")
         fixed_width = column_widths[0] + column_widths[1]
         min_width = self.sheet_notes.default_column_width()
         note_width = max(min_width, table_width - fixed_width - margin)
-        print(f"Calculated note width: {note_width}, current column widths: {column_widths}")
+        # print(f"Calculated note width: {note_width}, current column widths: {column_widths}")
         if int(column_widths[2]) != int(note_width):
             column_widths[2] = note_width
             self.sheet_notes.set_column_widths(column_widths)
