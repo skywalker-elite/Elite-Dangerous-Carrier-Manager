@@ -341,7 +341,7 @@ class CarrierView:
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
 
         # 1) resize all tksheets
-        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_active_journals]:
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_notes, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
 
@@ -418,7 +418,6 @@ class CarrierView:
             return
         column_widths = self.sheet_notes.get_column_widths()
         if len(column_widths) < 3:
-            print(f'Warning: Not enough columns to resize note column. Column widths: {column_widths}')
             return
         # print(f"Resizing note column. Table width: {table_width}, current column widths: {column_widths}")
         fixed_width = column_widths[0] + column_widths[1]

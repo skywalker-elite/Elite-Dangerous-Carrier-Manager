@@ -669,7 +669,11 @@ class CarrierController:
             df_notes = pd.DataFrame([(self.model.get_name(carrierID), self.model.get_callsign(carrierID), '') for carrierID in self.model.sorted_ids_display()], columns=['Carrier Name', 'Carrier ID', 'Note'])
             df_notes.to_csv(getNotesPath(), index=False)
         df_notes = pd.read_csv(getNotesPath())
-        assert 'Carrier Name' in df_notes.columns and 'Carrier ID' in df_notes.columns and 'Note' in df_notes.columns, 'Notes CSV file must contain "Carrier Name", "Carrier ID", and "Note" columns'
+        if 'Carrier Name' not in df_notes.columns or 'Carrier ID' not in df_notes.columns or 'Note' not in df_notes.columns:
+            self.view.button_save_notes.configure(state='disabled')
+            self.view.sheet_notes.unbind("<<SheetModified>>")
+            self.view.show_message_box_warning('Error loading notes', 'Notes CSV file must contain "Carrier Name", "Carrier ID", and "Note" columns\nNotes are disabled until this is resolved to avoid data loss. Please correct the notes CSV file and reload the notes.')
+            return
         df_notes['Note'] = df_notes['Note'].fillna('')
         for carrierID in self.model.sorted_ids_display():
             if self.model.get_callsign(carrierID) not in df_notes['Carrier ID'].values:
@@ -679,7 +683,8 @@ class CarrierController:
         unknown_carriers = [n_id for n_id in df_notes['Carrier ID'].values if n_id not in [self.model.get_callsign(carrierID) for carrierID in self.model.sorted_ids()]]
         if unknown_carriers:
             self.view.button_save_notes.configure(state='disabled')
-            self.view.show_message_box_warning('Error loading notes', f'Unknown carriers found in notes: {", ".join(unknown_carriers)}\nNotes are disabled until this is resolved to avoid overwriting. Please remove or correct the unknown carriers in the notes CSV file and reload the notes.')
+            self.view.sheet_notes.unbind("<<SheetModified>>")
+            self.view.show_message_box_warning('Error loading notes', f'Unknown carriers found in notes: {", ".join(unknown_carriers)}\nNotes are disabled until this is resolved to avoid data loss. Please remove or correct the unknown carriers in the notes CSV file and reload the notes.')
         else:
             # print('Notes loaded successfully')
             # print(df_notes)
