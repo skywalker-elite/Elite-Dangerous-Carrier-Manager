@@ -75,6 +75,7 @@ class CarrierView:
         self.tab_services = ttk.Frame(self.tab_controller)
         self.tab_cmdr = ttk.Frame(self.tab_controller)
         self.tab_misc = ttk.Frame(self.tab_controller)
+        self.tab_notes = ttk.Frame(self.tab_controller)
         self.tab_options = ScrollableFrame(self.tab_controller)
         self.tab_active_journals = ttk.Frame(self.tab_controller)
 
@@ -84,6 +85,7 @@ class CarrierView:
         self.tab_controller.add(self.tab_services, text='Services')
         self.tab_controller.add(self.tab_cmdr, text='CMDR')
         self.tab_controller.add(self.tab_misc, text='Misc')
+        self.tab_controller.add(self.tab_notes, text='Notes')
         self.tab_controller.add(self.tab_active_journals, text='Active Journals', state='hidden')
         self.tab_controller.add(self.tab_options, text='Options')
 
@@ -92,7 +94,7 @@ class CarrierView:
             tab.rowconfigure(0, pad=1, weight=1)
             tab.columnconfigure(0, pad=1, weight=1)
 
-        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_cmdr, self.tab_misc, self.tab_active_journals]:
+        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_cmdr, self.tab_misc, self.tab_notes, self.tab_active_journals]:
             configure_tab_grid(tab)
 
         self.tab_controller.pack(expand=True, fill='both')
@@ -203,6 +205,23 @@ class CarrierView:
         self.sheet_misc['B:K'].align('right')
 
         self.configure_sheet(self.sheet_misc)
+
+        self.sheet_notes = Sheet(self.tab_notes, name='sheet_notes', empty_vertical=0, empty_horizontal=0)
+        self.sheet_notes.headers(['Carrier Name', 'Carrier ID', 'Note'])
+        self.configure_sheet(self.sheet_notes)
+        self.sheet_notes.enable_bindings("edit_cell", "arrowkeys", "select_all", "copy", "paste", "delete", "undo", "redo")
+        self.sheet_notes['A:B'].readonly(True)
+        self.sheet_notes.MT.bind("<Configure>", lambda _event: self.resize_note_column(), add="+")
+        
+        self.bottom_bar_note = ttk.Frame(self.tab_notes)
+        self.bottom_bar_note.grid(row=1, column=0, columnspan=3, sticky='ew')
+        self.tab_notes.grid_rowconfigure(1, weight=0)
+        self.button_load_note = ttk.Button(self.bottom_bar_note, text='Load Notes')
+        self.button_load_note.pack(side='left')
+        self.button_save_notes = ttk.Button(self.bottom_bar_note, text='Save Notes')
+        self.button_save_notes.pack(side='left')
+        self.button_open_notes_file = ttk.Button(self.bottom_bar_note, text='Open Notes File')
+        self.button_open_notes_file.pack(side='left')
 
         # Active Journals tab
         self.sheet_active_journals = Sheet(self.tab_active_journals, name='sheet_active_journals', empty_vertical=0, empty_horizontal=0)
@@ -322,7 +341,7 @@ class CarrierView:
         size_table = font_sizes.get(font_size_table, font_sizes['normal'])
 
         # 1) resize all tksheets
-        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_active_journals]:
+        for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_notes, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
 
@@ -384,6 +403,31 @@ class CarrierView:
     
     def update_table_misc(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_misc, data, rows_pending_decomm)
+
+    def update_table_notes(self, data, rows_pending_decomm:list[int]|None=None):
+        self.update_table(self.sheet_notes, data, rows_pending_decomm)
+        self.resize_note_column()
+
+    def resize_note_column(self):
+        margin = 5
+        if not self.sheet_notes.winfo_ismapped():
+            return
+        table_width = self.sheet_notes.MT.winfo_width()
+        if table_width <= 1:
+            self.sheet_notes.after_idle(self.resize_note_column)
+            return
+        column_widths = self.sheet_notes.get_column_widths()
+        if len(column_widths) < 3:
+            return
+        # print(f"Resizing note column. Table width: {table_width}, current column widths: {column_widths}")
+        fixed_width = column_widths[0] + column_widths[1]
+        min_width = self.sheet_notes.default_column_width()
+        note_width = max(min_width, table_width - fixed_width - margin)
+        # print(f"Calculated note width: {note_width}, current column widths: {column_widths}")
+        if int(column_widths[2]) != int(note_width):
+            column_widths[2] = note_width
+            self.sheet_notes.set_column_widths(column_widths)
+            self.sheet_notes.set_refresh_timer(True)
 
     def update_table_active_journals(self, data):
         self.update_table(self.sheet_active_journals, data)
@@ -685,5 +729,12 @@ if __name__ == '__main__':
         ['E.D.C.M Carrier', 'EDC-M42', '500', 'Achenar', 'Achenar I', 'Cooling Down', '', '', '00:04:42', ''],
         ['Far Star', 'FS0-042', '300', 'Terminus', '1', 'Idle', '', ' ', '', ''],
         ['Heart of Gold', 'HOG-042', '420', 'Betelgeuse', '5', 'Jumping', 'Soulianis and Rahm', 'Magrathea', '00:42:42', '']
+    ])
+    view.update_table_notes([
+        ['P.T.N. Carrier', 'PTN-123', 'This is a note for PTN-123'],
+        ['N.A.C. Carrier', 'NAC-456', 'This is a note for NAC-456'],
+        ['E.D.C.M Carrier', 'EDC-M42', 'This is a note for EDC-M42'],
+        ['Far Star', 'FS0-042', 'This is a note for FS0-042'],
+        ['Heart of Gold', 'HOG-042', 'This is a note for HOG-042']
     ])
     root.mainloop()

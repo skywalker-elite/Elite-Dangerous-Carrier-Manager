@@ -34,7 +34,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
-from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus
+from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
@@ -89,6 +89,9 @@ class CarrierController:
         self.view.button_post_trade_trade.configure(command=self.button_click_post_trade_trade)
         self.view.button_trade_history.configure(command=self.button_click_trade_history)
         self.view.checkbox_filter_ghost_buys_var.trace_add('write', lambda *args: self.settings.set_config('Trade', 'filter_ghost_buys', value=self.view.checkbox_filter_ghost_buys_var.get()))
+        self.view.button_load_note.configure(command=self.load_notes)
+        self.view.button_save_notes.configure(command=self.save_notes)
+        self.view.button_open_notes_file.configure(command=lambda: open_file(getNotesPath()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
@@ -144,6 +147,8 @@ class CarrierController:
         # self._start_realtime_listener()
         self.check_app_update()
         self.minimize_hint_sent = False
+
+        self.load_notes()
 
         if not self.model.dropout and not self.no_cache:
             threading.Thread(target=self.save_cache, daemon=True).start()
@@ -658,6 +663,53 @@ class CarrierController:
                 self.view.show_message_box_warning('Error', f'Error while saving CSV file:\n{e}')
             else:
                 self.view.show_message_box_info('Success!', f'Trade history exported to {file_path}')
+
+    def load_notes(self):
+        if not path.exists(getNotesPath()):
+            df_notes = pd.DataFrame([(self.model.get_name(carrierID), self.model.get_callsign(carrierID), '') for carrierID in self.model.sorted_ids_display()], columns=['Carrier Name', 'Carrier ID', 'Note'])
+            df_notes.to_csv(getNotesPath(), index=False)
+        df_notes = pd.read_csv(getNotesPath())
+        if 'Carrier Name' not in df_notes.columns or 'Carrier ID' not in df_notes.columns or 'Note' not in df_notes.columns:
+            self.view.button_save_notes.configure(state='disabled')
+            self.view.sheet_notes.unbind("<<SheetModified>>")
+            self.view.show_message_box_warning('Error loading notes', 'Notes CSV file must contain "Carrier Name", "Carrier ID", and "Note" columns\nNotes are disabled until this is resolved to avoid data loss. Please correct the notes CSV file and reload the notes.')
+            return
+        df_notes['Note'] = df_notes['Note'].fillna('')
+        for carrierID in self.model.sorted_ids_display():
+            if self.model.get_callsign(carrierID) not in df_notes['Carrier ID'].values:
+                # print(f'Adding note for {self.model.get_name(carrierID)}')
+                new_row = {'Carrier Name': self.model.get_name(carrierID), 'Carrier ID': self.model.get_callsign(carrierID), 'Note': ''}
+                df_notes = pd.concat([df_notes, pd.DataFrame([new_row])], ignore_index=True)
+        unknown_carriers = [n_id for n_id in df_notes['Carrier ID'].values if n_id not in [self.model.get_callsign(carrierID) for carrierID in self.model.sorted_ids()]]
+        if unknown_carriers:
+            self.view.button_save_notes.configure(state='disabled')
+            self.view.sheet_notes.unbind("<<SheetModified>>")
+            self.view.show_message_box_warning('Error loading notes', f'Unknown carriers found in notes: {", ".join(unknown_carriers)}\nNotes are disabled until this is resolved to avoid data loss. Please remove or correct the unknown carriers in the notes CSV file and reload the notes.')
+        else:
+            # print('Notes loaded successfully')
+            # print(df_notes)
+            self.view.button_save_notes.configure(state='normal')
+            self.view.sheet_notes.bind("<<SheetModified>>", lambda e: self.save_notes_auto())
+            sorted_notes = df_notes.set_index('Carrier ID').loc[[self.model.get_callsign(carrierID) for carrierID in self.model.sorted_ids_display()]].reset_index()
+            self.view.update_table_notes(sorted_notes[['Carrier Name', 'Carrier ID', 'Note']].values.tolist())
+
+    def save_notes(self):
+        notes_data = self.view.sheet_notes.get_sheet_data()
+        # print('Saving notes:')
+        # print(notes_data)
+        df_notes = pd.DataFrame(notes_data, columns=['Carrier Name', 'Carrier ID', 'Note'])
+        try:
+            df_notes.to_csv(getNotesPath(), index=False)
+        except PermissionError:
+            self.view.show_message_box_warning('Error', 'Permission denied while saving notes file. Please close the file if it is open in another program and try again.')
+        except Exception as e:
+            self.view.show_message_box_warning('Error', f'Error while saving notes file:\n{e}')
+        else:
+            self.view.button_save_notes.configure(text='Saved at ' + datetime.now().strftime('%x %X'))
+
+    @debounce(1)  # Debounce for 1 second
+    def save_notes_auto(self):
+        self.save_notes()
 
     def generate_wine_unload_post_string(self, carrier_callsign:str, planetary_body:str, timed_unload:bool=False) -> str:
         if not timed_unload:
