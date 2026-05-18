@@ -75,7 +75,7 @@ class CarrierView:
         self.tab_services = ttk.Frame(self.tab_controller)
         self.tab_cmdr = ttk.Frame(self.tab_controller)
         self.tab_misc = ttk.Frame(self.tab_controller)
-        self.tab_note = ttk.Frame(self.tab_controller)
+        self.tab_notes = ttk.Frame(self.tab_controller)
         self.tab_options = ScrollableFrame(self.tab_controller)
         self.tab_active_journals = ttk.Frame(self.tab_controller)
 
@@ -85,7 +85,7 @@ class CarrierView:
         self.tab_controller.add(self.tab_services, text='Services')
         self.tab_controller.add(self.tab_cmdr, text='CMDR')
         self.tab_controller.add(self.tab_misc, text='Misc')
-        self.tab_controller.add(self.tab_note, text='Note')
+        self.tab_controller.add(self.tab_notes, text='Notes')
         self.tab_controller.add(self.tab_active_journals, text='Active Journals', state='hidden')
         self.tab_controller.add(self.tab_options, text='Options')
 
@@ -94,7 +94,7 @@ class CarrierView:
             tab.rowconfigure(0, pad=1, weight=1)
             tab.columnconfigure(0, pad=1, weight=1)
 
-        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_cmdr, self.tab_misc, self.tab_note, self.tab_active_journals]:
+        for tab in [self.tab_jumps, self.tab_trade, self.tab_finance, self.tab_services, self.tab_cmdr, self.tab_misc, self.tab_notes, self.tab_active_journals]:
             configure_tab_grid(tab)
 
         self.tab_controller.pack(expand=True, fill='both')
@@ -206,16 +206,16 @@ class CarrierView:
 
         self.configure_sheet(self.sheet_misc)
 
-        self.sheet_notes = Sheet(self.tab_note, name='sheet_note', empty_vertical=0, empty_horizontal=0)
+        self.sheet_notes = Sheet(self.tab_notes, name='sheet_notes', empty_vertical=0, empty_horizontal=0)
         self.sheet_notes.headers(['Carrier Name', 'Carrier ID', 'Note'])
         self.configure_sheet(self.sheet_notes)
         self.sheet_notes.enable_bindings("edit_cell", "arrowkeys", "select_all", "copy", "paste", "delete", "undo", "redo")
         self.sheet_notes['A:B'].readonly(True)
         self.sheet_notes.MT.bind("<Configure>", lambda _event: self.resize_note_column(), add="+")
         
-        self.bottom_bar_note = ttk.Frame(self.tab_note)
+        self.bottom_bar_note = ttk.Frame(self.tab_notes)
         self.bottom_bar_note.grid(row=1, column=0, columnspan=3, sticky='ew')
-        self.tab_note.grid_rowconfigure(1, weight=0)
+        self.tab_notes.grid_rowconfigure(1, weight=0)
         self.button_load_note = ttk.Button(self.bottom_bar_note, text='Load Notes')
         self.button_load_note.pack(side='left')
         self.button_save_notes = ttk.Button(self.bottom_bar_note, text='Save Notes')

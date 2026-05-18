@@ -211,7 +211,7 @@ def getCachePath(jr_version:str, journal_paths:list[str]) -> str:
         except:
             return None
 
-def getNotesPath() -> str:
+def getNotesPath() -> str|None:
     """
     Path to the csv file where the app stores carrier notes. 
     """
