@@ -3,7 +3,7 @@ import os
 import sys
 import threading
 import time
-from typing import Callable, TYPE_CHECKING
+from typing import Any, Callable, TYPE_CHECKING
 from realtime import PostgresChangesPayload, AsyncRealtimeClient, RealtimeSubscribeStates
 import pyperclip
 import re
@@ -1208,7 +1208,7 @@ class CarrierController:
             df = self.generate_timer_history()
             if df.empty:
                 return 0, None, None
-            def _chunks(seq: list[dict[str, any]], size: int):
+            def _chunks(seq: list[dict[str, Any]], size: int):
                 for i in range(0, len(seq), size):
                     yield seq[i:i+size]
             totals = {"submitted": 0, "inserted": 0, "skipped": 0}
