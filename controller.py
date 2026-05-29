@@ -16,7 +16,7 @@ from os import makedirs, path, remove
 from shutil import copyfile
 from tkinter import Tk, filedialog
 import traceback
-import tomllib
+import tomlkit
 import pickle
 import asyncio
 import pandas as pd
@@ -230,7 +230,7 @@ class CarrierController:
                     self.view.show_message_box_info('Settings', 'Using default values for missing keys, but not updating settings file.\nThe warnings will continue to show until the missing keys are added to the settings file, either manually or by allowing the auto-update.')
             self.settings = Settings(settings_file=settings_file) # load again to apply any auto updates
 
-        except tomllib.TOMLDecodeError as e:
+        except tomlkit.exceptions.TOMLKitError as e:
             if settings_file == getSettingsDefaultPath():
                 raise e
             else:
