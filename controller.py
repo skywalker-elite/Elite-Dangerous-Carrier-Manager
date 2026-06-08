@@ -65,8 +65,9 @@ class CarrierController:
         menu_options: dict[str, list[MenuOption]] = {
             'jumps': [
                 MenuOption('Copy name (ID)', self.menu_click_copy_name_callsign),
+                MenuOption('Copy name (ID) and services', self.menu_click_copy_name_callsign_services),
                 MenuOption('Inara System', self.button_click_inara_system), 
-                MenuOption('Inara Carrier', self.button_click_inara_carrier)
+                MenuOption('Inara Carrier', self.button_click_inara_carrier),
             ],
             'services': [
                 MenuOption('Copy name (ID) and services', self.menu_click_copy_name_callsign_services),
