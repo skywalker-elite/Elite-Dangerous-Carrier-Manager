@@ -1,8 +1,10 @@
-import requests
+import httpx
 import humanize
 from typing import Literal
 from datetime import datetime, timezone, timedelta
 from decos import rate_limited
+
+HTTP_CLIENT = httpx.Client(http2=True, timeout=30.0, follow_redirects=True)
 
 class EDSMError(Exception):
     """Custom exception for EDSM API errors."""
@@ -15,8 +17,8 @@ def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str],
     Fetch station data from EDSM API.
     """
     try:
-        result = requests.get(url, {'systemName': sys_name})
-    except requests.exceptions.RequestException as e:
+        result = HTTP_CLIENT.get(url, params={'systemName': sys_name})
+    except httpx.RequestError as e:
         raise EDSMError(f"Error fetching station data: {e}")
     if result.status_code != 200:
         raise EDSMError(f"Error fetching station data: {result.status_code}")
@@ -56,10 +58,10 @@ def getMarketCommodityInfo(market_id:str=None, system_name:str=None, station_nam
     assert commodity is not None or commodity_name is not None, "Either commodity or commodity_name must be provided"
     try:
         if market_id is not None:
-            result_market = requests.get(url, {'marketId': market_id})
+            result_market = HTTP_CLIENT.get(url, params={'marketId': market_id})
         else:
-            result_market = requests.get(url, {'systemName': system_name, 'stationName': station_name})
-    except requests.exceptions.RequestException as e:
+            result_market = HTTP_CLIENT.get(url, params={'systemName': system_name, 'stationName': station_name})
+    except httpx.RequestError as e:
         raise EDSMError(f"Error fetching market data: {e}")
     if result_market.status_code != 200:
         raise EDSMError(f"Error fetching market data: {result_market.status_code}")
@@ -98,8 +100,8 @@ def getStationsSpansh(system_id:int) -> list[dict]:
     """
     url = f'https://spansh.co.uk/api/system/{system_id}'
     try:
-        result = requests.get(url)
-    except requests.exceptions.RequestException as e:
+        result = HTTP_CLIENT.get(url)
+    except httpx.RequestError as e:
         raise SpanshError(f"Error fetching station data from Spansh: {e}")
     if result.status_code != 200:
         raise SpanshError(f"Error fetching station data from Spansh: {result.status_code}")
