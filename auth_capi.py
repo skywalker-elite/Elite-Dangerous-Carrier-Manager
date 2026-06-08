@@ -9,10 +9,13 @@ import threading
 import time
 import webbrowser
 import re
+import datetime
+import locale
 from typing import Any, Dict, Optional
 from dotenv import load_dotenv
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Callable, Literal, Optional
+from humanize import naturaltime
 
 import jwt
 from jwt import PyJWKClient, InvalidTokenError
@@ -592,6 +595,9 @@ class AuthHandler:
             "expires_in": max(int(self._access_exp - time.time()), 0),
             "token_preview": token_preview,
         }
+    
+    def get_session_expiration(self) -> Optional[datetime.datetime]:
+        return datetime.datetime.fromtimestamp(self._access_exp) if self._access_jwt else None
 
     def get_capi_root_links(self, timeout: int = 20) -> dict[str, Any]:
         response = _get_capi("/", self._get_authenticated_header(), timeout=timeout)
@@ -784,6 +790,75 @@ class AuthHandler:
             aggregated[key]["value"] += _coerce_int(item.get("value"))
 
         return list(aggregated.values())
+    
+    def get_cmdr_snapshot(self, timeout: int = 20) -> dict[str, Any]:
+        response = _get_capi("/profile", self._get_authenticated_header(), timeout=timeout)
+        result: dict[str, Any] = {
+            "status_code": response.status_code,
+            "found": False,
+            "cmdr": {},
+            "squadron": {},
+            "message": None,
+        }
+
+        if response.status_code == 200:
+            payload = response.json()
+            if not isinstance(payload, dict):
+                result["message"] = "unexpected response format"
+                return result
+
+            # print("Raw profile payload:", payload)
+            cmdr_info = payload.get("commander") if isinstance(payload, dict) else {}
+            # print("CMD profile:", cmdr_info)
+            result["cmdr"] = {
+                "name": cmdr_info.get("name"),
+                "id": cmdr_info.get("id"),
+            }
+            
+            # print("Raw squadron info:", payload.get("squadron"))
+            squadron_info = payload.get("squadron") if isinstance(payload, dict) else {}
+            # print("Squadron info:", squadron_info)
+            result["squadron"] = {
+                "name": squadron_info.get("name"),
+                "tag": squadron_info.get("tag"),
+            }
+            result["found"] = True
+            return result
+
+        if response.status_code == 401:
+            result["message"] = "unauthorized: access token may be invalid/expired"
+            result["details"] = response.text
+        elif response.status_code == 418:
+            result["message"] = "service maintenance (418 teapot)"
+        else:
+            result["message"] = response.text
+
+        return result
+    
+    def get_cmdr_credits(self, timeout: int = 20) -> int | None:
+        profile = self.get_cmdr_snapshot(timeout=timeout)
+        if not isinstance(profile, dict):
+            return None
+        cmdr: dict[str, Any] = profile.get("cmdr", {})
+        balance = cmdr.get("credits")
+        return balance
+    
+    def get_cmdr_squadron(self, timeout: int = 20) -> dict[str, Any]:
+        profile = self.get_cmdr_snapshot(timeout=timeout)
+        if not isinstance(profile, dict):
+            return {}
+        squadron: dict[str, Any] = profile.get("squadron", {})
+        return squadron
+    
+    def get_cmdr_squadron_name(self, timeout: int = 20) -> str | None:
+        squadron = self.get_cmdr_squadron(timeout=timeout)
+        name = squadron.get("name")
+        return name if isinstance(name, str) else None
+    
+    def get_cmdr_squadron_tag(self, timeout: int = 20) -> str | None:
+        squadron = self.get_cmdr_squadron(timeout=timeout)
+        tag = squadron.get("tag")
+        return tag if isinstance(tag, str) else None
 
     def logout(self, forget_account: bool = False):
         self._access_jwt = None
@@ -845,6 +920,11 @@ class CapiAccountManager:
         AuthHandler.remove_saved_account(normalized)
 
 if __name__ == "__main__":
+    try:
+        locale.setlocale(locale.LC_ALL, '')
+    except locale.Error:
+        locale.setlocale(locale.LC_ALL, 'C')
+        
     manager = CapiAccountManager()
     account_callsigns = manager.list_accounts()
 
@@ -873,9 +953,11 @@ if __name__ == "__main__":
 
         session_info = auth.get_session_info()
         print("CAPI session ready")
-        print(f"token_type={session_info['token_type']}  expires_in={session_info['expires_in']}s")
-        print(f"token_preview={session_info['token_preview']}")
-        print(f"account_callsign={auth.get_account_callsign()}")
+        # print(f"token_type={session_info['token_type']}  expires_in={session_info['expires_in']}s")
+        # print(f"token_preview={session_info['token_preview']}")
+        # print(f"account_callsign={auth.get_account_callsign()}")
+        print(f"Account callsign: {auth.get_account_callsign()}")
+        print(f"Session expires at: {auth.get_session_expiration().strftime('%x %X')} ({naturaltime(auth.get_session_expiration())})")
 
         print("[CAPI] GET /")
         root_info = auth.get_capi_root_links()
@@ -885,6 +967,17 @@ if __name__ == "__main__":
             print("available rels:", ", ".join(rels) if rels else "(none)")
         else:
             print(root_info.get("message"))
+
+        print("\n[CAPI] GET /profile")
+        profile = auth.get_cmdr_snapshot()
+        print("status:", profile.get("status_code"))
+        if profile.get("status_code") == 200:
+            cmdr_info = profile.get("cmdr", {})
+            print("CMD profile:", cmdr_info)
+            squadron_info = profile.get("squadron", {})
+            print("Squadron info:", squadron_info)
+
+            print(f"Squadron name: {auth.get_cmdr_squadron_name()}  tag: {auth.get_cmdr_squadron_tag()}")
 
         print("\n[CAPI] GET /fleetcarrier")
         fc_status = auth.get_fleetcarrier_status()

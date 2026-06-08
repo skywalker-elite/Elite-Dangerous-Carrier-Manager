@@ -76,6 +76,7 @@ class CarrierView:
         self.tab_cmdr = ttk.Frame(self.tab_controller)
         self.tab_misc = ttk.Frame(self.tab_controller)
         self.tab_notes = ttk.Frame(self.tab_controller)
+        self.tab_capi = ttk.Frame(self.tab_controller)
         self.tab_options = ScrollableFrame(self.tab_controller)
         self.tab_active_journals = ttk.Frame(self.tab_controller)
 
@@ -86,6 +87,7 @@ class CarrierView:
         self.tab_controller.add(self.tab_cmdr, text='CMDR')
         self.tab_controller.add(self.tab_misc, text='Misc')
         self.tab_controller.add(self.tab_notes, text='Notes')
+        self.tab_controller.add(self.tab_capi, text='cAPI')
         self.tab_controller.add(self.tab_active_journals, text='Active Journals', state='hidden')
         self.tab_controller.add(self.tab_options, text='Options')
 
@@ -239,6 +241,11 @@ class CarrierView:
         self.button_open_journal.pack(side='left')
         self.button_open_journal_folder = ttk.Button(self.bottom_bar_active_journals, text='Open Journal Folder')
         self.button_open_journal_folder.pack(side='left')
+
+        # cAPI tab
+        self.sheet_capi = Sheet(self.tab_capi, name='sheet_capi', empty_vertical=0, empty_horizontal=0)
+        self.sheet_capi.headers(['FID', 'CMDR Name', 'Carrier Name', 'cAPI Status', 'Last Updated', 'cAPI Expires'])
+        self.configure_sheet(self.sheet_capi)
 
         # Options tab
         self.labelframe_EDCM = ttk.Labelframe(self.tab_options.scrollable_frame, text='EDCM')
