@@ -1292,7 +1292,7 @@ class CarrierController:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
 
     def menu_click_copy_name_callsign_services(self):
-        selected_row = self.get_selected_row(sheet=self.view.sheet_services)
+        selected_row = self.get_selected_row(sheet=self.view.get_current_active_sheet())
         if selected_row is not None:
             carrierID = self.model.sorted_ids_display()[selected_row]
             carrier_name = self.model.get_name(carrierID)

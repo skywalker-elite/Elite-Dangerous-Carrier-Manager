@@ -468,6 +468,11 @@ class CarrierView:
     
     def show_dropdown_popup(self, title: str, prompt: str, options: list[str]) -> int|None:
         return show_dropdown_popup(self.root, title, prompt, options)
+    
+    def get_current_active_sheet(self) -> Sheet|None:
+        current_tab_text = self.tab_controller.tab(self.tab_controller.select(), "text")
+        sheet = getattr(self, f'sheet_{current_tab_text.lower().replace(" ", "_")}', None)
+        return sheet
 
 class TradePostView:
     def __init__(self, root, carrier_name:str, trade_type:Literal['loading', 'unloading'], commodity:str, stations:list[str], pad_sizes:list[Literal['L', 'M']], system:str, amount:int|float, 
