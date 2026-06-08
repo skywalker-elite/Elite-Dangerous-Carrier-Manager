@@ -19,9 +19,9 @@ def getStations(sys_name:str, details:bool=False) -> tuple[list[str], list[str],
     try:
         result = HTTP_CLIENT.get(url, params={'systemName': sys_name})
     except httpx.RequestError as e:
-        raise EDSMError(f"Error fetching station data: {e}")
+        raise EDSMError(f"EDSM request error: {e}")
     if result.status_code != 200:
-        raise EDSMError(f"Error fetching station data: {result.status_code}")
+        raise EDSMError(f"EDSM API error: {result.status_code}")
     else:
         result = result.json()
     # dirty fix with spansh to catch dodecs being classified as planetary outposts by EDSM

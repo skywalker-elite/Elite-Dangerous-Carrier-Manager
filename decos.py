@@ -6,7 +6,7 @@ from collections import deque
 def rate_limited(max_calls: int, period: float):
     """
     Decorator that allows up to max_calls per period (seconds),
-    caching and returning the last result in between bursts,
+    caching and returning the last successful result in between bursts,
     separately for each distinct (args, kwargs) combination.
     """
     state: dict = {}  # maps (args, sorted(kwargs)) -> {'times': deque, 'cache': result}
@@ -18,7 +18,7 @@ def rate_limited(max_calls: int, period: float):
             # build a hashable key for this call
             key = (args, tuple(sorted(kwargs.items())))
             if key not in state:
-                state[key] = {'times': deque(), 'cache': None}
+                state[key] = {'times': deque(), 'cache': None, 'error': None}
 
             record = state[key]
             times: deque[float] = record['times']
@@ -32,10 +32,14 @@ def rate_limited(max_calls: int, period: float):
                 times.append(now)
                 try:
                     record['cache'] = func(*args, **kwargs)
-                except Exception:
-                    # on failure, keep last cache
-                    pass
+                except Exception as exc:
+                    record['error'] = exc
+                    raise
+                else:
+                    record['error'] = None
 
+            if record['error'] is not None:
+                raise record['error']
             return record['cache']
         return wrapper
     return decorator
