@@ -19,4 +19,4 @@ tomlkit==0.14.0
 supabase-auth==2.27.1 # also dependency of supabase
 PyJWT==2.12.0 # also dependency of supabase-auth
 packaging==24.2 # also dependency of PyInstaller
-tornado==6.5.5 # indirect dependency of supabase, added explicitly to fix a environment issue
+tornado==6.5.6 # indirect dependency of supabase, added explicitly to fix a environment issue
