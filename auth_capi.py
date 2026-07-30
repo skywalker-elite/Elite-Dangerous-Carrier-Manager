@@ -899,15 +899,16 @@ class CapiAccountManager:
             raise ValueError("A valid carrier callsign is required")
 
         existing = self._handlers.get(normalized)
-        if existing is not None:
+        if existing is None:
+            return None
+        else:
             if not require_logged_in or existing.is_logged_in():
                 return existing
 
         handler = AuthHandler(callsign=normalized, auto_restore=True)
         if require_logged_in and not handler.is_logged_in():
             self.remove_account(normalized)
-            print(f"Account {normalized} is not logged in (refresh may have failed or token may be invalid); it has been removed from saved accounts. Please log in again.")
-            return None
+            raise RuntimeError(f"Account {normalized} is not logged in (refresh may have failed or token may be invalid); it has been removed from saved accounts. Please log in again.")
 
         self._handlers[normalized] = handler
         return handler
@@ -933,7 +934,10 @@ if __name__ == "__main__":
         first_callsign = manager.add_account_via_login()
         account_callsigns = [first_callsign]
     else:
-        if input("Add more accounts via login? (y/N) ").strip().lower() == "y":
+        while True:
+            print(f"found_accounts={', '.join(account_callsigns)}")
+            if input("Add more accounts via login? (y/N) ").strip().lower() != "y":
+                break
             new_callsign = manager.add_account_via_login()
             if new_callsign not in account_callsigns:
                 account_callsigns.append(new_callsign)
