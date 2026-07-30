@@ -682,6 +682,17 @@ class CarrierController:
                 new_row = {'Carrier Name': self.model.get_name(carrierID), 'Carrier ID': self.model.get_callsign(carrierID), 'Note': ''}
                 df_notes = pd.concat([df_notes, pd.DataFrame([new_row])], ignore_index=True)
         unknown_carriers = [n_id for n_id in df_notes['Carrier ID'].values if n_id not in [self.model.get_callsign(carrierID) for carrierID in self.model.sorted_ids()]]
+        for n_id in df_notes['Carrier ID'].values:
+            carrierID = self.model.get_id_by_callsign(n_id)
+            if carrierID is None:
+                unknown_carriers.append(n_id)
+            else:
+                assert self.model.get_callsign(carrierID) == n_id, f'Carrier ID mismatch: expected {n_id}, got {self.model.get_callsign(carrierID)}'
+                if self.model.get_name(carrierID) != df_notes.loc[df_notes['Carrier ID'] == n_id, 'Carrier Name'].values[0]:
+                    # print(f'Updating carrier name for {n_id} to {self.model.get_name(carrierID)}')
+                    df_notes.loc[df_notes['Carrier ID'] == n_id, 'Carrier Name'] = self.model.get_name(carrierID)
+                    self.save_notes_auto()
+
         if unknown_carriers:
             self.view.button_save_notes.configure(state='disabled')
             self.view.sheet_notes.unbind("<<SheetModified>>")
