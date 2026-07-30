@@ -681,7 +681,19 @@ class CarrierController:
                 # print(f'Adding note for {self.model.get_name(carrierID)}')
                 new_row = {'Carrier Name': self.model.get_name(carrierID), 'Carrier ID': self.model.get_callsign(carrierID), 'Note': ''}
                 df_notes = pd.concat([df_notes, pd.DataFrame([new_row])], ignore_index=True)
-        unknown_carriers = [n_id for n_id in df_notes['Carrier ID'].values if n_id not in [self.model.get_callsign(carrierID) for carrierID in self.model.sorted_ids()]]
+        unknown_carriers = []
+        update_needed = False
+        for n_id in df_notes['Carrier ID'].values:
+            carrierID = self.model.get_id_by_callsign(n_id)
+            if carrierID is None:
+                unknown_carriers.append(n_id)
+            else:
+                assert self.model.get_callsign(carrierID) == n_id, f'Carrier ID mismatch: expected {n_id}, got {self.model.get_callsign(carrierID)}'
+                if self.model.get_name(carrierID) != df_notes.loc[df_notes['Carrier ID'] == n_id, 'Carrier Name'].values[0]:
+                    # print(f'Updating carrier name for {n_id} to {self.model.get_name(carrierID)}')
+                    df_notes.loc[df_notes['Carrier ID'] == n_id, 'Carrier Name'] = self.model.get_name(carrierID)
+                    update_needed = True
+
         if unknown_carriers:
             self.view.button_save_notes.configure(state='disabled')
             self.view.sheet_notes.unbind("<<SheetModified>>")
@@ -693,6 +705,8 @@ class CarrierController:
             self.view.sheet_notes.bind("<<SheetModified>>", lambda e: self.save_notes_auto())
             sorted_notes = df_notes.set_index('Carrier ID').loc[[self.model.get_callsign(carrierID) for carrierID in self.model.sorted_ids_display()]].reset_index()
             self.view.update_table_notes(sorted_notes[['Carrier Name', 'Carrier ID', 'Note']].values.tolist())
+            if update_needed:
+                self.save_notes_auto()
 
     def save_notes(self):
         notes_data = self.view.sheet_notes.get_sheet_data()
