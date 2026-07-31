@@ -10,13 +10,13 @@ humanize==4.12.2
 discord==2.3.2
 playsound3==3.2.3
 watchdog==6.0.0
-Pillow==12.2.0
+Pillow==12.3.0
 pystray==0.19.5
 supabase==2.27.1
 keyring==25.6.0
 dotenv==0.9.9
 tomlkit==0.14.0
 supabase-auth==2.27.1 # also dependency of supabase
-PyJWT==2.12.0 # also dependency of supabase-auth
+PyJWT==2.13.0 # also dependency of supabase-auth
 packaging==24.2 # also dependency of PyInstaller
-tornado==6.5.6 # indirect dependency of supabase, added explicitly to fix a environment issue
+tornado==6.5.7 # indirect dependency of supabase, added explicitly to fix a environment issue
