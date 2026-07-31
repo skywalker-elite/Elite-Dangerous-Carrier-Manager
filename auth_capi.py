@@ -893,15 +893,13 @@ class CapiAccountManager:
         self._handlers[callsign] = handler
         return callsign
 
-    def get_handler(self, callsign: str, require_logged_in: bool = True) -> AuthHandler | None:
+    def get_handler(self, callsign: str, require_logged_in: bool = True) -> AuthHandler:
         normalized = _normalize_callsign(callsign)
         if not normalized:
             raise ValueError("A valid carrier callsign is required")
 
         existing = self._handlers.get(normalized)
-        if existing is None:
-            return None
-        else:
+        if existing is not None:
             if not require_logged_in or existing.is_logged_in():
                 return existing
 
