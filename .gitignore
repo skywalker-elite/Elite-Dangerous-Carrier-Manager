@@ -10,3 +10,4 @@ fake_journal_test.py
 fake_journals
 installer/setup_local.iss
 .env
+test_controller_threading.py

@@ -3,6 +3,7 @@ import os
 import sys
 import threading
 import time
+from queue import Empty, Queue
 from typing import Any, Callable, TYPE_CHECKING
 from realtime import PostgresChangesPayload, AsyncRealtimeClient, RealtimeSubscribeStates
 import pyperclip
@@ -14,7 +15,7 @@ from webbrowser import open_new_tab
 from datetime import datetime, timezone, timedelta, date
 from os import makedirs, path, remove
 from shutil import copyfile
-from tkinter import Tk, filedialog
+from tkinter import TclError, Tk, filedialog
 import traceback
 import tomlkit
 import pickle
@@ -56,6 +57,8 @@ class CarrierController:
         self.root = root
         self.model = model
         self.no_cache = no_cache
+        self._ui_callbacks = Queue()
+        self.root.after(0, self._drain_ui_callbacks)
         self.tray_icon = None
         self.notification_settings = {}
         self.notification_settings_carrier = {}
@@ -152,24 +155,45 @@ class CarrierController:
         self.load_notes()
 
         if not self.model.dropout and not self.no_cache:
-            threading.Thread(target=self.save_cache, daemon=True).start()
+            self._start_cache_save_loop()
 
         if self.auth_handler.is_logged_in():
             self.on_sign_in(show_message=False)
         else:
             self.on_sign_out(show_message=False)
 
-        self.auth_handler.register_auth_event_callback('SIGNED_IN', lambda: self.root.after(0, self.on_sign_in))
-        self.auth_handler.register_auth_event_callback('SIGNED_OUT', lambda: self.root.after(0, self.on_sign_out))
+        self.auth_handler.register_auth_event_callback('SIGNED_IN', lambda: self._queue_ui_callback(self.on_sign_in))
+        self.auth_handler.register_auth_event_callback('SIGNED_OUT', lambda: self._queue_ui_callback(self.on_sign_out))
 
         self.save_window_size_on_resize()
 
     def _schedule_journal_update(self):
+        self._queue_ui_callback(self._schedule_journal_update_on_ui)
+
+    def _schedule_journal_update_on_ui(self):
         # coalesce rapid events
         if getattr(self, '_journal_update_pending', False):
             return
         self._journal_update_pending = True
         self.view.root.after(0, self._perform_journal_update)
+
+    def _queue_ui_callback(self, callback: Callable[..., Any], *args: Any, **kwargs: Any):
+        self._ui_callbacks.put((callback, args, kwargs))
+
+    def _drain_ui_callbacks(self):
+        while True:
+            try:
+                callback, args, kwargs = self._ui_callbacks.get_nowait()
+            except Empty:
+                break
+            try:
+                callback(*args, **kwargs)
+            except Exception:
+                print(f'Error running UI callback:\n{traceback.format_exc()}')
+        try:
+            self.root.after(50, self._drain_ui_callbacks)
+        except TclError:
+            pass
 
     def _perform_journal_update(self):
         self._journal_update_pending = False
@@ -300,7 +324,7 @@ class CarrierController:
             # jump plotted
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID)} body {self.model.get_destination_body(carrierID)}')
             if notification_settings.get('jump_plotted'):
-                self.view.show_non_blocking_info('Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
+                self._queue_ui_callback(self.view.show_non_blocking_info, 'Jump plotted', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) plotted jump to {self.model.get_destination_system(carrierID, use_custom_name=True)} body {self.model.get_destination_body(carrierID)}')
             if notification_settings.get('jump_plotted_sound'):
                 self.play_sound(notification_settings.get('jump_plotted_sound_file'))
             censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_destination_system(carrierID) in ['HD 105341','HIP 58832']
@@ -323,7 +347,7 @@ class CarrierController:
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
             if notification_settings.get('jump_completed'):
-                self.view.show_non_blocking_info('Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
+                self._queue_ui_callback(self.view.show_non_blocking_info, 'Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
             if notification_settings.get('jump_completed_sound'):
                 self.play_sound(notification_settings.get('jump_completed_sound_file'))
             censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_previous_system(carrierID) in ['HD 105341','HIP 58832']
@@ -344,7 +368,7 @@ class CarrierController:
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
             if notification_settings.get('jump_cancelled'):
-                self.view.show_non_blocking_info('Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
+                self._queue_ui_callback(self.view.show_non_blocking_info, 'Jump cancelled', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
             if notification_settings.get('jump_cancelled_sound'):
                 self.play_sound(notification_settings.get('jump_cancelled_sound_file'))
             censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832'] or self.model.get_previous_system(carrierID) in ['HD 105341','HIP 58832']
@@ -365,7 +389,7 @@ class CarrierController:
             # cool down complete
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
             if notification_settings.get('cooldown_finished'):
-                self.view.show_non_blocking_info('Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
+                self._queue_ui_callback(self.view.show_non_blocking_info, 'Cool down complete', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has finished cool down and is ready to jump')
             if notification_settings.get('cooldown_finished_sound'):
                 self.play_sound(notification_settings.get('cooldown_finished_sound_file'))
             censor_mode = self.model.get_current_system(carrierID) in ['HD 105341','HIP 58832']
@@ -389,7 +413,7 @@ class CarrierController:
         if path.exists(sound_file):
             self.sound = playsound(sound_file, block=block)
         else:
-            self.view.show_message_box_warning('Error', f'Sound file {sound_file} not found')
+            self._queue_ui_callback(self.view.show_message_box_warning, 'Error', f'Sound file {sound_file} not found')
 
     def button_click_reload_settings(self):
         try:
@@ -469,7 +493,7 @@ class CarrierController:
                 if not silent:
                     self.view.show_message_box_warning('Time Skew Check Error', f'Error checking time skew:\n{e}')
 
-        future_skew.add_done_callback(handle_skew_result)
+        future_skew.add_done_callback(lambda future: self._queue_ui_callback(handle_skew_result, future))
     
     def button_click_hammer(self):
         selected_row = self.get_selected_row()
@@ -1063,24 +1087,32 @@ class CarrierController:
         else:
             return None
         
+    def _start_cache_save_loop(self):
+        self._save_cache_async(schedule_next=True)
+
+    def _schedule_cache_save(self):
+        self.view.root.after(SAVE_CACHE_INTERVAL, self._start_cache_save_loop)
+
     def save_cache(self):
+        self._save_cache_async(schedule_next=False)
+
+    def _save_cache_async(self, schedule_next: bool):
         cache_path = getCachePath(self.model.journal_reader.version, self.model.journal_reader.journal_paths)
         if cache_path is not None:
-            makedirs(path.dirname(cache_path), exist_ok=True)
-            try:
-                self._save_cache(cache_path)
-            except Exception as e:
-                self.view.root.after(0, self.view.show_message_box_warning, 'Error', f'Error while saving cache\n{traceback.format_exc()}')
-            else:
-                self.view.root.after(SAVE_CACHE_INTERVAL, self.save_cache)
+            threading.Thread(target=self._save_cache, args=(cache_path, schedule_next), daemon=True).start()
         else:
-            self.view.root.after(0, self.view.show_message_box_warning, 'Warning', 'Cache path is not set, cannot save cache')
+            self._queue_ui_callback(self.view.show_message_box_warning, 'Warning', 'Cache path is not set, cannot save cache')
 
-    def _save_cache(self, cache_path:str):
-        if cache_path is not None:
+    def _save_cache(self, cache_path:str, schedule_next: bool=False):
+        try:
             makedirs(path.dirname(cache_path), exist_ok=True)
             with open(cache_path, 'wb') as f:
                 pickle.dump(self.model.journal_reader, f)
+        except Exception:
+            self._queue_ui_callback(self.view.show_message_box_warning, 'Error', f'Error while saving cache\n{traceback.format_exc()}')
+        finally:
+            if schedule_next:
+                self._queue_ui_callback(self._schedule_cache_save)
 
     def button_click_clear_cache(self):
         cache_path = getCachePath(self.model.journal_reader.version, self.model.journal_reader.journal_paths)
@@ -1088,12 +1120,12 @@ class CarrierController:
             try:
                 remove(cache_path)
             except Exception as e:
-                self.view.show_message_box_warning('Error', f'Error while clearing cache\n{traceback.format_exc()}')
+                self._queue_ui_callback(self.view.show_message_box_warning, 'Error', f'Error while clearing cache\n{traceback.format_exc()}')
             else:
-                self.view.show_message_box_info('Success!', 'Cache cleared, EDCM will reload all journals now')
+                self._queue_ui_callback(self.view.show_message_box_info, 'Success!', 'Cache cleared, EDCM will reload all journals now')
                 self.reload()
         else:
-            self.view.show_message_box_info('Info', 'No cache file found')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Info', 'No cache file found')
 
     def reload(self):
         progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Reloading', 'Reloading all journals, this may take a while depending on the size of your journals')
@@ -1116,26 +1148,26 @@ class CarrierController:
         if not self.auth_handler.is_logged_in():
             threading.Thread(target=self.auth_handler.login, daemon=True).start()
         else:
-            self.view.root.after(0, self.view.show_message_box_info, 'Info', f'Already logged in as {self.auth_handler.get_username()}')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Info', f'Already logged in as {self.auth_handler.get_username()}')
 
     def button_click_logout(self):
         if self.auth_handler.is_logged_in():
             if self.view.show_message_box_askyesno('Logout', f'Do you want to logout of {self.auth_handler.get_username()}?'):
                 threading.Thread(target=self.auth_handler.logout, daemon=True).start()
         else:
-            self.view.show_message_box_info('Info', 'Not logged in')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Info', 'Not logged in')
 
     def button_click_verify_roles(self):
         in_ptn, roles = self.auth_handler.auth_PTN_roles()
         if in_ptn is None:
-            self.view.show_message_box_warning('Error', 'Error while verifying roles, please try again later')
+            self._queue_ui_callback(self.view.show_message_box_warning, 'Error', 'Error while verifying roles, please try again later')
         elif not in_ptn:
-            self.view.show_message_box_info('Not in PTN', 'You are not in the PTN Discord server, please make sure you are using the correct Discord account')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Not in PTN', 'You are not in the PTN Discord server, please make sure you are using the correct Discord account')
         elif not roles:
-            self.view.show_message_box_info('Info', f'You are in the PTN, but have no elevated roles assigned.')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Info', f'You are in the PTN, but have no elevated roles assigned.')
         else:
             roles_str = ', '.join(roles)
-            self.view.show_message_box_info('Success!', f'You are in the PTN and have the following roles:\n {roles_str}')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Success!', f'You are in the PTN and have the following roles:\n {roles_str}')
 
     def button_click_delete_account(self):
         if self.auth_handler.is_logged_in():
@@ -1146,16 +1178,16 @@ class CarrierController:
                     try:
                         response = self.auth_handler.invoke_edge("delete-account")
                         if 'error' in response:
-                            self.view.show_message_box_warning('Error', f"Error deleting account: {response['error']}")
+                            self._queue_ui_callback(self.view.show_message_box_warning, 'Error', f"Error deleting account: {response['error']}")
                     except Exception as e:
-                        self.view.show_message_box_warning('Error', f"Error deleting account: {e}")
+                        self._queue_ui_callback(self.view.show_message_box_warning, 'Error', f"Error deleting account: {e}")
                     else:
-                        self.view.show_message_box_info('Success!', 'Your account and data has been deleted successfully')
+                        self._queue_ui_callback(self.view.show_message_box_info, 'Success!', 'Your account and data has been deleted successfully')
                         self.auth_handler.logout()
 
     def on_sign_out(self, show_message: bool=True):
         if show_message:
-            self.view.show_message_box_info('Logged Out', 'You have been logged out')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Logged Out', 'You have been logged out')
         self.view.button_login.configure(text='Login with Discord')
         self.view.button_login.configure(command=lambda: threading.Thread(target=self.button_click_login, daemon=True).start())
         self.view.checkbox_enable_timer_reporting.configure(state='disabled')
@@ -1166,7 +1198,7 @@ class CarrierController:
 
     def on_sign_in(self, show_message: bool=True):
         if show_message:
-            self.view.show_message_box_info('Logged In', f'You are now logged in as {self.auth_handler.get_username()}')
+            self._queue_ui_callback(self.view.show_message_box_info, 'Logged In', f'You are now logged in as {self.auth_handler.get_username()}')
         self.view.button_login.configure(text=f'Logout of {self.auth_handler.get_username()}')
         self.view.button_login.configure(command=self.button_click_logout)
         self.view.checkbox_enable_timer_reporting.configure(state='normal')
@@ -1278,10 +1310,7 @@ class CarrierController:
         except Exception:
             box = 'warning'; title = 'Error'; msg = f'Error reporting jump timer history\n{traceback.format_exc()}'
 
-        # back onto the Tk event loop to show the dialog
-        self.view.root.after(0, lambda:
-            getattr(self.view, f'show_message_box_{box}')(title, msg)
-        )
+        self._queue_ui_callback(getattr(self.view, f'show_message_box_{box}'), title, msg)
 
     def button_click_timer_contributions(self):
         if not self.auth_handler.is_logged_in():
@@ -1363,11 +1392,11 @@ class CarrierController:
             self.root.deiconify()
 
     def _on_show(self, icon, item):
-        self.root.after(0, self.root.deiconify)
+        self._queue_ui_callback(self.root.deiconify)
 
     def _on_quit(self, icon, item):
         icon.stop()
-        self.root.after(0, self.root.destroy)
+        self._queue_ui_callback(self.root.destroy)
 
     def _on_minimize(self):
         self._send_to_tray()
