@@ -231,9 +231,7 @@ def _run_callback_server(render_html: Callable[[str, str, list[str]], bytes], ti
 
 class AuthHandler:
     """
-    - Normal login uses external PKCE OAuth (identify only); stores refresh token in keyring.
-    - PTN verification uses a one-off user OAuth (identify + guilds.members.read); no Supabase Auth.
-    - All Supabase calls use our custom access JWT for RLS.
+    Handles Frontier CAPI authentication for a specific carrier callsign.
     """
 
     def __init__(self, callsign: str | None = None, auto_restore: bool = True):
