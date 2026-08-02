@@ -31,11 +31,12 @@ from humanize import naturaltime, ordinal
 from concurrent.futures import ThreadPoolExecutor
 from numpy import datetime64
 from auth import AuthHandler
+from route_parser import getRoute
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
-from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
+from view import CarrierView, RouteView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
-from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
+from utility import getHammerCountdown, checkTimerFormat, getRoutePath, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
@@ -82,9 +83,11 @@ class CarrierController:
         }
         self.view = CarrierView(root, menu_options=menu_options)
         self.model.register_status_change_callback(self.status_change)
+        self.model.register_music_change_callback(self.music_change)
         self.load_settings(getSettingsPath())
         self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None}
 
+        self.view.button_open_route.configure(command=self.button_click_open_route)
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
         self.view.button_manual_timer.configure(command=self.button_click_manual_timer)
@@ -124,6 +127,7 @@ class CarrierController:
         self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
         self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
+        self.route_views = {}
 
         # initial load
         self.update_journals()
@@ -364,6 +368,16 @@ class CarrierController:
                         current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                         other_system=self.model.get_previous_system(carrierID, use_custom_name=True), other_body=self.model.get_previous_body(carrierID),
                         timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=notification_settings.get('jump_completed_discord_public_ping'))
+            route_info = self.model.routes.get(carrierID, None)
+            if route_info is not None:
+                new_location = self.model.get_current_system(carrierID)
+                if new_location == route_info['route'].at[route_info['progress'], 'System Name']:
+                    route_info['route'].at[route_info['progress'], 'Done'] = "✔"
+                    route_info['progress'] += 1
+                    route_info['route'].to_csv(getRoutePath(carrierID), index=False)
+                    route_view = self.route_views.get(carrierID, None)
+                    if route_view is not None:
+                        route_view.set_data(route_info['route'])
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
@@ -1352,6 +1366,73 @@ class CarrierController:
             self.copy_to_clipboard(f'{carrier_name} ({carrier_callsign}) - {services_str}', None, None)
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def button_click_open_route(self):
+        selected_row = self.get_selected_row(sheet=self.view.get_current_active_sheet())
+        if selected_row is not None:
+            carrierID = self.model.sorted_ids_display()[selected_row]
+            if carrierID in self.route_views.keys():
+                self.route_views[carrierID].popup.focus_set()
+                return
+            carrier_name = self.model.get_name(carrierID)
+            route_info = self.model.routes.get(carrierID, None)
+            route = None
+            if route_info is not None:
+                route = route_info['route']
+            self.route_views[carrierID] = RouteView(self.view.root, carrierID, carrier_name, route, lambda: self.route_views.pop(carrierID), window_size=self.settings.get('UI', 'window_size'))
+            self.route_views[carrierID].button_import_route.configure(command=lambda: self.button_click_import_route(carrierID))
+            self.route_views[carrierID].button_clear_route.configure(command=lambda: self.button_click_clear_route(carrierID))
+
+    def button_click_import_route(self, carrierID:int):
+        clipboard = self.root.clipboard_get()
+        regex = re.compile(r'^https://www\.spansh\.co\.uk/fleet-carrier/results/([A-F0-9\-]+)')
+        match = regex.match(clipboard)
+        if match is None:
+            return
+        routeId = match.groups()[0]
+        route = getRoute(routeId)
+
+        progress = 0
+        if route[0][1] == self.model.carriers[carrierID]['CarrierLocation']['SystemName']:
+            route[0][0] = "✔"
+            progress = 1
+
+        df = pd.DataFrame(route, columns=[
+            'Done', 'System Name', 'Jumps Remaining', 'Distance', 'Remaining Distance',
+            'Fuel Left', 'Tritium in Market', 'Fuel Used', 'Icy Ring', 'Restock?', 'Restock Amount'
+        ])
+        df.to_csv(getRoutePath(carrierID), index=False)
+        self.model.routes[carrierID] = {
+            'route': df,
+            'progress': progress,
+            'length': len(route)
+        }
+
+        self.route_views[carrierID].set_data(df)
+
+    def button_click_clear_route(self, carrierID:int):
+        self.model.routes.pop(carrierID)
+        self.route_views[carrierID].set_data(None)
+        os.remove(getRoutePath(carrierID))
+        self.redraw_fast()
+
+    def music_change(self, carrierID:str, old_music:str, new_music:str) -> None:
+        if new_music != 'FleetCarrier_Managment':
+            return
+        route = self.model.routes.get(carrierID, None)
+        if route is None:
+            return
+
+        if route['progress'] == route['length']:
+            return
+
+        if route['route'].at[route['progress'], 'Done'] == "✔":
+            return
+
+        system = route['route'].at[route['progress'], 'System Name']
+        
+        self.root.clipboard_clear()
+        self.root.clipboard_append(system)
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():

@@ -106,6 +106,7 @@ class CarrierView:
         self.sheet_jumps.headers([
             'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
             'Status', 'Destination System', 'Body', 'Timer', 'Plot Timer',
+            'Route'
         ])
 
         self.configure_sheet(self.sheet_jumps)
@@ -136,6 +137,9 @@ class CarrierView:
         # Departure notice
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
+        # Route
+        self.button_open_route = ttk.Button(self.bottom_bar, text='Open Route')
+        self.button_open_route.pack(side='left')
 
         # Trade tab
         self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade', empty_vertical=0, empty_horizontal=0)
@@ -718,6 +722,77 @@ class TradeHistoryView:
 
         center_window_relative_to_parent(self.popup, root)
         self.popup.focus_set()
+
+class RouteView:
+    def __init__(self, root: tk.Tk, carrierID:str, carrier_name:str, data, on_close, window_size:str=WINDOW_SIZE):
+        self.carrierID = carrierID
+        self.root = root
+        self.on_close = on_close
+
+        self.popup = tk.Toplevel(root)
+        self.popup.geometry(window_size)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Route for {carrier_name}')
+        self.popup.focus_force()
+        self.popup.rowconfigure(0, pad=1, weight=1)
+        self.popup.columnconfigure(0, pad=1, weight=1)
+        self.popup.protocol("WM_DELETE_WINDOW", self.close)
+
+        self.sheet_route = Sheet(self.popup, name='sheet_route')
+
+        self.sheet_route.headers([
+            'Done', 'System Name', 'Jumps Remaining', 'Distance', 'Remaining Distance',
+            'Fuel Left', 'Tritium in Market', 'Fuel Used', 'Icy Ring', 'Restock?', 'Restock Amount'
+        ])
+        self.sheet_route['A'].align('center')
+        self.sheet_route['C:H'].align('right')
+        self.sheet_route['K'].align('right')
+        self.set_data(data)
+
+        self.sheet_route.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.popup.grid_rowconfigure(0, weight=2)
+        self.sheet_route.change_theme('dark', redraw=False)
+        self.sheet_route.set_options(**{
+            'table_bg':    '#1c1c1e',  # main window surface
+            'header_bg':   "#202021",  # secondary surface
+            'header_fg':   '#f3f3f5',  # light text
+            'index_bg':    '#202021',  # secondary surface
+            'index_fg':    "#C2C2C4",  # dim light text
+            'top_left_bg':  '#202021',  # secondary surface
+            'cell_bg':     '#1c1c1e',  # main window surface
+            'cell_fg':     '#f3f3f5',  # light text
+            'selected_bg': '#0a84ff',  # Fluent accent blue
+            'selected_fg': '#ffffff',  # white text on selection
+        })
+        self.sheet_route.column_width_resize_enabled = False
+        self.sheet_route.row_height_resize_enabled = False
+
+        self.set_data(data)
+
+        self.button_bar_route = ttk.Frame(self.popup)
+        self.button_bar_route.grid(row=2, column=0, columnspan=3, sticky='ew')
+
+        self.button_import_route = ttk.Button(self.button_bar_route, text='Import Route')
+        self.button_import_route.pack(side='left', anchor='w')
+
+        self.button_clear_route = ttk.Button(self.button_bar_route, text='Clear Route')
+        self.button_clear_route.pack(side='left', anchor='w')
+
+        #center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
+
+    def set_data(self, data):
+        rows = None
+        if data is not None:
+            rows = data.values.tolist()
+        self.sheet_route.set_sheet_data(rows)
+        self.sheet_route.set_all_column_widths()
+
+    def close(self):
+        self.on_close()
+        self.popup.destroy()
+        
 
 if __name__ == '__main__':
     import sv_ttk
