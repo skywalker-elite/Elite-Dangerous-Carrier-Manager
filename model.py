@@ -717,7 +717,7 @@ class CarrierModel:
 
         for carrierID in old_music.keys() & new_music.keys():
             if new_music[carrierID] != old_music[carrierID]:
-                print(f'model:{self.get_name(carrierID)} music changed from {old_music[carrierID]} to {new_music[carrierID]}')
+                # print(f'model:{self.get_name(carrierID)} music changed from {old_music[carrierID]} to {new_music[carrierID]}')
                 self._callback_music_change(carrierID, old_music[carrierID], new_music[carrierID])
 
         
@@ -807,13 +807,6 @@ class CarrierModel:
                 f"{timer}",
                 route_counter
                 )
-
-    def get_route_progress(self, route:list[tuple[bool,str,int]]):
-        for i,_ in enumerate(route, start=1):
-            if i == False:
-                return i - 1
-        return len(route) - 1
-
     
     def get_data_finance(self):
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
