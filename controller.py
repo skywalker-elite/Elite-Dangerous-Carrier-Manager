@@ -35,7 +35,7 @@ from route_parser import getRoute
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, RouteView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
-from station_parser import EDSMError, getStations
+from station_parser import EDSMError, SpanshError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getRoutePath, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
@@ -1382,15 +1382,24 @@ class CarrierController:
             self.route_views[carrierID] = RouteView(self.view.root, carrierID, carrier_name, route, lambda: self.route_views.pop(carrierID), window_size=self.settings.get('UI', 'window_size'))
             self.route_views[carrierID].button_import_route.configure(command=lambda: self.button_click_import_route(carrierID))
             self.route_views[carrierID].button_clear_route.configure(command=lambda: self.button_click_clear_route(carrierID))
+        else:
+            self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
 
     def button_click_import_route(self, carrierID:int):
         clipboard = self.root.clipboard_get()
-        regex = re.compile(r'^https://www\.spansh\.co\.uk/fleet-carrier/results/([A-F0-9\-]+)')
+        print(f'Clipboard content: {clipboard}')
+        regex = re.compile(r'^https://([www]\.)?spansh\.co\.uk/fleet-carrier/results/([A-F0-9\-]+)')
         match = regex.match(clipboard)
         if match is None:
+            self.view.show_message_box_warning('Warning', 'Clipboard does not contain a valid Spansh route URL')
             return
-        routeId = match.groups()[0]
-        route = getRoute(routeId)
+        routeId = match.groups()[1]
+        print(f'Found routeId: {routeId}')
+        try:
+            route = getRoute(routeId)
+        except SpanshError as e:
+            self.view.show_message_box_warning('Warning', f'Error fetching route: {e}')
+            return
 
         progress = 0
         if route[0][1] == self.model.carriers[carrierID]['CarrierLocation']['SystemName']:

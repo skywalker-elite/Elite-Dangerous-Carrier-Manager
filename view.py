@@ -7,6 +7,7 @@ from popups import show_message_box_info, show_message_box_warning, show_message
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
 from station_parser import getStockPrice
+from route_parser import searchSystems
 
 class MenuOption(NamedTuple):
         label: str
@@ -770,13 +771,16 @@ class RouteView:
 
         self.set_data(data)
 
-        self.button_bar_route = ttk.Frame(self.popup)
-        self.button_bar_route.grid(row=2, column=0, columnspan=3, sticky='ew')
+        self.bottom_bar_route = ttk.Frame(self.popup)
+        self.bottom_bar_route.grid(row=2, column=0, columnspan=3, sticky='ew')
 
-        self.button_import_route = ttk.Button(self.button_bar_route, text='Import Route')
+        self.button_plot_route = ttk.Button(self.bottom_bar_route, text='Plot Route')
+        self.button_plot_route.pack(side='left', anchor='w')
+
+        self.button_import_route = ttk.Button(self.bottom_bar_route, text='Import Route')
         self.button_import_route.pack(side='left', anchor='w')
 
-        self.button_clear_route = ttk.Button(self.button_bar_route, text='Clear Route')
+        self.button_clear_route = ttk.Button(self.bottom_bar_route, text='Clear Route')
         self.button_clear_route.pack(side='left', anchor='w')
 
         #center_window_relative_to_parent(self.popup, root)
@@ -792,7 +796,62 @@ class RouteView:
     def close(self):
         self.on_close()
         self.popup.destroy()
-        
+
+class RoutePlotterView:
+    def __init__(self, root: tk.Tk, carrierID:str, carrier_name:str, start_system:str, end_system:str, capacity_used:int, on_close, window_size:str=WINDOW_SIZE):
+        self.carrierID = carrierID
+        self.root = root
+        self.on_close = on_close
+
+        self.popup = tk.Toplevel(root)
+        self.popup.geometry(window_size)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Route Plotter for {carrier_name}')
+        self.popup.focus_force()
+        self.popup.rowconfigure(0, pad=1, weight=1)
+        self.popup.columnconfigure(0, pad=1, weight=1)
+        self.popup.protocol("WM_DELETE_WINDOW", self.close)
+
+        self.label_start_system = ttk.Label(self.popup, text='Start System:')
+        self.label_start_system.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.cbox_start_system = ttk.Combobox(self.popup, values=[start_system], state='normal')
+        self.cbox_start_system.set(start_system)
+        self.cbox_start_system.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+
+        self.label_end_system = ttk.Label(self.popup, text='End System:')
+        self.label_end_system.grid(row=1, column=0, padx=10, pady=10, sticky='w')
+        self.cbox_end_system = ttk.Combobox(self.popup, values=[end_system], state='normal')
+        self.cbox_end_system.set(end_system)
+        self.cbox_end_system.grid(row=1, column=1, padx=10, pady=10, sticky='w')
+
+        self.label_capacity_used = ttk.Label(self.popup, text='Capacity Used:')
+        self.label_capacity_used.grid(row=2, column=1, padx=10, pady=10, sticky='w')
+        self.entry_capacity_used = ttk.Entry(self.popup)
+        self.entry_capacity_used.insert(0, str(capacity_used))
+        self.entry_capacity_used.grid(row=2, column=2, padx=10, pady=10, sticky='w')
+
+        self.label_spansh_ack = ttk.Label(self.popup, text='Route plotting is provided by Spansh (https://spansh.co.uk/).')
+        self.label_spansh_ack.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky='w')
+
+        self.button_plot_route = ttk.Button(self.popup, text='Plot Route')
+        self.button_plot_route.grid(row=4, column=0, padx=10, pady=10, sticky='w')
+
+    def close(self):
+        self.on_close()
+        self.popup.destroy()
+
+    def autocomplete_start_system(self, s: str):
+        systems = [system['name'] for system in searchSystems(s)]
+        self.cbox_start_system['values'] = systems
+        systems = searchSystems.__wrapped__(s)
+        self.cbox_start_system['values'] = [system['name'] for system in systems]
+
+    def autocomplete_end_system(self, s: str):
+        systems = [system['name'] for system in searchSystems(s)]
+        self.cbox_end_system['values'] = systems
+        systems = searchSystems.__wrapped__(s)
+        self.cbox_end_system['values'] = [system['name'] for system in systems]
 
 if __name__ == '__main__':
     import sv_ttk
