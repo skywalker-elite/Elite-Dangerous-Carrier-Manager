@@ -4,14 +4,13 @@ import sys
 import threading
 import time
 from queue import Empty, Queue
-from typing import Any, Callable, TYPE_CHECKING
+from typing import Any, Callable, Literal, TYPE_CHECKING
 from realtime import PostgresChangesPayload, AsyncRealtimeClient, RealtimeSubscribeStates
 import pyperclip
 import re
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 from webbrowser import open_new_tab
-# from winotify import Notification TODO: for notification without popup
 from datetime import datetime, timezone, timedelta, date
 from os import makedirs, path, remove
 from shutil import copyfile
@@ -31,10 +30,10 @@ from humanize import naturaltime, ordinal
 from concurrent.futures import ThreadPoolExecutor
 from numpy import datetime64
 from auth import AuthHandler
-from route_parser import getRoute
+from route_parser import getRoute, plotRoute, searchSystems
 from settings import Settings, SettingsValidationError
 from model import CarrierModel
-from view import CarrierView, RouteView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
+from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView, RouteView, RoutePlotterView
 from station_parser import EDSMError, SpanshError, getStations
 from utility import getHammerCountdown, checkTimerFormat, getRoutePath, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
 from decos import debounce
@@ -44,6 +43,8 @@ from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDR
 
 if TYPE_CHECKING: 
     import tksheet
+
+AUTOCOMPLETE_DEBOUNCE_MS = 250
 
 class JournalEventHandler(FileSystemEventHandler):
     def __init__(self, controller: 'CarrierController'):
@@ -127,7 +128,14 @@ class CarrierController:
         self.view.button_report_timer_history.configure(command=self.button_click_report_timer_history)
         self.view.button_timer_contributions.configure(command=self.button_click_timer_contributions)
         self.view.button_delete_account.configure(command=self.button_click_delete_account)
-        self.route_views = {}
+        self.route_views: dict[int, RouteView] = {}
+        self.route_plotter_views: dict[int, RoutePlotterView] = {}
+        self._route_plotter_autocomplete_request_ids: dict[tuple[int, str], int] = {}
+        self._route_plotter_autocomplete_after_ids: dict[tuple[int, str], str] = {}
+        self._route_plotter_system_search_results: dict[tuple[int, str], dict[str, dict[str, int | str]]] = {}
+        self._route_plotter_selected_systems: dict[tuple[int, str], dict[str, int | str]] = {}
+        self._route_plotter_plotting: set[int] = set()
+        self._route_import_progress_windows: dict[int, tuple[Any, Any]] = {}
 
         # initial load
         self.update_journals()
@@ -1379,11 +1387,299 @@ class CarrierController:
             route = None
             if route_info is not None:
                 route = route_info['route']
-            self.route_views[carrierID] = RouteView(self.view.root, carrierID, carrier_name, route, lambda: self.route_views.pop(carrierID), window_size=self.settings.get('UI', 'window_size'))
+            self.route_views[carrierID] = RouteView(self.view.root, carrier_name, route, lambda: self.route_views.pop(carrierID), window_size=self.settings.get('UI', 'window_size'))
+            self.route_views[carrierID].button_plot_route.configure(command=lambda: self.button_click_open_route_plotter(carrierID))
             self.route_views[carrierID].button_import_route.configure(command=lambda: self.button_click_import_route(carrierID))
             self.route_views[carrierID].button_clear_route.configure(command=lambda: self.button_click_clear_route(carrierID))
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
+
+    def button_click_open_route_plotter(self, carrierID:int):
+        route_info = self.model.routes.get(carrierID, None)
+        if route_info is not None:
+            if not self.view.show_message_box_askyesno('Warning', 'This carrier already has a route plotted. Do you want to overwrite it?'):
+                return
+            self.model.routes.pop(carrierID, None)
+        carrier_name = self.model.get_name(carrierID)
+        current_system = self.model.get_current_or_destination_system(carrierID)
+        self.route_plotter_views[carrierID] = RoutePlotterView(
+            self.view.root,
+            carrier_name,
+            current_system,
+            self.model.get_capacity_used(carrierID),
+            self.model.get_cargo_tonnage(carrierID),
+            on_close=lambda: self._close_route_plotter(carrierID),
+            on_system_name_changed=lambda field, system_name: self.autocomplete_route_plotter_system(carrierID, field, system_name),
+            on_system_selected=lambda field, system_name: self.select_route_plotter_system(carrierID, field, system_name),
+            on_plot_route=lambda capacity_used: self.button_click_plot_route(carrierID, capacity_used),
+        )
+        self._resolve_initial_route_plotter_start_system(carrierID, current_system)
+
+    def _close_route_plotter(self, carrierID:int):
+        self._cancel_route_plotter_autocomplete(carrierID)
+        self._route_plotter_plotting.discard(carrierID)
+        self.route_plotter_views.pop(carrierID, None)
+
+    def autocomplete_route_plotter_system(self, carrierID:int, field:Literal['start', 'end'], system_name:str):
+        key = (carrierID, field)
+        request_id = self._route_plotter_autocomplete_request_ids.get(key, 0) + 1
+        self._route_plotter_autocomplete_request_ids[key] = request_id
+        self._route_plotter_system_search_results.pop(key, None)
+        self._route_plotter_selected_systems.pop(key, None)
+        self._update_route_plotter_plot_button_state(carrierID)
+
+        after_id = self._route_plotter_autocomplete_after_ids.pop(key, None)
+        if after_id is not None:
+            self.root.after_cancel(after_id)
+
+        route_plotter = self.route_plotter_views.get(carrierID)
+        if route_plotter is None:
+            return
+        route_plotter.set_system_suggestions(field, [])
+        if not system_name.strip():
+            return
+
+        self._route_plotter_autocomplete_after_ids[key] = self.root.after(
+            AUTOCOMPLETE_DEBOUNCE_MS,
+            lambda: self._start_route_plotter_system_search(carrierID, field, request_id, system_name),
+        )
+
+    def _resolve_initial_route_plotter_start_system(self, carrierID:int, system_name:str|None):
+        system_name = system_name or ''
+        key = (carrierID, 'start')
+        request_id = self._route_plotter_autocomplete_request_ids.get(key, 0) + 1
+        self._route_plotter_autocomplete_request_ids[key] = request_id
+        if not system_name.strip():
+            self._clear_initial_route_plotter_start_system(carrierID, system_name)
+            return
+        threading.Thread(
+            target=self._search_route_plotter_systems,
+            args=(carrierID, 'start', request_id, system_name, True),
+            daemon=True,
+        ).start()
+
+    def _start_route_plotter_system_search(self, carrierID:int, field:Literal['start', 'end'], request_id:int, system_name:str):
+        key = (carrierID, field)
+        self._route_plotter_autocomplete_after_ids.pop(key, None)
+        if not self._is_current_route_plotter_autocomplete_request(carrierID, field, request_id):
+            return
+        threading.Thread(
+            target=self._search_route_plotter_systems,
+            args=(carrierID, field, request_id, system_name),
+            daemon=True,
+        ).start()
+
+    def _search_route_plotter_systems(self, carrierID:int, field:Literal['start', 'end'], request_id:int, system_name:str, is_initial_start:bool=False):
+        try:
+            systems = searchSystems(system_name)
+        except Exception:
+            systems = []
+        self._queue_ui_callback(
+            self._show_route_plotter_system_suggestions,
+            carrierID,
+            field,
+            request_id,
+            systems,
+            is_initial_start,
+        )
+
+    def _show_route_plotter_system_suggestions(self, carrierID:int, field:Literal['start', 'end'], request_id:int, systems:list[dict[str, int | str]], is_initial_start:bool=False):
+        if not self._is_current_route_plotter_autocomplete_request(carrierID, field, request_id):
+            return
+        route_plotter = self.route_plotter_views.get(carrierID)
+        if route_plotter is None:
+            return
+
+        key = (carrierID, field)
+        system_results = {
+            system['name']: system
+            for system in systems
+            if isinstance(system.get('name'), str) and system.get('id64') is not None
+        }
+        self._route_plotter_system_search_results[key] = system_results
+
+        if is_initial_start:
+            system_name = route_plotter.get_system_name('start')
+            selected_system = next(
+                (
+                    system
+                    for name, system in system_results.items()
+                    if name.casefold() == system_name.casefold()
+                ),
+                None,
+            )
+            if selected_system is None:
+                self._clear_initial_route_plotter_start_system(carrierID, system_name)
+                return
+            route_plotter.select_system('start', str(selected_system['name']))
+            return
+
+        route_plotter.set_system_suggestions(field, list(system_results))
+
+    def _clear_initial_route_plotter_start_system(self, carrierID:int, system_name:str):
+        route_plotter = self.route_plotter_views.get(carrierID)
+        if route_plotter is None:
+            return
+        key = (carrierID, 'start')
+        self._route_plotter_system_search_results.pop(key, None)
+        self._route_plotter_selected_systems.pop(key, None)
+        route_plotter.clear_system('start')
+        self._update_route_plotter_plot_button_state(carrierID)
+        self.view.show_message_box_warning(
+            'System not found',
+            f'{system_name or "The current system"} is not available in Spansh and has been cleared.',
+        )
+
+    def select_route_plotter_system(self, carrierID:int, field:Literal['start', 'end'], system_name:str):
+        key = (carrierID, field)
+        system = self._route_plotter_system_search_results.get(key, {}).get(system_name)
+        if system is None:
+            self._route_plotter_selected_systems.pop(key, None)
+        else:
+            self._route_plotter_selected_systems[key] = system
+        self._update_route_plotter_plot_button_state(carrierID)
+
+    def _update_route_plotter_plot_button_state(self, carrierID:int):
+        route_plotter = self.route_plotter_views.get(carrierID)
+        if route_plotter is None:
+            return
+        selections_complete = all(
+            (carrierID, field) in self._route_plotter_selected_systems
+            for field in ('start', 'end')
+        )
+        route_plotter.set_plot_route_enabled(
+            selections_complete and carrierID not in self._route_plotter_plotting,
+        )
+
+    def button_click_plot_route(self, carrierID:int, capacity_used_text:str):
+        start_system = self._route_plotter_selected_systems.get((carrierID, 'start'))
+        end_system = self._route_plotter_selected_systems.get((carrierID, 'end'))
+        if start_system is None or end_system is None:
+            self.view.show_message_box_warning('System selection required', 'Select a start and end system from the Spansh suggestions before plotting a route.')
+            self._update_route_plotter_plot_button_state(carrierID)
+            return
+
+        try:
+            capacity_used = int(capacity_used_text.strip())
+        except ValueError:
+            self.view.show_message_box_warning('Invalid capacity used', 'Capacity used must be a whole number.')
+            return
+
+        total_capacity = self.model.get_space_usage(carrierID).get('TotalCapacity')
+        if not isinstance(total_capacity, int):
+            self.view.show_message_box_warning('Capacity unavailable', 'The carrier total capacity is unavailable, so the route cannot be plotted.')
+            return
+        if not 0 <= capacity_used <= total_capacity:
+            self.view.show_message_box_warning('Invalid capacity used', f'Capacity used must be between 0 and {total_capacity:,}.')
+            return
+
+        self._route_plotter_plotting.add(carrierID)
+        self._update_route_plotter_plot_button_state(carrierID)
+        threading.Thread(
+            target=self._plot_route,
+            args=(
+                carrierID,
+                str(start_system['id64']),
+                str(end_system['id64']),
+                total_capacity,
+                capacity_used,
+            ),
+            daemon=True,
+        ).start()
+
+    def _plot_route(self, carrierID:int, start_system_id64:str, end_system_id64:str, total_capacity:int, capacity_used:int):
+        try:
+            job_id = plotRoute(
+                start_system_id64,
+                end_system_id64,
+                total_capacity,
+                total_capacity,
+                capacity_used,
+            )
+        except Exception as error:
+            self._queue_ui_callback(self._route_plot_failed, carrierID, str(error))
+            return
+        self._queue_ui_callback(self._route_plot_submitted, carrierID, job_id)
+
+    def _route_plot_submitted(self, carrierID:int, job_id:str):
+        self._route_plotter_plotting.discard(carrierID)
+        route_plotter = self.route_plotter_views.get(carrierID)
+        if route_plotter is None:
+            return
+        route_plotter.close()
+        route_view = self.route_views.get(carrierID)
+        if route_view is not None:
+            route_view.popup.focus_set()
+        self._start_route_import(carrierID, job_id)
+
+    def _start_route_import(self, carrierID:int, route_id:str):
+        if carrierID not in self.route_views or carrierID in self._route_import_progress_windows:
+            return
+        self._route_import_progress_windows[carrierID] = self.view.show_indeterminate_progress_bar(
+            'Importing route',
+            'Importing route from Spansh...',
+        )
+        threading.Thread(
+            target=self._fetch_route_for_import,
+            args=(carrierID, route_id),
+            daemon=True,
+        ).start()
+
+    def _fetch_route_for_import(self, carrierID:int, route_id:str):
+        try:
+            route = getRoute(route_id)
+        except Exception as error:
+            self._queue_ui_callback(self._route_import_failed, carrierID, str(error))
+            return
+        self._queue_ui_callback(self._complete_route_import, carrierID, route)
+
+    def _complete_route_import(self, carrierID:int, route:list):
+        self._close_route_import_progress(carrierID)
+        if carrierID not in self.route_views:
+            return
+        try:
+            self._store_imported_route(carrierID, route)
+        except Exception as error:
+            self.view.show_message_box_warning('Route import failed', f'Could not import the route from Spansh:\n{error}')
+
+    def _route_import_failed(self, carrierID:int, error:str):
+        self._close_route_import_progress(carrierID)
+        if carrierID in self.route_views:
+            self.view.show_message_box_warning('Route import failed', f'Could not retrieve the route from Spansh:\n{error}')
+
+    def _close_route_import_progress(self, carrierID:int):
+        progress = self._route_import_progress_windows.pop(carrierID, None)
+        if progress is None:
+            return
+        progress_window, progress_bar = progress
+        try:
+            progress_bar.stop()
+            progress_window.destroy()
+        except TclError:
+            pass
+
+    def _route_plot_failed(self, carrierID:int, error:str):
+        self._route_plotter_plotting.discard(carrierID)
+        if carrierID not in self.route_plotter_views:
+            return
+        self._update_route_plotter_plot_button_state(carrierID)
+        self.view.show_message_box_warning('Route plotting failed', f'Spansh could not create or retrieve the route:\n{error}')
+
+    def _is_current_route_plotter_autocomplete_request(self, carrierID:int, field:Literal['start', 'end'], request_id:int) -> bool:
+        return (
+            carrierID in self.route_plotter_views
+            and self._route_plotter_autocomplete_request_ids.get((carrierID, field)) == request_id
+        )
+
+    def _cancel_route_plotter_autocomplete(self, carrierID:int):
+        for field in ('start', 'end'):
+            key = (carrierID, field)
+            self._route_plotter_autocomplete_request_ids[key] = self._route_plotter_autocomplete_request_ids.get(key, 0) + 1
+            self._route_plotter_system_search_results.pop(key, None)
+            self._route_plotter_selected_systems.pop(key, None)
+            after_id = self._route_plotter_autocomplete_after_ids.pop(key, None)
+            if after_id is not None:
+                self.root.after_cancel(after_id)
 
     def button_click_import_route(self, carrierID:int):
         clipboard = self.root.clipboard_get()
@@ -1395,12 +1691,9 @@ class CarrierController:
             return
         routeId = match.groups()[1]
         print(f'Found routeId: {routeId}')
-        try:
-            route = getRoute(routeId)
-        except SpanshError as e:
-            self.view.show_message_box_warning('Warning', f'Error fetching route: {e}')
-            return
+        self._start_route_import(carrierID, routeId)
 
+    def _store_imported_route(self, carrierID:int, route:list):
         progress = 0
         if route[0][1] == self.model.carriers[carrierID]['CarrierLocation']['SystemName']:
             route[0][0] = "✔"

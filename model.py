@@ -392,7 +392,7 @@ class CarrierModel:
                 self.carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 self.carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
                 self.carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
-                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
+                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace'], 'TotalCapacity': stat['SpaceUsage']['TotalCapacity']}
                 df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
@@ -540,7 +540,7 @@ class CarrierModel:
                     self.carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
                 
             if 'SpaceUsage' not in self.carriers[carrierID].keys():
-                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
+                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None, 'TotalCapacity': 25000 if not self.is_squadron_carrier(carrierID) else 60000}
 
             if 'PendingDecom' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['PendingDecom'] = False
@@ -966,6 +966,18 @@ class CarrierModel:
 
     def get_space_usage(self, carrierID: int):
         return self.get_carriers()[carrierID]['SpaceUsage']
+
+    def get_capacity_used(self, carrierID: int) -> int|None:
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        if space_usage['FreeSpace'] is None or space_usage['TotalCapacity'] is None:
+            return None
+        return space_usage['TotalCapacity'] - space_usage['FreeSpace'] - space_usage['Cargo']
+
+    def get_cargo_tonnage(self, carrierID: int) -> int|None:
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        if space_usage['Cargo'] is None:
+            return None
+        return space_usage['Cargo']
     
     def generate_info_stat_time(self, carrierID: int) -> str:
         stat_time = self.get_stat_time(carrierID=carrierID)

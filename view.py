@@ -7,7 +7,8 @@ from popups import show_message_box_info, show_message_box_warning, show_message
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
 from station_parser import getStockPrice
-from route_parser import searchSystems
+
+COMBOBOX_LIST_FOCUS_DELAY_MS = 25
 
 class MenuOption(NamedTuple):
         label: str
@@ -725,8 +726,7 @@ class TradeHistoryView:
         self.popup.focus_set()
 
 class RouteView:
-    def __init__(self, root: tk.Tk, carrierID:str, carrier_name:str, data, on_close, window_size:str=WINDOW_SIZE):
-        self.carrierID = carrierID
+    def __init__(self, root: tk.Tk, carrier_name:str, data, on_close, window_size:str=WINDOW_SIZE):
         self.root = root
         self.on_close = on_close
 
@@ -783,7 +783,7 @@ class RouteView:
         self.button_clear_route = ttk.Button(self.bottom_bar_route, text='Clear Route')
         self.button_clear_route.pack(side='left', anchor='w')
 
-        #center_window_relative_to_parent(self.popup, root)
+        center_window_relative_to_parent(self.popup, root)
         self.popup.focus_set()
 
     def set_data(self, data):
@@ -798,13 +798,20 @@ class RouteView:
         self.popup.destroy()
 
 class RoutePlotterView:
-    def __init__(self, root: tk.Tk, carrierID:str, carrier_name:str, start_system:str, end_system:str, capacity_used:int, on_close, window_size:str=WINDOW_SIZE):
-        self.carrierID = carrierID
+    def __init__(self, root: tk.Tk, carrier_name:str, start_system:str, capacity_used:int, cargo_tonnage:int, on_close, on_system_name_changed:Callable[[Literal['start', 'end'], str], None], on_system_selected:Callable[[Literal['start', 'end'], str], None], on_plot_route:Callable[[str], None]):
         self.root = root
         self.on_close = on_close
+        self.on_system_name_changed = on_system_name_changed
+        self.on_system_selected = on_system_selected
+        self.on_plot_route = on_plot_route
+        self._suggestion_combobox: ttk.Combobox|None = None
+        self._suggestion_listbox: str|None = None
+        self._suggestion_listbox_focus_out_binding: str|None = None
+        self._suggestion_listbox_focus_in_binding: str|None = None
+        self._suggestion_listbox_button_press_binding: str|None = None
+        self._ignore_next_suggestion_focus_out = False
 
         self.popup = tk.Toplevel(root)
-        self.popup.geometry(window_size)
         self.popup.transient(root)
         apply_theme_to_titlebar(self.popup)
         self.popup.title(f'Route Plotter for {carrier_name}')
@@ -812,46 +819,197 @@ class RoutePlotterView:
         self.popup.rowconfigure(0, pad=1, weight=1)
         self.popup.columnconfigure(0, pad=1, weight=1)
         self.popup.protocol("WM_DELETE_WINDOW", self.close)
+        self._select_system_suggestion_command = self.popup.register(self._select_system_suggestion)
 
         self.label_start_system = ttk.Label(self.popup, text='Start System:')
         self.label_start_system.grid(row=0, column=0, padx=10, pady=10, sticky='w')
         self.cbox_start_system = ttk.Combobox(self.popup, values=[start_system], state='normal')
         self.cbox_start_system.set(start_system)
         self.cbox_start_system.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.cbox_start_system.bind('<KeyRelease>', lambda event: self.on_system_name_changed('start', self.cbox_start_system.get()))
+        self.cbox_start_system.bind('<FocusOut>', self._hide_system_suggestions_on_focus_change, add='+')
+        self.cbox_start_system.bind('<Button-1>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_start_system.bind('<Escape>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_start_system.bind('<<ComboboxSelected>>', lambda event: self._on_system_selected('start'), add='+')
 
         self.label_end_system = ttk.Label(self.popup, text='End System:')
-        self.label_end_system.grid(row=1, column=0, padx=10, pady=10, sticky='w')
-        self.cbox_end_system = ttk.Combobox(self.popup, values=[end_system], state='normal')
-        self.cbox_end_system.set(end_system)
-        self.cbox_end_system.grid(row=1, column=1, padx=10, pady=10, sticky='w')
+        self.label_end_system.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        self.cbox_end_system = ttk.Combobox(self.popup, values=[], state='normal')
+        self.cbox_end_system.grid(row=0, column=3, padx=10, pady=10, sticky='w')
+        self.cbox_end_system.bind('<KeyRelease>', lambda event: self.on_system_name_changed('end', self.cbox_end_system.get()))
+        self.cbox_end_system.bind('<FocusOut>', self._hide_system_suggestions_on_focus_change, add='+')
+        self.cbox_end_system.bind('<Button-1>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_end_system.bind('<Escape>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_end_system.bind('<<ComboboxSelected>>', lambda event: self._on_system_selected('end'), add='+')
 
         self.label_capacity_used = ttk.Label(self.popup, text='Capacity Used:')
-        self.label_capacity_used.grid(row=2, column=1, padx=10, pady=10, sticky='w')
+        self.label_capacity_used.grid(row=0, column=4, padx=10, pady=10, sticky='w')
         self.entry_capacity_used = ttk.Entry(self.popup)
         self.entry_capacity_used.insert(0, str(capacity_used))
-        self.entry_capacity_used.grid(row=2, column=2, padx=10, pady=10, sticky='w')
+        self.entry_capacity_used.grid(row=0, column=5, padx=10, pady=10, sticky='w')
 
-        self.label_spansh_ack = ttk.Label(self.popup, text='Route plotting is provided by Spansh (https://spansh.co.uk/).')
-        self.label_spansh_ack.grid(row=3, column=0, columnspan=3, padx=10, pady=10, sticky='w')
+        self.label_capacity_used_explanation = ttk.Label(self.popup, text=f'Capacity used should be {capacity_used}, assuming all your {cargo_tonnage} tons of cargo is tritium.')
+        self.label_capacity_used_explanation.grid(row=1, column=0, padx=10, pady=10, sticky='e', columnspan=6)
 
-        self.button_plot_route = ttk.Button(self.popup, text='Plot Route')
-        self.button_plot_route.grid(row=4, column=0, padx=10, pady=10, sticky='w')
+        self.label_spansh_ack = ttk.Label(self.popup, text='Route plotting is powered by Spansh (https://spansh.co.uk/).')
+        self.label_spansh_ack.grid(row=2, column=0, columnspan=6, padx=10, pady=10, sticky='')
+
+        self.button_plot_route = ttk.Button(
+            self.popup,
+            text='Plot Route',
+            state='disabled',
+            command=lambda: self.on_plot_route(self.entry_capacity_used.get()),
+        )
+        self.button_plot_route.grid(row=3, column=0, padx=10, pady=10, sticky='', columnspan=6)
+
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
 
     def close(self):
+        self.hide_system_suggestions()
         self.on_close()
         self.popup.destroy()
 
-    def autocomplete_start_system(self, s: str):
-        systems = [system['name'] for system in searchSystems(s)]
-        self.cbox_start_system['values'] = systems
-        systems = searchSystems.__wrapped__(s)
-        self.cbox_start_system['values'] = [system['name'] for system in systems]
+    def get_system_name(self, field:Literal['start', 'end']) -> str:
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        return combobox.get()
 
-    def autocomplete_end_system(self, s: str):
-        systems = [system['name'] for system in searchSystems(s)]
-        self.cbox_end_system['values'] = systems
-        systems = searchSystems.__wrapped__(s)
-        self.cbox_end_system['values'] = [system['name'] for system in systems]
+    def select_system(self, field:Literal['start', 'end'], system_name:str):
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        combobox.set(system_name)
+        combobox.event_generate('<<ComboboxSelected>>')
+
+    def clear_system(self, field:Literal['start', 'end']):
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        if self._suggestion_combobox == combobox:
+            self.hide_system_suggestions()
+        combobox.set('')
+
+    def set_plot_route_enabled(self, enabled:bool):
+        self.button_plot_route.configure(state='normal' if enabled else 'disabled')
+
+    def set_system_suggestions(self, field:Literal['start', 'end'], system_names:list[str]):
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        combobox['values'] = system_names
+        if not system_names:
+            if self._suggestion_combobox == combobox:
+                self.hide_system_suggestions()
+            return
+
+        self.hide_system_suggestions()
+        self._suggestion_combobox = combobox
+        popdown = combobox.tk.call('ttk::combobox::PopdownWindow', str(combobox))
+        self._suggestion_listbox = f'{popdown}.f.l'
+        self._suggestion_listbox_focus_out_binding = combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<FocusOut>',
+        )
+        self._suggestion_listbox_focus_in_binding = combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<FocusIn>',
+        )
+        self._suggestion_listbox_button_press_binding = combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<ButtonPress-1>',
+        )
+        combobox.tk.call('bind', self._suggestion_listbox, '<FocusOut>', 'break')
+        combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<ButtonPress-1>',
+            f'{self._select_system_suggestion_command} %W %y',
+        )
+        focus_command = f'focus {combobox}'
+        restore_focus_in_binding_command = (
+            f'bind {self._suggestion_listbox} <FocusIn> '
+            f'{{{self._suggestion_listbox_focus_in_binding or ""}}}'
+        )
+        combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<FocusIn>',
+            f'after {COMBOBOX_LIST_FOCUS_DELAY_MS} {{{focus_command}}}; {restore_focus_in_binding_command}',
+        )
+        self._ignore_next_suggestion_focus_out = True
+        combobox.tk.eval(f'ttk::combobox::Post {combobox}')
+
+    def hide_system_suggestions(self):
+        if self._suggestion_combobox is None:
+            return
+        try:
+            if self._suggestion_listbox is not None:
+                self._suggestion_combobox.tk.call(
+                    'bind',
+                    self._suggestion_listbox,
+                    '<FocusOut>',
+                    self._suggestion_listbox_focus_out_binding or '',
+                )
+                self._suggestion_combobox.tk.call(
+                    'bind',
+                    self._suggestion_listbox,
+                    '<FocusIn>',
+                    self._suggestion_listbox_focus_in_binding or '',
+                )
+                self._suggestion_combobox.tk.call(
+                    'bind',
+                    self._suggestion_listbox,
+                    '<ButtonPress-1>',
+                    self._suggestion_listbox_button_press_binding or '',
+                )
+            self._suggestion_combobox.tk.call(
+                'ttk::combobox::Unpost',
+                str(self._suggestion_combobox),
+            )
+        except tk.TclError:
+            pass
+        self._suggestion_listbox = None
+        self._suggestion_listbox_focus_out_binding = None
+        self._suggestion_listbox_focus_in_binding = None
+        self._suggestion_listbox_button_press_binding = None
+        self._suggestion_combobox = None
+        self._ignore_next_suggestion_focus_out = False
+
+    def _hide_system_suggestions_on_focus_change(self, event):
+        if self._ignore_next_suggestion_focus_out and event.widget == self._suggestion_combobox:
+            self._ignore_next_suggestion_focus_out = False
+            return
+        self.popup.after_idle(self._hide_system_suggestions_if_focus_changed)
+
+    def _hide_system_suggestions_if_focus_changed(self):
+        if self._suggestion_combobox is None:
+            return
+        try:
+            focused_widget = self._suggestion_combobox.tk.call('focus')
+        except tk.TclError:
+            self.hide_system_suggestions()
+            return
+        if focused_widget not in (str(self._suggestion_combobox), self._suggestion_listbox):
+            self.hide_system_suggestions()
+
+    def _on_system_selected(self, field:Literal['start', 'end']):
+        self.hide_system_suggestions()
+        self.on_system_selected(field, self.get_system_name(field))
+
+    def _select_system_suggestion(self, listbox_path: str, y: str):
+        combobox = self._suggestion_combobox
+        if combobox is None or listbox_path != self._suggestion_listbox:
+            return 'break'
+
+        try:
+            index = int(combobox.tk.call(listbox_path, 'nearest', y))
+            combobox.current(index)
+            combobox.selection_range(0, tk.END)
+            combobox.icursor(tk.END)
+        except tk.TclError:
+            return 'break'
+
+        self.hide_system_suggestions()
+        combobox.focus_set()
+        combobox.event_generate('<<ComboboxSelected>>')
+        return 'break'
 
 if __name__ == '__main__':
     import sv_ttk
