@@ -1,6 +1,7 @@
 
 import httpx
 import time
+import pandas as pd
 
 from decos import rate_limited
 from station_parser import SpanshError
@@ -55,7 +56,7 @@ def plotRoute(source_id:str, destination_id:str, capacity:int, mass:int, capacit
     return result['job']
 
 @rate_limited(max_calls=10, period=60)
-def getRoute(route_id:str) -> list:
+def getRoute(route_id:str) -> pd.DataFrame:
     """
     Fetch route data from Spansh API.
     """
@@ -107,15 +108,17 @@ def getRoute(route_id:str) -> list:
             restock,
             restock_amount
         ])
-    return res
+    return pd.DataFrame(res, columns=[
+        'Done', 'System Name', 'Jumps Remaining', 'Distance', 'Remaining Distance',
+        'Fuel Left', 'Tritium in Market', 'Fuel Used', 'Icy Ring', 'Restock?', 'Restock Amount'
+    ])
 
 if __name__ == "__main__":
     try:
         route_id = '6A001EAC-8F8E-11F1-94FF-A884113854CE'
         route_data = getRoute(route_id)
         print("Route Data:")
-        for jump in route_data:
-            print(jump)
+        print(route_data)
     except SpanshError as e:
         print(f"Error: {e}")
 
@@ -131,8 +134,7 @@ if __name__ == "__main__":
         print(f"Route ID: {route_id}")
         route_data = getRoute(route_id)
         print("Route Data:")
-        for jump in route_data:
-            print(jump)
+        print(route_data)
     except SpanshError as e:
         print(f"Error: {e}")
 
