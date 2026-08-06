@@ -752,6 +752,7 @@ class CarrierModel:
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
@@ -759,7 +760,6 @@ class CarrierModel:
                 f"{destination_body}", 
                 f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
                 f"{timer}",
-                route_counter
                 )
         elif carrier['status'] == 'cool_down':
             time_diff = CD - (now - carrier['latest_depart'])
@@ -768,6 +768,7 @@ class CarrierModel:
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Cooling Down",
@@ -775,7 +776,6 @@ class CarrierModel:
                 f"",
                 f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
                 f"{timer}",
-                route_counter
                 )
         elif carrier['status'] == 'cool_down_cancel':
             time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
@@ -784,6 +784,7 @@ class CarrierModel:
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Cooling Down",
@@ -791,13 +792,13 @@ class CarrierModel:
                 f"",
                 f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
                 f"{timer}",
-                route_counter
                 )
         else:
             return (
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Idle",
@@ -805,7 +806,6 @@ class CarrierModel:
                 f"",
                 f"",
                 f"{timer}",
-                route_counter
                 )
     
     def get_data_finance(self):
