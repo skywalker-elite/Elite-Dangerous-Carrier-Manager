@@ -39,7 +39,7 @@ from utility import getHammerCountdown, checkTimerFormat, getRoutePath, getTimer
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
-from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD, TIME_SKEW_CHECK_CD
+from config import PLOT_WARN, UPDATE_INTERVAL, UPDATE_INTERVAL_TIMER_STATS, REDRAW_INTERVAL_FAST, REDRAW_INTERVAL_SLOW, REMIND_INTERVAL, PLOT_REMIND, SAVE_CACHE_INTERVAL, ladder_systems, SUPABASE_URL, SUPABASE_KEY, TIME_SKEW_WARN_CD, TIME_SKEW_CHECK_CD, ladder_route_up, ladder_route_down
 
 if TYPE_CHECKING: 
     import tksheet
@@ -165,6 +165,8 @@ class CarrierController:
         self.minimize_hint_sent = False
 
         self.load_notes()
+
+        # self.auto_set_ladder_route_all()
 
         if not self.model.dropout and not self.no_cache:
             self._start_cache_save_loop()
@@ -386,6 +388,8 @@ class CarrierController:
                     route_view = self.route_views.get(carrierID, None)
                     if route_view is not None:
                         route_view.set_data(route_info['route'])
+            else:
+                self.auto_set_ladder_route(carrierID)
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
@@ -1390,6 +1394,8 @@ class CarrierController:
             self.route_views[carrierID] = RouteView(self.view.root, carrier_name, route, lambda: self.route_views.pop(carrierID), window_size=self.settings.get('UI', 'window_size'))
             self.route_views[carrierID].button_plot_route.configure(command=lambda: self.button_click_open_route_plotter(carrierID))
             self.route_views[carrierID].button_import_route.configure(command=lambda: self.button_click_import_route(carrierID))
+            self.route_views[carrierID].button_set_ladder_route_up.configure(command=lambda: self.button_click_set_ladder_route_up(carrierID))
+            self.route_views[carrierID].button_set_ladder_route_down.configure(command=lambda: self.button_click_set_ladder_route_down(carrierID))
             self.route_views[carrierID].button_clear_route.configure(command=lambda: self.button_click_clear_route(carrierID))
         else:
             self.view.show_message_box_warning('Warning', 'Please select one carrier and one carrier only!')
@@ -1693,12 +1699,17 @@ class CarrierController:
         print(f'Found routeId: {routeId}')
         self._start_route_import(carrierID, routeId)
 
-    def _store_imported_route(self, carrierID:int, route:pd.DataFrame):
+    def _store_imported_route(self, carrierID:int, route:pd.DataFrame, progress_catch_up:bool=False):
         progress = 0
-        if route.at[0, 'System Name'] == self.model.get_current_system(carrierID):
+        current_system = self.model.get_current_system(carrierID)
+        if progress_catch_up:
+            if current_system in route['System Name'].values:
+                index = (route['System Name'] == current_system).idxmax()
+                route.iloc[:index + 1, route.columns.get_loc('Done')] = "✔"
+                progress = index + 1
+        elif route.at[0, 'System Name'] == current_system:
             route.at[0, 'Done'] = "✔"
             progress = 1
-
         df = pd.DataFrame(route, columns=[
             'Done', 'System Name', 'Jumps Remaining', 'Distance', 'Remaining Distance',
             'Fuel Left', 'Tritium in Market', 'Fuel Used', 'Icy Ring', 'Restock?', 'Restock Amount'
@@ -1710,7 +1721,58 @@ class CarrierController:
             'length': len(route)
         }
 
-        self.route_views[carrierID].set_data(df)
+        if carrierID in self.route_views:
+            self.route_views[carrierID].set_data(df)
+
+    def handle_ladder_route(self, carrierID:int, direction:Literal['up', 'down']):
+        df_route = pd.DataFrame(ladder_route_up if direction == 'up' else ladder_route_down, columns=[
+            'Done', 'System Name', 'Jumps Remaining', 'Distance', 'Remaining Distance',
+            'Fuel Left', 'Tritium in Market', 'Fuel Used', 'Icy Ring', 'Restock?', 'Restock Amount'
+        ]).fillna("")
+        df_route.loc[:, 'Remaining Distance'] = [f'{sum(df_route['Distance']) - sum(df_route.iloc[:i+1, df_route.columns.get_loc('Distance')]):.2f}' for i in range(len(df_route))]
+
+        self._store_imported_route(carrierID, df_route, progress_catch_up=True)
+
+    def button_click_set_ladder_route_up(self, carrierID:int):
+        route = self.model.routes.get(carrierID, None)
+        if route is not None:
+            if not self.view.show_message_box_askyesno('Warning', 'This carrier already has a route plotted. Do you want to overwrite it?'):
+                return
+        self.handle_ladder_route(carrierID, 'up')
+
+    def button_click_set_ladder_route_down(self, carrierID:int):
+        route = self.model.routes.get(carrierID, None)
+        if route is not None:
+            if not self.view.show_message_box_askyesno('Warning', 'This carrier already has a route plotted. Do you want to overwrite it?'):
+                return
+        self.handle_ladder_route(carrierID, 'down')
+
+    def auto_set_ladder_route(self, carrierID:int):
+        if not self.settings.get('route', 'auto_set_ladder_route'):
+            return
+        route = self.model.routes.get(carrierID, None)
+        if route is not None:
+            return
+        current_system = self.model.get_current_system(carrierID)
+        if current_system is None:
+            return
+        if current_system in ladder_systems:
+            if current_system in ['Col 285 Sector YF-D c13-18', 'Wregoe NA-W B57-4']:
+                direction = 'up'
+            elif current_system == 'HIP 58832':
+                direction = 'down'
+            elif self.model.get_cargo_tonnage(carrierID) > 2000:
+                direction = 'up'
+            else:
+                direction = 'down'
+            
+            self.handle_ladder_route(carrierID, direction)
+
+    def auto_set_ladder_route_all(self):
+        if not self.settings.get('route', 'auto_set_ladder_route'):
+            return
+        for carrierID in self.model.sorted_ids_display():
+            self.auto_set_ladder_route(carrierID)
 
     def button_click_clear_route(self, carrierID:int):
         self.model.routes.pop(carrierID)

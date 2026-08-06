@@ -82,6 +82,10 @@ remind_seconds = 120 # Number of seconds before plot time reminding you to be re
 warn_seconds = 10 # Number of seconds before plot time warning you that the plot is imminent
 clear_seconds = 5 # Number of seconds after plot time to clear the timer
 
+[route]
+# These are the settings for the route management.
+auto_set_ladder_route = true # Automatically set the ladder route when you get on the ladder
+
 [font_size]
 # Font size for UI elements
 # Options: 'tiny', 'small', 'normal', 'large', 'huge', 'giant', 'colossal'

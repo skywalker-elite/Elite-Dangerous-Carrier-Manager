@@ -1,8 +1,11 @@
+from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 from tksheet import Sheet
-from typing import Literal, NamedTuple, Callable
+from typing import Literal, NamedTuple, Callable, TYPE_CHECKING
 import tkinter.font as tkfont
+if TYPE_CHECKING:
+    import pandas as pd
 from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox, show_dropdown_popup
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
@@ -785,18 +788,26 @@ class RouteView:
         self.button_import_route = ttk.Button(self.bottom_bar_route, text='Import Route')
         self.button_import_route.pack(side='left', anchor='w')
 
+        self.button_set_ladder_route_up = ttk.Button(self.bottom_bar_route, text='Set Ladder Route (Up)')
+        self.button_set_ladder_route_up.pack(side='left', anchor='w')
+
+        self.button_set_ladder_route_down = ttk.Button(self.bottom_bar_route, text='Set Ladder Route (Down)')
+        self.button_set_ladder_route_down.pack(side='left', anchor='w')
+
         self.button_clear_route = ttk.Button(self.bottom_bar_route, text='Clear Route')
         self.button_clear_route.pack(side='left', anchor='w')
 
         center_window_relative_to_parent(self.popup, root)
         self.popup.focus_set()
 
-    def set_data(self, data):
+    def set_data(self, data: pd.DataFrame|None, hide_extra_columns=False):
         rows = None
         if data is not None:
             rows = data.values.tolist()
         self.sheet_route.set_sheet_data(rows)
         self.sheet_route.set_all_column_widths()
+        if hide_extra_columns:
+            self.sheet_route.hide_columns(list(range(5, data.shape[1])))
 
     def close(self):
         self.on_close()
