@@ -139,7 +139,7 @@ class CarrierView:
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
         # Route
-        self.button_open_route = ttk.Button(self.bottom_bar, text='Open Route')
+        self.button_open_route = ttk.Button(self.bottom_bar, text='Manage Route')
         self.button_open_route.pack(side='left')
 
         # Trade tab
