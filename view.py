@@ -107,9 +107,8 @@ class CarrierView:
 
         # Set column headers
         self.sheet_jumps.headers([
-            'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
+            'Carrier Name', 'Carrier ID', 'Fuel', 'Route', 'Current System', 'Body',
             'Status', 'Destination System', 'Body', 'Timer', 'Plot Timer',
-            'Route'
         ])
 
         self.configure_sheet(self.sheet_jumps)
@@ -403,11 +402,15 @@ class CarrierView:
             else:
                 print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
 
-    def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
+    def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None, hide_columns:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False, redraw=False)
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
+        table.show_columns(range(len(data[0])), redraw=False, deselect_all=False)
+        if hide_columns is not None:
+            for col in hide_columns:
+                table.hide_columns(col, redraw=False, deselect_all=False)
         self._resize_table_columns(table)
         table.refresh()
 
@@ -428,7 +431,9 @@ class CarrierView:
         self._column_resize_snapshots[key] = snapshot
     
     def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
-        self.update_table(self.sheet_jumps, data, rows_pending_decomm)
+        # Hide route column if no route is set
+        route_set = any(row[3] != '' for row in data)
+        self.update_table(self.sheet_jumps, data, rows_pending_decomm, hide_columns=None if route_set else [3])
     
     def update_table_finance(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_finance, data, rows_pending_decomm)
@@ -1056,11 +1061,11 @@ if __name__ == '__main__':
     apply_theme_to_titlebar(root)
     view = CarrierView(root)
     view.update_table_jumps([
-        ['P.T.N. Carrier', 'PTN-123', '1000', 'Quaaybuwan', '1', 'Jumping', 'Sol', 'Earth', '00:15:42', ''],
-        ['N.A.C. Carrier', 'NAC-456', '800', 'Anlave', 'Anderson', 'Idle', '', '', '', ''],
-        ['E.D.C.M Carrier', 'EDC-M42', '500', 'Achenar', 'Achenar I', 'Cooling Down', '', '', '00:04:42', ''],
-        ['Far Star', 'FS0-042', '300', 'Terminus', '1', 'Idle', '', ' ', '', ''],
-        ['Heart of Gold', 'HOG-042', '420', 'Betelgeuse', '5', 'Jumping', 'Soulianis and Rahm', 'Magrathea', '00:42:42', '']
+        ['P.T.N. Carrier', 'PTN-123', '1000', '1/42', 'Quaaybuwan', '1', 'Jumping', 'Sol', 'Earth', '00:15:42', ''],
+        ['N.A.C. Carrier', 'NAC-456', '800', '', 'Anlave', 'Anderson', 'Idle', '', '', '', ''],
+        ['E.D.C.M Carrier', 'EDC-M42', '500', '42/67', 'Achenar', 'Achenar I', 'Cooling Down', '', '', '00:04:42', ''],
+        ['Far Star', 'FS0-042', '300', '', 'Terminus', '1', 'Idle', '', ' ', '', ''],
+        ['Heart of Gold', 'HOG-042', '420', '', 'Betelgeuse', '5', 'Jumping', 'Soulianis and Rahm', 'Magrathea', '00:42:42', '']
     ])
     view.update_table_notes([
         ['P.T.N. Carrier', 'PTN-123', 'This is a note for PTN-123'],
