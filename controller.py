@@ -1633,7 +1633,7 @@ class CarrierController:
             return
         self._queue_ui_callback(self._complete_route_import, carrierID, route)
 
-    def _complete_route_import(self, carrierID:int, route:list):
+    def _complete_route_import(self, carrierID:int, route:pd.DataFrame):
         self._close_route_import_progress(carrierID)
         if carrierID not in self.route_views:
             return
@@ -1693,10 +1693,10 @@ class CarrierController:
         print(f'Found routeId: {routeId}')
         self._start_route_import(carrierID, routeId)
 
-    def _store_imported_route(self, carrierID:int, route:list):
+    def _store_imported_route(self, carrierID:int, route:pd.DataFrame):
         progress = 0
-        if route[0][1] == self.model.carriers[carrierID]['CarrierLocation']['SystemName']:
-            route[0][0] = "✔"
+        if route.at[0, 'System Name'] == self.model.get_current_system(carrierID):
+            route.at[0, 'Done'] = "✔"
             progress = 1
 
         df = pd.DataFrame(route, columns=[
