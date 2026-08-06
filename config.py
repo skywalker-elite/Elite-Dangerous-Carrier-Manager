@@ -48,6 +48,18 @@ ladder_systems = {
     'HIP 58832': 'N0'
  }
 
+ladder_route_up = {
+    'System Name': ['Col 285 Sector YF-D c13-18', 'Wregoe ZE-B c28-2', 'Wregoe OP-D b58-0', 'Plaa Trua QL-B c27-0', 'Plaa Trua WQ-C d13-0', 'HD 107865', 'HD 105548', 'HD 104785', 'HD 102000', 'HD 102779', 'HD 104392', 'HIP 56843', 'HIP 57478', 'HIP 57784', 'HD 104495', 'HD 105341', 'HIP 58832'],
+    'Jumps Remaining': list(range(16, -1, -1)),
+    'Distance': [0.0, 322.2, 497.6, 498.8, 499.7, 496.4, 475.4, 431.2, 415.2, 341.02, 487.97, 409.9, 366.6, 470.28, 305.75, 453.17, 390.93],
+}
+
+ladder_route_down = {
+    'System Name': ['HIP 58832', 'HD 105341', 'HD 104495', 'HIP 57784', 'HIP 57478', 'HIP 56843', 'HD 104392', 'HD 102779', 'HD 102000', 'HD 104785', 'HD 105548', 'HD 107865', 'Plaa Trua WQ-C d13-0', 'Plaa Trua QL-B c27-0', 'Wregoe OP-D b58-0', 'Wregoe ZE-B c28-2', 'Col 285 Sector YF-D c13-18'],
+    'Jumps Remaining': list(range(16, -1, -1)),
+    'Distance': [0.0, 390.93, 453.17, 305.75, 470.28, 366.6, 409.9, 487.97, 341.02, 415.2, 431.2, 475.4, 496.4, 499.7, 498.8, 497.6, 322.2],
+}
+
 test_trade_data = {
     'trade_type': 'load',
     'trading_type': 'loading',
