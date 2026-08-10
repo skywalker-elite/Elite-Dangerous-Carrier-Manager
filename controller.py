@@ -1571,12 +1571,12 @@ class CarrierController:
             self.view.show_message_box_warning('Invalid capacity used', 'Capacity used must be a whole number.')
             return
 
-        total_capacity = self.model.get_space_usage(carrierID).get('TotalCapacity')
+        total_capacity = self.model.get_total_capacity(carrierID)
         if not isinstance(total_capacity, int):
             self.view.show_message_box_warning('Capacity unavailable', 'The carrier total capacity is unavailable, so the route cannot be plotted.')
             return
-        if not 0 <= capacity_used <= total_capacity:
-            self.view.show_message_box_warning('Invalid capacity used', f'Capacity used must be between 0 and {total_capacity:,}.')
+        if not 0 <= capacity_used <= 60000:
+            self.view.show_message_box_warning('Invalid capacity used', f'Capacity used must be between 0 and {60000:,}.')
             return
 
         self._route_plotter_plotting.add(carrierID)
@@ -1689,14 +1689,14 @@ class CarrierController:
 
     def button_click_import_route(self, carrierID:int):
         clipboard = self.root.clipboard_get()
-        print(f'Clipboard content: {clipboard}')
+        # print(f'Clipboard content: {clipboard}')
         regex = re.compile(r'^https://([www]\.)?spansh\.co\.uk/fleet-carrier/results/([A-F0-9\-]+)')
         match = regex.match(clipboard)
         if match is None:
             self.view.show_message_box_warning('Warning', 'Clipboard does not contain a valid Spansh route URL')
             return
         routeId = match.groups()[1]
-        print(f'Found routeId: {routeId}')
+        # print(f'Found routeId: {routeId}')
         self._start_route_import(carrierID, routeId)
 
     def _store_imported_route(self, carrierID:int, route:pd.DataFrame, progress_catch_up:bool=False):
