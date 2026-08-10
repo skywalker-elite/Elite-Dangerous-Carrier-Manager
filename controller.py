@@ -793,7 +793,7 @@ class CarrierController:
         post_string = s.safe_substitute(carrier_callsign=carrier_callsign, trit_amount=trit_amount)
         return post_string
 
-    def copy_to_clipboard(self, text: str, success_title: str|None, success_message: str|None, on_success: Callable[[], None]|None=None):
+    def copy_to_clipboard(self, text: str, success_title: str|None=None, success_message: str|None=None, on_success: Callable[[], None]|None=None):
         try:
             pyperclip.copy(text)
         except pyperclip.PyperclipException as e:
@@ -1780,23 +1780,29 @@ class CarrierController:
         os.remove(getRoutePath(carrierID))
         self.redraw_fast()
 
-    def music_change(self, carrierID:str, old_music:str, new_music:str) -> None:
-        if new_music != 'FleetCarrier_Managment':
+    def music_change(self, fid:str, music_tracks:list[str]) -> None:
+        # print(f'Music change detected for FID: {fid}, tracks: {music_tracks}')
+        if music_tracks[0] != 'FleetCarrier_Managment' or music_tracks[1] != 'NoTrack' or music_tracks[2] != 'GalaxyMap':
+            # print(f'Music change ignored for FID: {fid}, tracks: {music_tracks}')
             return
+        carrierID = self.model.get_owned_carrier(fid)
         route = self.model.routes.get(carrierID, None)
         if route is None:
+            # print(f'No route found for carrierID: {carrierID}')
             return
 
         if route['progress'] == route['length']:
+            # print(f'Route for carrierID: {carrierID} is already complete.')
             return
 
         if route['route'].at[route['progress'], 'Done'] == "✔":
+            # print(f'Current step for carrierID: {carrierID} is already marked as done.')
             return
 
         system = route['route'].at[route['progress'], 'System Name']
+        # print(f'Copying system name to clipboard for {self.model.get_name(carrierID)}, system: {system}')
         
-        self.root.clipboard_clear()
-        self.root.clipboard_append(system)
+        self.copy_to_clipboard(system)
 
     def setup_tray_icon(self):
         if self.view.checkbox_minimize_to_tray_var.get():

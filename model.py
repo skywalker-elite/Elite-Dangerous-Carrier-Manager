@@ -13,7 +13,7 @@ from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
 from typing import Callable, Literal, NamedTuple
-from collections import namedtuple
+from collections import namedtuple, deque
 from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath, getRoutePath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
@@ -223,7 +223,7 @@ class JournalReader:
         return results if results else None
 
 class CarrierModel:
-    def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
+    def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None, music_tracking_len:int=3):
         self.journal_reader = journal_reader if journal_reader else JournalReader(journal_paths, dropout=dropout, droplist=droplist)
         self.dropout = dropout
         self.droplist = droplist
@@ -237,7 +237,8 @@ class CarrierModel:
         self.active_timer = False
         self.manual_timers = {}
         self.routes = {}
-        self.cmdr_music = {}
+        self.cmdr_music: dict[str, deque[str]] = {}
+        self._music_tracking_len = music_tracking_len
         self.journal_paths = journal_reader.journal_paths if journal_reader else journal_paths
         # self.read_counter = 0
         self._ignore_list = []
@@ -246,7 +247,7 @@ class CarrierModel:
         self.custom_order = []
         self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
-        self._callback_music_change = lambda carrierID, music_old, music_new: print(f'{self.get_name(carrierID)} music changed from {music_old} to {music_new}')
+        self._callback_music_change = lambda fid, music_tracks: print(f'{self.get_name(self.get_owned_carrier(fid))} music changed, sequence: {music_tracks}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
         self.df_commodities = self.df_commodities.set_index('symbol')
@@ -320,13 +321,7 @@ class CarrierModel:
 
         self.update_ignore_list()
 
-        
-
         self.journal_reader.update_items_count()
-
-    def process_music_tracks(self, music_tracks, first_read:bool=True):
-        for music_track in music_tracks:
-            self.cmdr_music[music_track['FID']] = music_track['MusicTrack']
 
     def process_load_games(self, load_games, first_read:bool=True):
         for load_game in load_games:
@@ -502,6 +497,18 @@ class CarrierModel:
         for carrierID in self.carriers.keys():
             if self.carriers[carrierID].get('SquadronName', None) is None or not first_read:
                 self.carriers[carrierID]['SquadronName'] = self.cmdr_squadrons.get(self.carrier_owners.get(carrierID, None), None)
+
+    def process_music_tracks(self, music_tracks, first_read:bool=True):
+        fids = set()
+        for music_track in music_tracks:
+            fid = music_track['FID']
+            fids.add(fid)
+            if fid not in self.cmdr_music:
+                self.cmdr_music[fid] = deque(maxlen=self._music_tracking_len)
+            self.cmdr_music[fid].append(music_track['MusicTrack'])
+        if not first_read and fids:
+            for fid in fids:
+                self._callback_music_change(fid, list(self.cmdr_music[fid]))
 
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
@@ -706,8 +713,6 @@ class CarrierModel:
                   
         old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
         new_status = {carrierID: carriers[carrierID]['status'] for carrierID in carriers.keys()}
-        old_music = {carrierID: self.carriers_updated[carrierID]['cmdr_music'] for carrierID in self.carriers_updated.keys()}
-        new_music = {carrierID: carriers[carrierID]['cmdr_music'] for carrierID in carriers.keys()}
         self.carriers_updated = carriers.copy()
 
         for carrierID in old_status.keys() & new_status.keys():
@@ -715,18 +720,11 @@ class CarrierModel:
                 # print(f'model:{self.get_name(carrierID)} status changed from {old_status[carrierID]} to {new_status[carrierID]}')
                 self._callback_status_change(carrierID, old_status[carrierID], new_status[carrierID])
 
-        for carrierID in old_music.keys() & new_music.keys():
-            if new_music[carrierID] != old_music[carrierID]:
-                # print(f'model:{self.get_name(carrierID)} music changed from {old_music[carrierID]} to {new_music[carrierID]}')
-                self._callback_music_change(carrierID, old_music[carrierID], new_music[carrierID])
-
-        
-
     def register_status_change_callback(self, callback:Callable[[str, str, str], None]):
         self._callback_status_change = lambda carrierID, status_old, status_new: threading.Thread(target=callback, args=(carrierID, status_old, status_new)).start()
 
-    def register_music_change_callback(self, callback:Callable[[str, str, str], None]):
-        self._callback_music_change = lambda carrierID, music_old, music_new: threading.Thread(target=callback, args=(carrierID, music_old, music_new)).start()
+    def register_music_change_callback(self, callback:Callable[[str, list[str]], None]):
+        self._callback_music_change = lambda fid, music_tracks: threading.Thread(target=callback, args=(fid, music_tracks)).start()
     
     def get_carriers(self):
         return self.carriers_updated.copy()
@@ -1004,12 +1002,21 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['PendingDecom']
     
     def get_name(self, carrierID: int) -> str:
+        """
+        Get the name of the carrier.
+        """
         return self.get_carriers()[carrierID]['Name']
     
     def get_callsign(self, carrierID: int) -> str:
+        """
+        Get the callsign of the carrier.
+        """
         return self.get_carriers()[carrierID]['Callsign']
     
     def get_squadron_name(self, carrierID: int) -> str|None:
+        """
+        Get the squadron name of the carrier.
+        """
         squadron_name = self.get_carriers()[carrierID]['SquadronName']
         return squadron_name
     
