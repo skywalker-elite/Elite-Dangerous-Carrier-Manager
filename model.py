@@ -976,6 +976,10 @@ class CarrierModel:
         if space_usage['Cargo'] is None:
             return None
         return space_usage['Cargo']
+
+    def get_total_capacity(self, carrierID: int) -> int:
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        return space_usage['TotalCapacity']
     
     def generate_info_stat_time(self, carrierID: int) -> str:
         stat_time = self.get_stat_time(carrierID=carrierID)

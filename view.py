@@ -785,7 +785,7 @@ class RouteView:
         self.button_plot_route = ttk.Button(self.bottom_bar_route, text='Plot Route')
         self.button_plot_route.pack(side='left', anchor='w')
 
-        self.button_import_route = ttk.Button(self.bottom_bar_route, text='Import Route')
+        self.button_import_route = ttk.Button(self.bottom_bar_route, text='Import From Clipboard')
         self.button_import_route.pack(side='left', anchor='w')
 
         self.button_set_ladder_route_up = ttk.Button(self.bottom_bar_route, text='Set Ladder Route (Up)')
