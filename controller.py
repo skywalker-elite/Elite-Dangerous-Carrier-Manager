@@ -1782,7 +1782,7 @@ class CarrierController:
 
     def music_change(self, fid:str, music_tracks:list[str]) -> None:
         # print(f'Music change detected for FID: {fid}, tracks: {music_tracks}')
-        if music_tracks[0] != 'FleetCarrier_Managment' or music_tracks[1] != 'NoTrack' or music_tracks[2] != 'GalaxyMap':
+        if music_tracks[0] != 'FleetCarrier_Managment' or music_tracks[1] in ['FleetCarrier_Managment', 'GalaxyMap'] or music_tracks[2] != 'GalaxyMap':
             # print(f'Music change ignored for FID: {fid}, tracks: {music_tracks}')
             return
         carrierID = self.model.get_owned_carrier(fid)
