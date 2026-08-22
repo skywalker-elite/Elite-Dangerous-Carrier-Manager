@@ -392,7 +392,7 @@ class CarrierView:
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        table.show_columns(range(len(data[0])), redraw=False, deselect_all=False)
+        table.show_columns(range(table.get_total_columns()), redraw=False, deselect_all=False)
         if hide_columns is not None:
             for col in hide_columns:
                 table.hide_columns(col, redraw=False, deselect_all=False)
@@ -774,6 +774,7 @@ class RouteView:
             'selected_bg': '#0a84ff',  # Fluent accent blue
             'selected_fg': '#ffffff',  # white text on selection
         })
+        self.sheet_route.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         self.sheet_route.column_width_resize_enabled = False
         self.sheet_route.row_height_resize_enabled = False
 
