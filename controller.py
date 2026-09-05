@@ -1762,7 +1762,10 @@ class CarrierController:
             elif current_system == 'HIP 58832':
                 direction = 'down'
             elif self.model.get_cargo_tonnage(carrierID) > 2000:
-                direction = 'up'
+                if current_system in ladder_route_up['System Name'].values:
+                    direction = 'up'
+                else:
+                    return
             else:
                 direction = 'down'
             
