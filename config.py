@@ -49,9 +49,9 @@ ladder_systems = {
  }
 
 ladder_route_up = {
-    'System Name': ['Col 285 Sector YF-D c13-18', 'Wregoe ZE-B c28-2', 'Wregoe OP-D b58-0', 'Plaa Trua QL-B c27-0', 'Plaa Trua WQ-C d13-0', 'HD 107865', 'HD 105548', 'HD 104785', 'HD 102000', 'HD 102779', 'HD 104392', 'HIP 56843', 'HIP 57478', 'HIP 57784', 'HD 104495', 'HD 105341', 'HIP 58832'],
-    'Jumps Remaining': list(range(16, -1, -1)),
-    'Distance': [0.0, 322.2, 497.6, 498.8, 499.7, 496.4, 475.4, 431.2, 415.2, 341.02, 487.97, 409.9, 366.6, 470.28, 305.75, 453.17, 390.93],
+    'System Name': ['Col 285 Sector YF-D c13-18', 'Wregoe ZE-B c28-2', 'Wregoe OP-D b58-0', 'Plaa Trua QL-B c27-0', 'Plaa Trua WQ-C d13-0', 'HD 107865', 'HD 105548', 'HD 104785', 'HD 102000', 'HD 102779', 'HD 104392', 'HIP 56843', 'HIP 57478', 'HIP 57784'],#, 'HD 104495', 'HD 105341', 'HIP 58832'],
+    'Jumps Remaining': list(range(13, -1, -1)),
+    'Distance': [0.0, 322.2, 497.6, 498.8, 499.7, 496.4, 475.4, 431.2, 415.2, 341.02, 487.97, 409.9, 366.6, 470.28],#, 305.75, 453.17, 390.93],
 }
 
 ladder_route_down = {
