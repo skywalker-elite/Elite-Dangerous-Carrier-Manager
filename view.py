@@ -1,12 +1,17 @@
+from __future__ import annotations
 import tkinter as tk
 from tkinter import ttk
 from tksheet import Sheet
-from typing import Literal, NamedTuple, Callable
+from typing import Literal, NamedTuple, Callable, TYPE_CHECKING
 import tkinter.font as tkfont
+if TYPE_CHECKING:
+    import pandas as pd
 from popups import show_message_box_info, show_message_box_warning, show_message_box_info_no_topmost, show_non_blocking_info, show_message_box_askyesno, show_message_box_askretrycancel, show_indeterminate_progress_bar, center_window_relative_to_parent, apply_theme_to_titlebar, show_message_box_info_checkbox, show_message_box_warning_checkbox, show_dropdown_popup
 from idlelib.tooltip import Hovertip
 from config import WINDOW_SIZE_TIMER, font_sizes, TOOLTIP_HOVER_DELAY, TOOLTIP_BACKGROUND, TOOLTIP_FOREGROUND, WINDOW_SIZE
 from station_parser import getStockPrice
+
+COMBOBOX_LIST_FOCUS_DELAY_MS = 25
 
 class MenuOption(NamedTuple):
         label: str
@@ -104,7 +109,7 @@ class CarrierView:
 
         # Set column headers
         self.sheet_jumps.headers([
-            'Carrier Name', 'Carrier ID', 'Fuel', 'Current System', 'Body',
+            'Carrier Name', 'Carrier ID', 'Fuel', 'Route', 'Current System', 'Body',
             'Status', 'Destination System', 'Body', 'Timer', 'Plot Timer',
         ])
 
@@ -136,6 +141,9 @@ class CarrierView:
         # Departure notice
         self.button_post_departure = ttk.Button(self.bottom_bar, text='Post Departure')
         self.button_post_departure.pack(side='left')
+        # Route
+        self.button_open_route = ttk.Button(self.bottom_bar, text='Manage Route')
+        self.button_open_route.pack(side='left')
 
         # Trade tab
         self.sheet_trade = Sheet(self.tab_trade, name='sheet_trade', empty_vertical=0, empty_horizontal=0)
@@ -379,15 +387,21 @@ class CarrierView:
             else:
                 print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
 
-    def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
+    def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None, hide_columns:list[int]|None=None):
         table.set_sheet_data(data, reset_col_positions=False)
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
+        table.show_columns(range(table.get_total_columns()), redraw=False, deselect_all=False)
+        if hide_columns is not None:
+            for col in hide_columns:
+                table.hide_columns(col, redraw=False, deselect_all=False)
         table.set_all_column_widths()
     
     def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
-        self.update_table(self.sheet_jumps, data, rows_pending_decomm)
+        # Hide route column if no route is set
+        route_set = any(row[3] != '' for row in data)
+        self.update_table(self.sheet_jumps, data, rows_pending_decomm, hide_columns=None if route_set else [3])
     
     def update_table_finance(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_finance, data, rows_pending_decomm)
@@ -719,6 +733,301 @@ class TradeHistoryView:
         center_window_relative_to_parent(self.popup, root)
         self.popup.focus_set()
 
+class RouteView:
+    def __init__(self, root: tk.Tk, carrier_name:str, data, on_close, window_size:str=WINDOW_SIZE):
+        self.root = root
+        self.on_close = on_close
+
+        self.popup = tk.Toplevel(root)
+        self.popup.geometry(window_size)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Route for {carrier_name}')
+        self.popup.focus_force()
+        self.popup.rowconfigure(0, pad=1, weight=1)
+        self.popup.columnconfigure(0, pad=1, weight=1)
+        self.popup.protocol("WM_DELETE_WINDOW", self.close)
+
+        self.sheet_route = Sheet(self.popup, name='sheet_route')
+
+        self.sheet_route.headers([
+            'Done', 'System Name', 'Jumps Remaining', 'Distance', 'Remaining Distance',
+            'Fuel Left', 'Tritium in Market', 'Fuel Used', 'Icy Ring', 'Restock?', 'Restock Amount'
+        ])
+        self.sheet_route['A'].align('center')
+        self.sheet_route['C:H'].align('right')
+        self.sheet_route['K'].align('right')
+        self.set_data(data)
+
+        self.sheet_route.grid(row=0, column=0, columnspan=3, sticky='nswe')
+        self.popup.grid_rowconfigure(0, weight=2)
+        self.sheet_route.change_theme('dark', redraw=False)
+        self.sheet_route.set_options(**{
+            'table_bg':    '#1c1c1e',  # main window surface
+            'header_bg':   "#202021",  # secondary surface
+            'header_fg':   '#f3f3f5',  # light text
+            'index_bg':    '#202021',  # secondary surface
+            'index_fg':    "#C2C2C4",  # dim light text
+            'top_left_bg':  '#202021',  # secondary surface
+            'cell_bg':     '#1c1c1e',  # main window surface
+            'cell_fg':     '#f3f3f5',  # light text
+            'selected_bg': '#0a84ff',  # Fluent accent blue
+            'selected_fg': '#ffffff',  # white text on selection
+        })
+        self.sheet_route.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
+        self.sheet_route.column_width_resize_enabled = False
+        self.sheet_route.row_height_resize_enabled = False
+
+        self.set_data(data)
+
+        self.bottom_bar_route = ttk.Frame(self.popup)
+        self.bottom_bar_route.grid(row=2, column=0, columnspan=3, sticky='ew')
+
+        self.button_plot_route = ttk.Button(self.bottom_bar_route, text='Plot Route')
+        self.button_plot_route.pack(side='left', anchor='w')
+
+        self.button_import_route = ttk.Button(self.bottom_bar_route, text='Import From Clipboard')
+        self.button_import_route.pack(side='left', anchor='w')
+
+        self.button_set_ladder_route_up = ttk.Button(self.bottom_bar_route, text='Set Ladder Route (Up)')
+        self.button_set_ladder_route_up.pack(side='left', anchor='w')
+
+        self.button_set_ladder_route_down = ttk.Button(self.bottom_bar_route, text='Set Ladder Route (Down)')
+        self.button_set_ladder_route_down.pack(side='left', anchor='w')
+
+        self.button_clear_route = ttk.Button(self.bottom_bar_route, text='Clear Route')
+        self.button_clear_route.pack(side='left', anchor='w')
+
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
+
+    def set_data(self, data: pd.DataFrame|None, hide_extra_columns=False):
+        rows = None
+        if data is not None:
+            rows = data.values.tolist()
+        self.sheet_route.set_sheet_data(rows)
+        self.sheet_route.set_all_column_widths()
+        if hide_extra_columns:
+            self.sheet_route.hide_columns(list(range(5, data.shape[1])))
+
+    def close(self):
+        self.on_close()
+        self.popup.destroy()
+
+class RoutePlotterView:
+    def __init__(self, root: tk.Tk, carrier_name:str, start_system:str, capacity_used:int, cargo_tonnage:int, on_close, on_system_name_changed:Callable[[Literal['start', 'end'], str], None], on_system_selected:Callable[[Literal['start', 'end'], str], None], on_plot_route:Callable[[str], None]):
+        self.root = root
+        self.on_close = on_close
+        self.on_system_name_changed = on_system_name_changed
+        self.on_system_selected = on_system_selected
+        self.on_plot_route = on_plot_route
+        self._suggestion_combobox: ttk.Combobox|None = None
+        self._suggestion_listbox: str|None = None
+        self._suggestion_listbox_focus_out_binding: str|None = None
+        self._suggestion_listbox_focus_in_binding: str|None = None
+        self._suggestion_listbox_button_press_binding: str|None = None
+        self._ignore_next_suggestion_focus_out = False
+
+        self.popup = tk.Toplevel(root)
+        self.popup.transient(root)
+        apply_theme_to_titlebar(self.popup)
+        self.popup.title(f'Route Plotter for {carrier_name}')
+        self.popup.focus_force()
+        self.popup.rowconfigure(0, pad=1, weight=1)
+        self.popup.columnconfigure(0, pad=1, weight=1)
+        self.popup.protocol("WM_DELETE_WINDOW", self.close)
+        self._select_system_suggestion_command = self.popup.register(self._select_system_suggestion)
+
+        self.label_start_system = ttk.Label(self.popup, text='Start System:')
+        self.label_start_system.grid(row=0, column=0, padx=10, pady=10, sticky='w')
+        self.cbox_start_system = ttk.Combobox(self.popup, values=[start_system], state='normal')
+        self.cbox_start_system.set(start_system)
+        self.cbox_start_system.grid(row=0, column=1, padx=10, pady=10, sticky='w')
+        self.cbox_start_system.bind('<KeyRelease>', lambda event: self.on_system_name_changed('start', self.cbox_start_system.get()))
+        self.cbox_start_system.bind('<FocusOut>', self._hide_system_suggestions_on_focus_change, add='+')
+        self.cbox_start_system.bind('<Button-1>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_start_system.bind('<Escape>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_start_system.bind('<<ComboboxSelected>>', lambda event: self._on_system_selected('start'), add='+')
+
+        self.label_end_system = ttk.Label(self.popup, text='End System:')
+        self.label_end_system.grid(row=0, column=2, padx=10, pady=10, sticky='w')
+        self.cbox_end_system = ttk.Combobox(self.popup, values=[], state='normal')
+        self.cbox_end_system.grid(row=0, column=3, padx=10, pady=10, sticky='w')
+        self.cbox_end_system.bind('<KeyRelease>', lambda event: self.on_system_name_changed('end', self.cbox_end_system.get()))
+        self.cbox_end_system.bind('<FocusOut>', self._hide_system_suggestions_on_focus_change, add='+')
+        self.cbox_end_system.bind('<Button-1>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_end_system.bind('<Escape>', lambda event: self.hide_system_suggestions(), add='+')
+        self.cbox_end_system.bind('<<ComboboxSelected>>', lambda event: self._on_system_selected('end'), add='+')
+
+        self.label_capacity_used = ttk.Label(self.popup, text='Capacity Used:')
+        self.label_capacity_used.grid(row=0, column=4, padx=10, pady=10, sticky='w')
+        self.entry_capacity_used = ttk.Entry(self.popup)
+        self.entry_capacity_used.insert(0, str(capacity_used))
+        self.entry_capacity_used.grid(row=0, column=5, padx=10, pady=10, sticky='w')
+
+        self.label_capacity_used_explanation = ttk.Label(self.popup, text=f'Capacity used should be {capacity_used}, assuming all your {cargo_tonnage} tons of cargo is tritium.')
+        self.label_capacity_used_explanation.grid(row=1, column=0, padx=10, pady=10, sticky='e', columnspan=6)
+
+        self.label_spansh_ack = ttk.Label(self.popup, text='Route plotting is powered by Spansh (https://spansh.co.uk/).')
+        self.label_spansh_ack.grid(row=2, column=0, columnspan=6, padx=10, pady=10, sticky='')
+
+        self.button_plot_route = ttk.Button(
+            self.popup,
+            text='Plot Route',
+            state='disabled',
+            command=lambda: self.on_plot_route(self.entry_capacity_used.get()),
+        )
+        self.button_plot_route.grid(row=3, column=0, padx=10, pady=10, sticky='', columnspan=6)
+
+        center_window_relative_to_parent(self.popup, root)
+        self.popup.focus_set()
+
+    def close(self):
+        self.hide_system_suggestions()
+        self.on_close()
+        self.popup.destroy()
+
+    def get_system_name(self, field:Literal['start', 'end']) -> str:
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        return combobox.get()
+
+    def select_system(self, field:Literal['start', 'end'], system_name:str):
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        combobox.set(system_name)
+        combobox.event_generate('<<ComboboxSelected>>')
+
+    def clear_system(self, field:Literal['start', 'end']):
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        if self._suggestion_combobox == combobox:
+            self.hide_system_suggestions()
+        combobox.set('')
+
+    def set_plot_route_enabled(self, enabled:bool):
+        self.button_plot_route.configure(state='normal' if enabled else 'disabled')
+
+    def set_system_suggestions(self, field:Literal['start', 'end'], system_names:list[str]):
+        combobox = self.cbox_start_system if field == 'start' else self.cbox_end_system
+        combobox['values'] = system_names
+        if not system_names:
+            if self._suggestion_combobox == combobox:
+                self.hide_system_suggestions()
+            return
+
+        self.hide_system_suggestions()
+        self._suggestion_combobox = combobox
+        popdown = combobox.tk.call('ttk::combobox::PopdownWindow', str(combobox))
+        self._suggestion_listbox = f'{popdown}.f.l'
+        self._suggestion_listbox_focus_out_binding = combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<FocusOut>',
+        )
+        self._suggestion_listbox_focus_in_binding = combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<FocusIn>',
+        )
+        self._suggestion_listbox_button_press_binding = combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<ButtonPress-1>',
+        )
+        combobox.tk.call('bind', self._suggestion_listbox, '<FocusOut>', 'break')
+        combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<ButtonPress-1>',
+            f'{self._select_system_suggestion_command} %W %y',
+        )
+        focus_command = f'focus {combobox}'
+        restore_focus_in_binding_command = (
+            f'bind {self._suggestion_listbox} <FocusIn> '
+            f'{{{self._suggestion_listbox_focus_in_binding or ""}}}'
+        )
+        combobox.tk.call(
+            'bind',
+            self._suggestion_listbox,
+            '<FocusIn>',
+            f'after {COMBOBOX_LIST_FOCUS_DELAY_MS} {{{focus_command}}}; {restore_focus_in_binding_command}',
+        )
+        self._ignore_next_suggestion_focus_out = True
+        combobox.tk.eval(f'ttk::combobox::Post {combobox}')
+
+    def hide_system_suggestions(self):
+        if self._suggestion_combobox is None:
+            return
+        try:
+            if self._suggestion_listbox is not None:
+                self._suggestion_combobox.tk.call(
+                    'bind',
+                    self._suggestion_listbox,
+                    '<FocusOut>',
+                    self._suggestion_listbox_focus_out_binding or '',
+                )
+                self._suggestion_combobox.tk.call(
+                    'bind',
+                    self._suggestion_listbox,
+                    '<FocusIn>',
+                    self._suggestion_listbox_focus_in_binding or '',
+                )
+                self._suggestion_combobox.tk.call(
+                    'bind',
+                    self._suggestion_listbox,
+                    '<ButtonPress-1>',
+                    self._suggestion_listbox_button_press_binding or '',
+                )
+            self._suggestion_combobox.tk.call(
+                'ttk::combobox::Unpost',
+                str(self._suggestion_combobox),
+            )
+        except tk.TclError:
+            pass
+        self._suggestion_listbox = None
+        self._suggestion_listbox_focus_out_binding = None
+        self._suggestion_listbox_focus_in_binding = None
+        self._suggestion_listbox_button_press_binding = None
+        self._suggestion_combobox = None
+        self._ignore_next_suggestion_focus_out = False
+
+    def _hide_system_suggestions_on_focus_change(self, event):
+        if self._ignore_next_suggestion_focus_out and event.widget == self._suggestion_combobox:
+            self._ignore_next_suggestion_focus_out = False
+            return
+        self.popup.after_idle(self._hide_system_suggestions_if_focus_changed)
+
+    def _hide_system_suggestions_if_focus_changed(self):
+        if self._suggestion_combobox is None:
+            return
+        try:
+            focused_widget = self._suggestion_combobox.tk.call('focus')
+        except tk.TclError:
+            self.hide_system_suggestions()
+            return
+        if focused_widget not in (str(self._suggestion_combobox), self._suggestion_listbox):
+            self.hide_system_suggestions()
+
+    def _on_system_selected(self, field:Literal['start', 'end']):
+        self.hide_system_suggestions()
+        self.on_system_selected(field, self.get_system_name(field))
+
+    def _select_system_suggestion(self, listbox_path: str, y: str):
+        combobox = self._suggestion_combobox
+        if combobox is None or listbox_path != self._suggestion_listbox:
+            return 'break'
+
+        try:
+            index = int(combobox.tk.call(listbox_path, 'nearest', y))
+            combobox.current(index)
+            combobox.selection_range(0, tk.END)
+            combobox.icursor(tk.END)
+        except tk.TclError:
+            return 'break'
+
+        self.hide_system_suggestions()
+        combobox.focus_set()
+        combobox.event_generate('<<ComboboxSelected>>')
+        return 'break'
+
 if __name__ == '__main__':
     import sv_ttk
     from config import WINDOW_SIZE
@@ -729,11 +1038,11 @@ if __name__ == '__main__':
     apply_theme_to_titlebar(root)
     view = CarrierView(root)
     view.update_table_jumps([
-        ['P.T.N. Carrier', 'PTN-123', '1000', 'Quaaybuwan', '1', 'Jumping', 'Sol', 'Earth', '00:15:42', ''],
-        ['N.A.C. Carrier', 'NAC-456', '800', 'Anlave', 'Anderson', 'Idle', '', '', '', ''],
-        ['E.D.C.M Carrier', 'EDC-M42', '500', 'Achenar', 'Achenar I', 'Cooling Down', '', '', '00:04:42', ''],
-        ['Far Star', 'FS0-042', '300', 'Terminus', '1', 'Idle', '', ' ', '', ''],
-        ['Heart of Gold', 'HOG-042', '420', 'Betelgeuse', '5', 'Jumping', 'Soulianis and Rahm', 'Magrathea', '00:42:42', '']
+        ['P.T.N. Carrier', 'PTN-123', '1000', '1/42', 'Quaaybuwan', '1', 'Jumping', 'Sol', 'Earth', '00:15:42', ''],
+        ['N.A.C. Carrier', 'NAC-456', '800', '', 'Anlave', 'Anderson', 'Idle', '', '', '', ''],
+        ['E.D.C.M Carrier', 'EDC-M42', '500', '42/67', 'Achenar', 'Achenar I', 'Cooling Down', '', '', '00:04:42', ''],
+        ['Far Star', 'FS0-042', '300', '', 'Terminus', '1', 'Idle', '', ' ', '', ''],
+        ['Heart of Gold', 'HOG-042', '420', '', 'Betelgeuse', '5', 'Jumping', 'Soulianis and Rahm', 'Magrathea', '00:42:42', '']
     ])
     view.update_table_notes([
         ['P.T.N. Carrier', 'PTN-123', 'This is a note for PTN-123'],

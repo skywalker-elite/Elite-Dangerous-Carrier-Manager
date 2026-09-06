@@ -221,6 +221,16 @@ def getNotesPath() -> str|None:
     else:
         return os.path.join(settings_dir, 'notes.csv')
 
+def getRoutePath(carrierID:int) -> str|None:
+    """
+    Path to the csv file where the app stores the specified carrier's route.
+    """
+    settings_dir = getSettingsDir()
+    if settings_dir is None:
+        return None
+    else:
+        return os.path.join(settings_dir, f'route_{carrierID}.csv')
+
 def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
     h = hashlib.sha256()
     h.update(journal_timestamp.isoformat().encode('utf-8'))

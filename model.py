@@ -1,3 +1,5 @@
+import os
+
 import pandas as pd
 from os import listdir, path
 import re
@@ -11,8 +13,8 @@ from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
 from typing import Callable, Literal, NamedTuple
-from collections import namedtuple
-from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath
+from collections import namedtuple, deque
+from utility import getHMS, getHammerCountdown, getResourcePath, getJournalPath, getRoutePath
 from config import PADLOCK, CD, CD_cancel, JUMPLOCK, ladder_systems, AVG_JUMP_CAL_WINDOW, ASSUME_DECCOM_AFTER
 
 _SINGLE_DIGIT_TOKEN = re.compile(r'(?<!\d)(\d)(?!\d)')
@@ -54,7 +56,8 @@ class JournalReader:
         self._docked = []
         self._undocked = []
         self._fsd_jumps = []
-        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup', 'docked', 'undocked', 'fsd_jumps']
+        self._music_tracks = []
+        self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup', 'docked', 'undocked', 'fsd_jumps', 'music_tracks']
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
@@ -175,6 +178,9 @@ class JournalReader:
             if item['event'] == 'FSDJump':
                 item['FID'] = fid
                 self._fsd_jumps.append(item)
+            if item['event'] == 'Music':
+                item['FID'] = fid
+                self._music_tracks.append(item)
                 
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid_parsed, is_active
@@ -217,7 +223,7 @@ class JournalReader:
         return results if results else None
 
 class CarrierModel:
-    def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None):
+    def __init__(self, journal_paths:list[str], journal_reader:JournalReader|None=None, dropout:bool=False, droplist:list[str]=None, music_tracking_len:int=3):
         self.journal_reader = journal_reader if journal_reader else JournalReader(journal_paths, dropout=dropout, droplist=droplist)
         self.dropout = dropout
         self.droplist = droplist
@@ -230,6 +236,9 @@ class CarrierModel:
         self.carrier_owners = {}
         self.active_timer = False
         self.manual_timers = {}
+        self.routes = {}
+        self.cmdr_music: dict[str, deque[str]] = {}
+        self._music_tracking_len = music_tracking_len
         self.journal_paths = journal_reader.journal_paths if journal_reader else journal_paths
         # self.read_counter = 0
         self._ignore_list = []
@@ -238,6 +247,7 @@ class CarrierModel:
         self.custom_order = []
         self._squadron_abbv_mapping = {}
         self._callback_status_change = lambda carrierID, status_old, status_new: print(f'{self.get_name(carrierID)} status changed from {status_old} to {status_new}')
+        self._callback_music_change = lambda fid, music_tracks: print(f'{self.get_name(self.get_owned_carrier(fid))} music changed, sequence: {music_tracks}')
         self.df_commodities = pd.read_csv(getResourcePath(path.join('3rdParty', 'aussig.BGS-Tally', 'commodity.csv')))
         self.df_commodities['symbol'] = self.df_commodities['symbol'].str.lower()
         self.df_commodities = self.df_commodities.set_index('symbol')
@@ -253,12 +263,36 @@ class CarrierModel:
         except locale.Error:
             locale.setlocale(locale.LC_ALL, 'C')
         self.read_journals()
+        self.read_routes()
         self.update_carriers(datetime.now(timezone.utc))
+
+    def read_routes(self):
+        for carrierID in self.carriers.keys():
+            routePath = getRoutePath(carrierID)
+            if routePath is None:
+                continue
+            if os.path.isfile(routePath):
+                df = pd.read_csv(routePath, keep_default_na=False)
+                data = df.values.tolist()
+
+                next_system_index = 0
+                for i, row in enumerate(data):
+                    if row[0] == "":
+                        next_system_index = i
+                        break
+                else:
+                    next_system_index = len(data)
+
+                self.routes[carrierID] = {
+                    'route': df,
+                    'progress': next_system_index,
+                    'length': len(data)
+                }
 
     def read_journals(self):
         self.journal_reader.read_journals()
         first_read = self.carriers == {}
-        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, squadrons, docked, undocked, fsd_jumps, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
+        load_games, carrier_locations, jump_requests, jump_cancels, stats, trade_orders, carrier_buys, trit_deposits, docking_perms, squadrons, docked, undocked, fsd_jumps, music_tracks, self.carrier_owners = self.journal_reader.get_items() if first_read else self.journal_reader.get_new_items()
         # print(self.read_counter, first_read, len(load_games), len(carrier_locations), len(jump_requests), len(jump_cancels), len(stats), len(trade_orders), len(carrier_buys), len(trit_deposits), len(docking_perms))
         # self.read_counter += 1
         self.process_load_games(load_games, first_read)
@@ -281,11 +315,11 @@ class CarrierModel:
 
         self.process_squadrons(squadrons, first_read)
 
+        self.process_music_tracks(music_tracks, first_read)
+
         self.fill_missing_data()
 
         self.update_ignore_list()
-
-        
 
         self.journal_reader.update_items_count()
 
@@ -353,7 +387,7 @@ class CarrierModel:
                 self.carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
                 self.carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
                 self.carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
-                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
+                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace'], 'TotalCapacity': stat['SpaceUsage']['TotalCapacity']}
                 df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
                 df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
@@ -464,6 +498,18 @@ class CarrierModel:
             if self.carriers[carrierID].get('SquadronName', None) is None or not first_read:
                 self.carriers[carrierID]['SquadronName'] = self.cmdr_squadrons.get(self.carrier_owners.get(carrierID, None), None)
 
+    def process_music_tracks(self, music_tracks, first_read:bool=True):
+        fids = set()
+        for music_track in music_tracks:
+            fid = music_track['FID']
+            fids.add(fid)
+            if fid not in self.cmdr_music:
+                self.cmdr_music[fid] = deque(maxlen=self._music_tracking_len)
+            self.cmdr_music[fid].append(music_track['MusicTrack'])
+        if not first_read and fids:
+            for fid in fids:
+                self._callback_music_change(fid, list(self.cmdr_music[fid]))
+
     def fill_missing_data(self):
         for carrierID in self.carriers.keys():
             if 'SpawnLocation' not in self.carriers[carrierID].keys():
@@ -501,7 +547,7 @@ class CarrierModel:
                     self.carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
                 
             if 'SpaceUsage' not in self.carriers[carrierID].keys():
-                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
+                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None, 'TotalCapacity': 25000 if not self.is_squadron_carrier(carrierID) else 60000}
 
             if 'PendingDecom' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['PendingDecom'] = False
@@ -660,6 +706,9 @@ class CarrierModel:
                 data['previous_system'] = pre_system
                 data['previous_body'] = pre_body
                 data['previous_body_id'] = pre_body_id
+            
+            data['cmdr_music'] = self.cmdr_music.get(self.carrier_owners.get(carrierID, None), None)
+
             carriers[carrierID] = data
                   
         old_status = {carrierID: self.carriers_updated[carrierID]['status'] for carrierID in self.carriers_updated.keys()}
@@ -673,6 +722,9 @@ class CarrierModel:
 
     def register_status_change_callback(self, callback:Callable[[str, str, str], None]):
         self._callback_status_change = lambda carrierID, status_old, status_new: threading.Thread(target=callback, args=(carrierID, status_old, status_new)).start()
+
+    def register_music_change_callback(self, callback:Callable[[str, list[str]], None]):
+        self._callback_music_change = lambda fid, music_tracks: threading.Thread(target=callback, args=(fid, music_tracks)).start()
     
     def get_carriers(self):
         return self.carriers_updated.copy()
@@ -683,6 +735,10 @@ class CarrierModel:
     def generateInfo(self, carrierID: int, now: datetime):
         carrier = self.get_carriers()[carrierID]
         location_system, location_body = getLocation(carrier['current_system'], carrier['current_body'], carrier['current_body_id'])
+        route_info = self.routes.get(carrierID, None)
+        route_counter = ""
+        if route_info is not None:
+            route_counter = f"{route_info['progress']}/{route_info['length']}"
         fuel_level = carrier['Fuel']['FuelLevel']
         timer = self.manual_timers.get(carrierID, None)
         timer = timer['time'].strftime('%H:%M:%S') if timer is not None else ''
@@ -694,13 +750,14 @@ class CarrierModel:
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Pad Locked" if time_diff < PADLOCK else "Jump Locked" if time_diff < JUMPLOCK else f"Jumping",
                 f"{destination_system}", 
                 f"{destination_body}", 
                 f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
-                f"{timer}"
+                f"{timer}",
                 )
         elif carrier['status'] == 'cool_down':
             time_diff = CD - (now - carrier['latest_depart'])
@@ -709,13 +766,14 @@ class CarrierModel:
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Cooling Down",
                 f"", 
                 f"",
                 f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
-                f"{timer}"
+                f"{timer}",
                 )
         elif carrier['status'] == 'cool_down_cancel':
             time_diff = CD_cancel - (now - carrier['last_cancel']['timestamp'])
@@ -724,26 +782,28 @@ class CarrierModel:
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Cooling Down",
                 f"", 
                 f"",
                 f"{h:.0f} h {m:02.0f} m {s:02.0f} s", 
-                f"{timer}"
+                f"{timer}",
                 )
         else:
             return (
                 f"{carrier['Name']}", 
                 f"{carrier['Callsign']}", 
                 f"{fuel_level}",
+                f"{route_counter}",
                 f"{location_system}", 
                 f"{location_body}", 
                 f"Idle",
                 f"", 
                 f"",
                 f"",
-                f"{timer}"
+                f"{timer}",
                 )
     
     def get_data_finance(self):
@@ -904,6 +964,22 @@ class CarrierModel:
 
     def get_space_usage(self, carrierID: int):
         return self.get_carriers()[carrierID]['SpaceUsage']
+
+    def get_capacity_used(self, carrierID: int) -> int|None:
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        if space_usage['FreeSpace'] is None or space_usage['TotalCapacity'] is None:
+            return None
+        return space_usage['TotalCapacity'] - space_usage['FreeSpace'] - space_usage['Cargo']
+
+    def get_cargo_tonnage(self, carrierID: int) -> int|None:
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        if space_usage['Cargo'] is None:
+            return None
+        return space_usage['Cargo']
+
+    def get_total_capacity(self, carrierID: int) -> int:
+        space_usage = self.get_space_usage(carrierID=carrierID)
+        return space_usage['TotalCapacity']
     
     def generate_info_stat_time(self, carrierID: int) -> str:
         stat_time = self.get_stat_time(carrierID=carrierID)
@@ -930,12 +1006,21 @@ class CarrierModel:
         return self.get_carriers()[carrierID]['PendingDecom']
     
     def get_name(self, carrierID: int) -> str:
+        """
+        Get the name of the carrier.
+        """
         return self.get_carriers()[carrierID]['Name']
     
     def get_callsign(self, carrierID: int) -> str:
+        """
+        Get the callsign of the carrier.
+        """
         return self.get_carriers()[carrierID]['Callsign']
     
     def get_squadron_name(self, carrierID: int) -> str|None:
+        """
+        Get the squadron name of the carrier.
+        """
         squadron_name = self.get_carriers()[carrierID]['SquadronName']
         return squadron_name
     
