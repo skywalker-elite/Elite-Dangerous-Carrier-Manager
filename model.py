@@ -58,6 +58,7 @@ class JournalReader:
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self.items = []
+        self._items_computed = False
         self.dropout = dropout
         self.droplist = droplist
         if self.dropout == True:
@@ -75,7 +76,7 @@ class JournalReader:
     def read_journals(self):
         latest_journal_info = {}
         for key, value in zip(self.journal_latest.keys(), self.journal_latest.values()):
-            latest_journal_info[value['filename']] = {'fid': key, 'line_pos': value['line_pos'], 'is_active': value['is_active']}
+            latest_journal_info[value['filename']] = {'fid': key, 'byte_pos': value['byte_pos'], 'is_active': value['is_active']}
         journals = []
         for journal_path in self.journal_paths:
             files = listdir(journal_path)
@@ -88,28 +89,30 @@ class JournalReader:
                 self._read_journal(journal)
             elif journal in latest_journal_info.keys():
                 if latest_journal_info[journal]['is_active']:
-                    self._read_journal(journal, latest_journal_info[journal]['line_pos'], latest_journal_info[journal]['fid'])
+                    self._read_journal(journal, latest_journal_info[journal]['byte_pos'], latest_journal_info[journal]['fid'])
             elif journal in self.journal_latest_unknown_fid.keys():
-                self._read_journal(journal, self.journal_latest_unknown_fid[journal]['line_pos'])
+                self._read_journal(journal, self.journal_latest_unknown_fid[journal]['byte_pos'])
+        if self._items_computed:
+            return
         self.items = self._get_parsed_items()
+        self._items_computed = True
         assert len(self.items[4]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
-    
-    def _read_journal(self, journal_path:str, line_pos:int|None=None, fid_last:str|None=None):
+
+    def _read_journal(self, journal_path:str, byte_pos:int=0, fid_last:str|None=None):
         # print(journal)
         items = []
         with open(journal_path, 'r', encoding='utf-8') as f:
-            lines = f.readlines()
-            line_pos_new = len(lines)
-            lines = lines[line_pos:]
-            # if line_pos is not None:
-            #     print(*lines, sep='\n')
-            for i in lines:
+            f.seek(byte_pos)
+            for line in f:
                 try:
-                    items.append(json.loads(i))
-                except json.decoder.JSONDecodeError as e: # ignore ill-formated entries
+                    items.append(json.loads(line))
+                except json.decoder.JSONDecodeError as e: # ignore ill-formated entries (may be a partially-written last line)
                     print(f'{journal_path} {e}')
                     continue
-        
+            byte_pos_new = f.tell()
+
+        if len(items) == 0:
+            return
         parsed_fid, is_active = self._parse_items(items, fid_last)
         if fid_last is None:
             fid = parsed_fid
@@ -121,16 +124,16 @@ class JournalReader:
             if fid is None:
                 match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal_path)
                 if datetime.now() - datetime.strptime(match.group(0), '%Y-%m-%dT%H%M%S') < timedelta(hours=1): # allows one hour for fid to show up
-                    self.journal_latest_unknown_fid[journal_path] = {'filename': journal_path, 'line_pos': line_pos_new, 'is_active': is_active}
+                    self.journal_latest_unknown_fid[journal_path] = {'filename': journal_path, 'byte_pos': byte_pos_new, 'is_active': is_active}
                 else:
                     self.journal_latest_unknown_fid.pop(journal_path, None)
             else:
                 self.journal_latest_unknown_fid.pop(journal_path, None)
-                self.journal_latest[fid] = {'filename': journal_path, 'line_pos': line_pos_new, 'is_active': is_active}
+                self.journal_latest[fid] = {'filename': journal_path, 'byte_pos': byte_pos_new, 'is_active': is_active}
         else:
             self.journal_latest_unknown_fid.pop(journal_path, None)
             if fid is not None:
-                self.journal_latest[fid] = {'filename': journal_path, 'line_pos': line_pos_new, 'is_active': is_active}
+                self.journal_latest[fid] = {'filename': journal_path, 'byte_pos': byte_pos_new, 'is_active': is_active}
         if journal_path not in self.journal_processed:
             self.journal_processed.append(journal_path)
 
@@ -433,6 +436,17 @@ class CarrierModel:
                         fc_jumps = pd.concat([fc_jumps, old_jumps])
                     else:
                         fc_jumps = old_jumps
+
+            # keep a clean, contiguous 0-based index (most recent = 0) so the old_jumps.drop(0, ...)
+            fc_jumps = fc_jumps.reset_index(drop=True)
+            # only the two most recent jumps and jumps within the averaging window are ever read back out
+            # (see calculate_average_jump_costs), so drop everything older to stop this growing without
+            # bound for the life of a carrier. fc_jumps is kept sorted most-recent-first, hence iloc here.
+            if len(fc_jumps) > 2:
+                cutoff = datetime.now(timezone.utc) - timedelta(weeks=AVG_JUMP_CAL_WINDOW + 1)
+                keep = fc_jumps['timestamp'] >= cutoff
+                keep.iloc[:2] = True
+                fc_jumps = fc_jumps[keep].reset_index(drop=True)
             self.carriers[carrierID]['jumps'] = fc_jumps.copy()
 
     def process_trade_orders(self, trade_orders, first_read:bool=True):

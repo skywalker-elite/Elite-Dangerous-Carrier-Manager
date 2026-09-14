@@ -141,6 +141,7 @@ class CarrierController:
         self.last_time_skew_warned = datetime.min
         self.time_skew_warning_suppressed = False
         self.time_checker = TimeChecker()
+        self._executioner = ThreadPoolExecutor(max_workers=1)
         self.check_time_skew()
 
         self.set_current_version()
@@ -472,7 +473,6 @@ class CarrierController:
             return
         if not silent:
             progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
-        self._executioner = ThreadPoolExecutor(max_workers=1)
         future_skew = self._executioner.submit(self.time_checker.check_and_warn)
         def handle_skew_result(future):
             if not silent:
