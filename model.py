@@ -57,8 +57,6 @@ class JournalReader:
         self.tracked_items = ['load_games', 'carrier_locations', 'jump_requests', 'jump_cancels', 'stats', 'trade_orders', 'carrier_buys', 'trit_deposits', 'docking_perms', 'squadron_startup', 'docked', 'undocked', 'fsd_jumps']
         self._last_items_count = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
-        self.items = []
-        self._items_computed = False
         self.dropout = dropout
         self.droplist = droplist
         if self.dropout == True:
@@ -92,11 +90,7 @@ class JournalReader:
                     self._read_journal(journal, latest_journal_info[journal]['byte_pos'], latest_journal_info[journal]['fid'])
             elif journal in self.journal_latest_unknown_fid.keys():
                 self._read_journal(journal, self.journal_latest_unknown_fid[journal]['byte_pos'])
-        if self._items_computed:
-            return
-        self.items = self._get_parsed_items()
-        self._items_computed = True
-        assert len(self.items[4]) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
+        assert len(self._stats) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
 
     def _read_journal(self, journal_path:str, byte_pos:int=0, fid_last:str|None=None):
         # print(journal)
@@ -188,12 +182,11 @@ class JournalReader:
     
     def get_items(self) -> list:
         self._last_items_count_pending = {item_type: len(getattr(self, f'_{item_type}')) for item_type in self.tracked_items}
+        items = self._get_parsed_items()
         if self.dropout:
-            items = self.items.copy()
             for i in self.droplist:
                 items[i] = type(items[i])()
-            return items
-        return self.items.copy()
+        return items
     
     def get_new_items(self) -> list:
         items = []
