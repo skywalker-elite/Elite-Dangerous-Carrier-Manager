@@ -20,7 +20,7 @@ class CarrierView:
     def __init__(self, root: tk.Tk, window_size:str|None=None, menu_options:dict[str, list[MenuOption]]|None=None):
         self.root = root
         self.menu_options = menu_options
-        self._column_resize_lengths: dict[int, list[list[int]]] = {}  # id(table) -> cell text lengths as of last resize
+        self._column_resize_snapshots: dict[int, tuple[tuple[str, ...], ...]] = {}
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -359,6 +359,9 @@ class CarrierView:
         for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_notes, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
+            self._column_resize_snapshots.pop(id(sheet), None)
+            self._resize_table_columns(sheet)
+            sheet.refresh()
 
         # 2) resize all Tk widgets via named‐fonts
         for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
@@ -395,17 +398,28 @@ class CarrierView:
                 print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
-        table.set_sheet_data(data, reset_col_positions=False)
+        table.set_sheet_data(data, reset_col_positions=False, redraw=False)
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        # Only recalculate column widths if the data has changed in length since the last resize, to avoid unnecessary recalculation on every update.
-        # Uses text length and not any data change to avoid recalcs for ticking timers
+        self._resize_table_columns(table)
+        table.refresh()
+
+    def _resize_table_columns(self, table:Sheet):
+        # Compare rendered text, not character counts: these tables use proportional fonts.
+        rows = table.get_sheet_data(get_displayed=True, get_header=True)
+        count = max((len(row) for row in rows), default=0)
+        snapshot = tuple(tuple(str(row[c]) if c < len(row) else '' for row in rows)
+                         for c in range(count))
         key = id(table)
-        lengths = [[len(str(cell)) for cell in row] for row in data]
-        if lengths != self._column_resize_lengths.get(key):
-            table.set_all_column_widths()
-            self._column_resize_lengths[key] = lengths
+        previous = self._column_resize_snapshots.get(key)
+        if previous is None or len(previous) != count:
+            table.set_all_column_widths(redraw=False)
+        else:
+            for column, text in enumerate(snapshot):
+                if text != previous[column]:
+                    table.column_width(column, width='text', redraw=False)
+        self._column_resize_snapshots[key] = snapshot
     
     def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_jumps, data, rows_pending_decomm)

@@ -28,6 +28,8 @@ def format_local_datetime_aligned(dt: datetime) -> str:
     return _SINGLE_DIGIT_TOKEN.sub(r'0\1', s)
 
 class JournalReader:
+    _timestamp_pattern = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z')
+
     @classmethod
     def version_hash(cls) -> str:
         src = inspect.getsource(cls)
@@ -37,9 +39,10 @@ class JournalReader:
         self.version = self.version_hash()
         
         self.journal_paths = journal_paths
-        self.journal_processed = []
+        self.journal_processed = set()
         self.journal_latest = {}
         self.journal_latest_unknown_fid = {}
+        self._journal_pending = {}
         self._load_games = []
         self._carrier_locations = []
         self._jump_requests = []
@@ -82,8 +85,16 @@ class JournalReader:
             journal_files = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
             assert len(journal_files) > 0, f'No journal files found in {journal_path}'
             journals += [path.join(journal_path, i) for i in journal_files]
+        journal_order = {journal: index for index, journal in enumerate(journals)}
         for journal in journals:
-            if journal not in self.journal_processed:
+            if journal in self._journal_pending:
+                pending = self._journal_pending[journal]
+                # A delayed tail may reveal its FID only after a newer journal is active.
+                newer_latest = {fid: info for fid, info in self.journal_latest.items()
+                                if journal_order.get(info['filename'], -1) > journal_order[journal]}
+                self._read_journal(journal, pending['byte_pos'], pending['fid'])
+                self.journal_latest.update(newer_latest)
+            elif journal not in self.journal_processed:
                 self._read_journal(journal)
             elif journal in latest_journal_info.keys():
                 if latest_journal_info[journal]['is_active']:
@@ -93,19 +104,34 @@ class JournalReader:
         assert len(self._stats) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
 
     def _read_journal(self, journal_path:str, byte_pos:int=0, fid_last:str|None=None):
-        # print(journal)
         items = []
-        with open(journal_path, 'r', encoding='utf-8') as f:
+        incomplete = False
+        with open(journal_path, 'rb') as f:
             f.seek(byte_pos)
-            for line in f:
+            while True:
+                byte_pos_new = f.tell()
+                line = f.readline()
+                if not line:
+                    break
+                if not line.endswith(b'\n'):
+                    incomplete = True
+                    break
                 try:
-                    items.append(json.loads(line))
-                except json.decoder.JSONDecodeError as e: # ignore ill-formated entries (may be a partially-written last line)
+                    items.append(json.loads(line.decode('utf-8')))
+                except json.decoder.JSONDecodeError as e: # skip malformed complete records
                     print(f'{journal_path} {e}')
-                    continue
-            byte_pos_new = f.tell()
 
         if len(items) == 0:
+            # Advance over malformed complete lines without changing known identity/status.
+            for info in self.journal_latest.values():
+                if info['filename'] == journal_path:
+                    info['byte_pos'] = byte_pos_new
+            if journal_path in self.journal_latest_unknown_fid:
+                self.journal_latest_unknown_fid[journal_path]['byte_pos'] = byte_pos_new
+            if incomplete:
+                self._journal_pending[journal_path] = {'byte_pos': byte_pos_new, 'fid': fid_last}
+            else:
+                self._journal_pending.pop(journal_path, None)
             return
         parsed_fid, is_active = self._parse_items(items, fid_last)
         if fid_last is None:
@@ -114,6 +140,10 @@ class JournalReader:
             fid = None
         else:
             fid = fid_last
+        if incomplete:
+            self._journal_pending[journal_path] = {'byte_pos': byte_pos_new, 'fid': fid}
+        else:
+            self._journal_pending.pop(journal_path, None)
         if is_active:
             if fid is None:
                 match = re.search(r'\d{4}-\d{2}-\d{2}T\d{6}', journal_path)
@@ -128,8 +158,7 @@ class JournalReader:
             self.journal_latest_unknown_fid.pop(journal_path, None)
             if fid is not None:
                 self.journal_latest[fid] = {'filename': journal_path, 'byte_pos': byte_pos_new, 'is_active': is_active}
-        if journal_path not in self.journal_processed:
-            self.journal_processed.append(journal_path)
+        self.journal_processed.add(journal_path)
 
 
     def _parse_items(self, items:list, fid_last:str|None=None) -> tuple[str|None, bool]:
@@ -176,8 +205,19 @@ class JournalReader:
         is_active = len(items) == 0 or items[-1]['event'] != 'Shutdown'
         return fid_parsed, is_active
     
+    @classmethod
+    def _timestamp_key(cls, item) -> str:
+        timestamp = item['timestamp']
+        if not isinstance(timestamp, str) or cls._timestamp_pattern.fullmatch(timestamp) is None:
+            raise ValueError(f'Invalid journal timestamp {timestamp!r}: expected YYYY-MM-DDTHH:MM:SSZ')
+        try:
+            datetime.fromisoformat(timestamp[:-1])
+        except ValueError as e:
+            raise ValueError(f'Invalid journal timestamp {timestamp!r}: invalid date or time') from e
+        return timestamp
+
     def _get_parsed_items(self):
-        return [sorted(getattr(self, f'_{item_type}'), key=lambda x: datetime.strptime(x['timestamp'], '%Y-%m-%dT%H:%M:%SZ'), reverse=True)
+        return [sorted(getattr(self, f'_{item_type}'), key=self._timestamp_key, reverse=True)
                 for item_type in self.tracked_items] + [self._carrier_owners]
     
     def get_items(self) -> list:
