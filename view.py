@@ -20,6 +20,7 @@ class CarrierView:
     def __init__(self, root: tk.Tk, window_size:str|None=None, menu_options:dict[str, list[MenuOption]]|None=None):
         self.root = root
         self.menu_options = menu_options
+        self._column_resize_snapshots: dict[int, tuple[tuple[str, ...], ...]] = {}
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -335,6 +336,20 @@ class CarrierView:
         sheet.enable_bindings('single_select', 'drag_select', 'column_select', 'row_select', 'arrowkeys', 'copy', 'find', 'ctrl_click_select', 'right_click_popup_menu', 'rc_select')
         sheet.column_width_resize_enabled = False
         sheet.row_height_resize_enabled = False
+        self._debounce_sheet_resize(sheet)
+
+    def _debounce_sheet_resize(self, sheet:Sheet, delay_ms:int=100):
+        # tksheet redraws the whole grid on every single <Configure> event it receives,
+        # which fires repeatedly (uncoalesced) while the window is being dragged/resized.
+        # Rebind with a debounce so the (expensive) redraw only runs once resizing settles.
+        mt = sheet.MT
+        original_handler = mt.window_configured
+        after_id_holder: dict[str, str|None] = {'id': None}
+        def debounced(event=None):
+            if after_id_holder['id'] is not None:
+                mt.after_cancel(after_id_holder['id'])
+            after_id_holder['id'] = mt.after(delay_ms, lambda: original_handler(event))
+        mt.bind('<Configure>', debounced)
 
     def set_font_size(self, font_size:str, font_size_table:str):
         size = font_sizes.get(font_size, font_sizes['normal'])
@@ -344,6 +359,9 @@ class CarrierView:
         for sheet in [self.sheet_jumps, self.sheet_trade, self.sheet_finance, self.sheet_services, self.sheet_cmdr, self.sheet_misc, self.sheet_notes, self.sheet_active_journals]:
             sheet.font(('Calibri', size_table, 'normal'))
             sheet.header_font(('Calibri', size_table, 'normal'))
+            self._column_resize_snapshots.pop(id(sheet), None)
+            self._resize_table_columns(sheet)
+            sheet.refresh()
 
         # 2) resize all Tk widgets via named‐fonts
         for name in ("TkDefaultFont", "TkTextFont", "TkMenuFont", "TkHeadingFont"):
@@ -380,11 +398,28 @@ class CarrierView:
                 print(f'Warning: No sheet found for menu options with key "{sheet_name}"')
 
     def update_table(self, table:Sheet, data, rows_pending_decomm:list[int]|None=None):
-        table.set_sheet_data(data, reset_col_positions=False)
+        table.set_sheet_data(data, reset_col_positions=False, redraw=False)
         table.dehighlight_all(redraw=False)
         if rows_pending_decomm is not None:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
-        table.set_all_column_widths()
+        self._resize_table_columns(table)
+        table.refresh()
+
+    def _resize_table_columns(self, table:Sheet):
+        # Compare rendered text, not character counts: these tables use proportional fonts.
+        rows = table.get_sheet_data(get_displayed=True, get_header=True)
+        count = max((len(row) for row in rows), default=0)
+        snapshot = tuple(tuple(str(row[c]) if c < len(row) else '' for row in rows)
+                         for c in range(count))
+        key = id(table)
+        previous = self._column_resize_snapshots.get(key)
+        if previous is None or len(previous) != count:
+            table.set_all_column_widths(redraw=False)
+        else:
+            for column, text in enumerate(snapshot):
+                if text != previous[column]:
+                    table.column_width(column, width='text', redraw=False)
+        self._column_resize_snapshots[key] = snapshot
     
     def update_table_jumps(self, data, rows_pending_decomm:list[int]|None=None):
         self.update_table(self.sheet_jumps, data, rows_pending_decomm)
