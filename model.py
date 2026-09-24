@@ -92,7 +92,7 @@ class JournalReader:
                 # A delayed tail may reveal its FID only after a newer journal is active.
                 newer_latest = {fid: info for fid, info in self.journal_latest.items()
                                 if journal_order.get(info['filename'], -1) > journal_order[journal]}
-                self._read_journal(journal, pending['byte_pos'], pending['fid'])
+                self._read_journal(journal, pending['byte_pos'], pending['fid'], set(newer_latest))
                 self.journal_latest.update(newer_latest)
             elif journal not in self.journal_processed:
                 self._read_journal(journal)
@@ -101,9 +101,20 @@ class JournalReader:
                     self._read_journal(journal, latest_journal_info[journal]['byte_pos'], latest_journal_info[journal]['fid'])
             elif journal in self.journal_latest_unknown_fid.keys():
                 self._read_journal(journal, self.journal_latest_unknown_fid[journal]['byte_pos'])
+            # Once a newer journal identifies the same commander, the old tail is final.
+            for pending_path, pending in list(self._journal_pending.items()):
+                latest = self.journal_latest.get(pending['fid'])
+                if latest is not None and journal_order.get(latest['filename'], -1) > journal_order.get(pending_path, -1):
+                    self._retire_pending_journal(pending_path)
         assert len(self._stats) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
 
-    def _read_journal(self, journal_path:str, byte_pos:int=0, fid_last:str|None=None):
+    def _retire_pending_journal(self, journal_path:str):
+        self._journal_pending.pop(journal_path, None)
+        self.journal_latest_unknown_fid.pop(journal_path, None)
+        self.journal_processed.add(journal_path)
+
+    def _read_journal(self, journal_path:str, byte_pos:int=0, fid_last:str|None=None,
+                      superseded_fids:set[str]|None=None):
         items = []
         incomplete = False
         with open(journal_path, 'rb') as f:
@@ -133,6 +144,14 @@ class JournalReader:
             else:
                 self._journal_pending.pop(journal_path, None)
             return
+        # An unknown-FID tail may reveal its identity only after its successor was read.
+        # Retire it before parsing, so historical events cannot reach incremental consumers.
+        if superseded_fids:
+            fids = [item['FID'] for item in items if item['event'] == 'Commander']
+            pending_fid = fids[0] if fids and all(fid == fids[0] for fid in fids) else fid_last
+            if pending_fid in superseded_fids:
+                self._retire_pending_journal(journal_path)
+                return
         parsed_fid, is_active = self._parse_items(items, fid_last)
         if fid_last is None:
             fid = parsed_fid
