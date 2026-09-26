@@ -25,7 +25,7 @@ class CarrierView:
     def __init__(self, root: tk.Tk, window_size:str|None=None, menu_options:dict[str, list[MenuOption]]|None=None):
         self.root = root
         self.menu_options = menu_options
-        self._column_resize_snapshots: dict[int, tuple[tuple[str, ...], ...]] = {}
+        self._column_resize_snapshots: dict[int, tuple[tuple[int, tuple[str, ...]], ...]] = {}
 
         style = ttk.Style(self.root)
         # Removing the focus border around tabs
@@ -412,20 +412,22 @@ class CarrierView:
             table.highlight_rows(rows_pending_decomm, fg='red', redraw=False)
         table.show_columns(range(table.get_total_columns()), redraw=False, deselect_all=False)
         if hide_columns is not None:
-            for col in hide_columns:
-                table.hide_columns(col, redraw=False, deselect_all=False)
+            table.hide_columns(hide_columns, data_indexes=True, redraw=False, deselect_all=False)
         self._resize_table_columns(table)
         table.refresh()
 
     def _resize_table_columns(self, table:Sheet):
         # Compare rendered text, not character counts: these tables use proportional fonts.
         rows = table.get_sheet_data(get_displayed=True, get_header=True)
-        count = max((len(row) for row in rows), default=0)
-        snapshot = tuple(tuple(str(row[c]) if c < len(row) else '' for row in rows)
-                         for c in range(count))
+        # get_displayed returns formatted values, including hidden columns.
+        # column_width instead takes an index into the visible columns.
+        columns = (range(max((len(row) for row in rows), default=0))
+                   if table.all_columns_displayed() else table.displayed_columns)
+        snapshot = tuple((c, tuple(str(row[c]) if c < len(row) else '' for row in rows))
+                         for c in columns)
         key = id(table)
         previous = self._column_resize_snapshots.get(key)
-        if previous is None or len(previous) != count:
+        if previous is None or len(previous) != len(snapshot):
             table.set_all_column_widths(redraw=False)
         else:
             for column, text in enumerate(snapshot):
