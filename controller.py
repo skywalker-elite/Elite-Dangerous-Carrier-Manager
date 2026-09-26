@@ -361,6 +361,7 @@ class CarrierController:
         elif status_new == 'cool_down':
             # jump completed
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID)} body {self.model.get_current_body(carrierID)}')
+            self._queue_ui_callback(self._update_route_after_jump, carrierID)
             if notification_settings.get('jump_completed'):
                 self._queue_ui_callback(self.view.show_non_blocking_info, 'Jump completed', f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) has arrived at {self.model.get_current_system(carrierID, use_custom_name=True)} body {self.model.get_current_body(carrierID)}')
             if notification_settings.get('jump_completed_sound'):
@@ -379,18 +380,6 @@ class CarrierController:
                         current_system=self.model.get_current_system(carrierID, use_custom_name=True), current_body=self.model.get_current_body(carrierID),
                         other_system=self.model.get_previous_system(carrierID, use_custom_name=True), other_body=self.model.get_previous_body(carrierID),
                         timestamp=self.model.get_cooldown_hammer_countdown(carrierID), ping=notification_settings.get('jump_completed_discord_public_ping'))
-            route_info = self.model.routes.get(carrierID, None)
-            if route_info is not None:
-                new_location = self.model.get_current_system(carrierID)
-                if new_location == route_info['route'].at[route_info['progress'], 'System Name']:
-                    route_info['route'].at[route_info['progress'], 'Done'] = "✔"
-                    route_info['progress'] += 1
-                    route_info['route'].to_csv(getRoutePath(carrierID), index=False)
-                    route_view = self.route_views.get(carrierID, None)
-                    if route_view is not None:
-                        route_view.set_data(route_info['route'])
-            else:
-                self.auto_set_ladder_route(carrierID)
         elif status_new == 'cool_down_cancel':
             # jump cancelled
             # print(f'{self.model.get_name(carrierID)} ({self.model.get_callsign(carrierID)}) cancelled a jump')
@@ -1698,6 +1687,28 @@ class CarrierController:
         routeId = match.groups()[1]
         # print(f'Found routeId: {routeId}')
         self._start_route_import(carrierID, routeId)
+
+    def _update_route_after_jump(self, carrierID:int):
+        # Run on the UI thread so route changes and window closure cannot interleave.
+        route_info = self.model.routes.get(carrierID)
+        if route_info is None:
+            self.auto_set_ladder_route(carrierID)
+            return
+
+        route = route_info['route']
+        progress = route_info['progress']
+        if progress >= len(route):
+            return
+        if self.model.get_current_system(carrierID) != route.at[progress, 'System Name']:
+            return
+
+        route.at[progress, 'Done'] = "✔"
+        route_info['progress'] = progress + 1
+        route.to_csv(getRoutePath(carrierID), index=False)
+        # Resolve the current window here; it may have closed or reopened while queued.
+        route_view = self.route_views.get(carrierID)
+        if route_view is not None:
+            route_view.set_data(route)
 
     def _store_imported_route(self, carrierID:int, route:pd.DataFrame, progress_catch_up:bool=False):
         progress = 0
