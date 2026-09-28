@@ -1272,7 +1272,9 @@ class CarrierModel:
             paths += list(unknown_fid_journals.values())
 
         return paths if paths else None
-        
+
+    def get_journal_paths(self) -> list[str]|None:
+        return self.journal_reader.journal_paths        
 
 def getLocation(system, body, body_id):
     if system == 'HIP 58832':
