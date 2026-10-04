@@ -1,0 +1,20 @@
+[run]
+branch = True
+source =
+    auth
+    config
+    controller
+    decos
+    discord_handler
+    main
+    model
+    popups
+    settings
+    station_parser
+    time_checker
+    utility
+    view
+
+[report]
+show_missing = True
+skip_empty = True
