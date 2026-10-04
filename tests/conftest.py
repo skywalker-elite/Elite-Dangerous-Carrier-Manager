@@ -1,9 +1,7 @@
-"""Shared isolation applies to diagnostics as well as regression tests."""
+"""Shared isolation for application regression tests."""
 
 import locale
 import os
-from pathlib import Path
-import re
 import socket
 import sys
 from tempfile import TemporaryDirectory
@@ -37,20 +35,6 @@ def pytest_configure(config):
 
 def pytest_unconfigure(config):
     _dotenv_patch.stop()
-
-
-def pytest_collection_modifyitems(items):
-    """Reject undocumented marker syntax instead of silently quarantining tests."""
-    report = Path(__file__).resolve().parents[1] / "docs" / "TEST_DEFECTS.md"
-    documented_ids = set(re.findall(r"\b[A-Z]+-\d{3}\b", report.read_text(encoding="utf-8")))
-    for item in items:
-        marker = item.get_closest_marker("known_defect")
-        if marker is not None:
-            if len(marker.args) != 1 or not isinstance(marker.args[0], str):
-                raise pytest.UsageError(f"{item.nodeid}: known_defect requires a defect ID")
-            if marker.args[0] not in documented_ids:
-                raise pytest.UsageError(f"{item.nodeid}: undocumented defect ID {marker.args[0]}")
-            item.user_properties.append(("defect_id", marker.args[0]))
 
 
 @pytest.fixture(autouse=True)

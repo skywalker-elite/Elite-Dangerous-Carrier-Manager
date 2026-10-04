@@ -1,1 +1,1 @@
-"""Offline application regression and diagnostic tests."""
+"""Offline application regression tests."""
