@@ -317,6 +317,7 @@ class CarrierModel:
         self.carriers_updated = {}
         self.cmdr_balances = {}
         self.cmdr_names = {}
+        self._load_game_times = {}
         self.cmdr_squadrons = {}
         self.cmdr_locations = {}
         self.carrier_owners = {}
@@ -382,11 +383,13 @@ class CarrierModel:
         self.journal_reader.update_items_count()
 
     def process_load_games(self, load_games, first_read:bool=True):
-        for load_game in load_games:
-            if not first_read or load_game['FID'] not in self.cmdr_balances.keys():
-                self.cmdr_balances[load_game['FID']] = load_game['Credits']
-            if not first_read or load_game['FID'] not in self.cmdr_names.keys():
-                self.cmdr_names[load_game['FID']] = load_game['Commander']
+        for load_game in sorted(load_games, key=lambda item: item['timestamp']):
+            fid = load_game['FID']
+            timestamp = datetime.strptime(load_game['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+            if fid not in self._load_game_times or timestamp >= self._load_game_times[fid]:
+                self._load_game_times[fid] = timestamp
+                self.cmdr_balances[fid] = load_game['Credits']
+                self.cmdr_names[fid] = load_game['Commander']
     
     def process_itinerary(self, docked, undocked, fsd_jumps, first_read:bool=True):
         df_events = pd.DataFrame(docked + undocked + fsd_jumps, columns=['timestamp', 'event', 'StationName', 'StarSystem', 'MarketID', 'FID'], )

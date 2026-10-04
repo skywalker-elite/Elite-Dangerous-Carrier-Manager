@@ -357,24 +357,30 @@ def test_delayed_archive_stats_preserve_newer_snapshot_but_accept_fresh_updates(
     newest['Finance']['CarrierBalance'] = 2000
     newest['SpaceUsage']['Cargo'] = 9000
     newest['Crew'][2]['Enabled'] = True
-    write_journal(tmp_path, [event('Commander', FID='F1'), newest])
+    write_journal(tmp_path, [event('Commander', FID='F1'),
+                            event('LoadGame', 19, FID='F1', Commander='Current', Credits=2000), newest])
     carrier = CarrierModel([str(tmp_path)])
     stale = deepcopy(records[3])
     stale.update(timestamp=stamp(10), Name='Stale', FuelLevel=600, Crew=None)
-    refresh(carrier, archive, stale)
+    refresh(carrier, archive, event('LoadGame', 9, FID='F1', Commander='Old', Credits=1000), stale)
     assert carrier.get_name(1) == 'Newest'
     assert carrier.get_callsign(1) == 'NEW-123'
     assert carrier.get_carriers()[1]['Fuel'] == {'FuelLevel': 800, 'JumpRange': 400}
     assert carrier.get_finance(1)['CarrierBalance'] == 2000
+    assert carrier.get_finance(1)['CmdrBalance'] == 2000
+    assert carrier.get_cmdr_name(1) == 'Current'
     assert carrier.get_space_usage(1)['Cargo'] == 9000
     assert carrier.generate_info_services(1).to_dict() == {'Refuel': 'Active', 'Repair': 'Active', 'Rearm': 'Off'}
     assert carrier.get_pending_decom(1) is True
     assert carrier.get_docking_perm(1) == {'DockingAccess': 'friends', 'AllowNotorious': True}
     assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:20+00:00'
     assert len(carrier.journal_reader.get_items()[4]) == 3
-    refresh(carrier, archive, dict(newest, timestamp=stamp(30), Name='Fresh', FuelLevel=900))
+    refresh(carrier, archive, event('LoadGame', 29, FID='F1', Commander='Fresh Commander', Credits=3000),
+            dict(newest, timestamp=stamp(30), Name='Fresh', FuelLevel=900))
     assert carrier.get_name(1) == 'Fresh'
     assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 900
+    assert carrier.get_finance(1)['CmdrBalance'] == 3000
+    assert carrier.get_cmdr_name(1) == 'Fresh Commander'
     assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:30+00:00'
 
 

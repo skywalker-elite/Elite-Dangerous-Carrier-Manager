@@ -118,6 +118,7 @@ class JournalEdgeTests(unittest.TestCase):
         model = CarrierModel.__new__(CarrierModel)
         model.cmdr_balances = {}
         model.cmdr_names = {}
+        model._load_game_times = {}
         model.process_load_games(self.reader.get_new_items()[0], first_read=False)
         self.reader.update_items_count()
         self.assertNotIn(str(self.file), self.reader._journal_pending)
