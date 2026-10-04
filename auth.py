@@ -191,13 +191,15 @@ def _run_callback_server(render_html: Callable[[str, str, list[str]], bytes], ti
     httpd = HTTPServer(("127.0.0.1", LOCAL_PORT), _CallbackHandler)
     httpd.timeout = timeout_sec
     end_at = time.time() + timeout_sec
-    while (
-        _CallbackHandler.result["code"] is None
-        and _CallbackHandler.result["error"] is None
-        and time.time() < end_at
-    ):
-        httpd.handle_request()
-    httpd.server_close()
+    try:
+        while (
+            _CallbackHandler.result.get("code") is None
+            and _CallbackHandler.result.get("error") is None
+            and time.time() < end_at
+        ):
+            httpd.handle_request()
+    finally:
+        httpd.server_close()
 
 # ---------------
 # Auth Handler
@@ -389,7 +391,8 @@ class AuthHandler:
     def is_logged_in(self) -> bool:
         if self._need_refresh():
             try:
-                self._refresh_access()
+                if not self._refresh_access():
+                    return False
             except Exception:
                 return False
         return self._access_jwt is not None
@@ -469,7 +472,7 @@ class AuthHandler:
         Raises FunctionsHttpError (e.g., 429) or RuntimeError on unexpected conditions.
         """
         if not self.is_logged_in():
-            raise FunctionsHttpError("Unauthorized", 401, "No access token")
+            raise FunctionsHttpError("Unauthorized: No access token", 401)
 
         def _call():
             return self.client.functions.invoke(

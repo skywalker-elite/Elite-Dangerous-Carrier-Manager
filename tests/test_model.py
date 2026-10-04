@@ -198,7 +198,6 @@ def test_trade_replacement_cancellation_and_unloading(tmp_path):
     assert carrier.get_formatted_largest_order(1) is None
 
 
-@pytest.mark.known_defect('MD-001')
 def test_trade_history_survives_incremental_updates(tmp_path):
     carrier = make_model(tmp_path)
     path = next(tmp_path.glob('Journal.*.log'))
@@ -207,9 +206,25 @@ def test_trade_history_survives_incremental_updates(tmp_path):
     history = carrier.get_trade_history(1)
     assert len(history) == 2
     assert set(history['Price']) == {'50,000', '52,000'}
+    assert carrier.get_active_trades(1)['Price'].tolist() == [52000]
+    carrier.read_journals()
+    assert len(carrier.get_trade_history(1)) == 2
 
 
-@pytest.mark.known_defect('MD-002')
+def test_other_carrier_updates_and_cancellation_preserve_trade_history(tmp_path):
+    records = sample_events() + sample_events(fid='F2', carrier_id=2, callsign='DEF-456')
+    carrier = make_model(tmp_path, records)
+    path = next(tmp_path.glob('Journal.*.log'))
+    refresh(carrier, path, event('CarrierTradeOrder', 1, CarrierID=2, Commodity='tritium',
+            CancelTrade=False, PurchaseOrder=1000, SaleOrder=0, Price=52000))
+    assert carrier.get_trade_history(1)['Price'].tolist() == ['50,000']
+    assert set(carrier.get_trade_history(2)['Price']) == {'50,000', '52,000'}
+    refresh(carrier, path, event('CarrierTradeOrder', 2, CarrierID=2, Commodity='tritium', CancelTrade=True))
+    assert carrier.get_active_trades(2).empty
+    assert len(carrier.get_trade_history(2)) == 2
+    assert carrier.get_trade_history(1)['Price'].tolist() == ['50,000']
+
+
 def test_missing_trade_events_have_empty_history(tmp_path):
     carrier = make_model(tmp_path, [r for r in sample_events() if r['event'] != 'CarrierTradeOrder'])
     assert_tables_render(carrier)
@@ -230,7 +245,6 @@ def test_capacity_filter_keeps_only_orders_that_fit(carrier):
     assert len(trades) == 3
 
 
-@pytest.mark.known_defect('MD-004')
 def test_largest_order_when_capacity_filter_removes_every_row(tmp_path):
     records = sample_events()
     records[-1]['PurchaseOrder'] = 30000
@@ -238,7 +252,6 @@ def test_largest_order_when_capacity_filter_removes_every_row(tmp_path):
     assert carrier.get_formatted_largest_order(1) is None
 
 
-@pytest.mark.known_defect('MD-005')
 def test_recent_jump_missing_departure_time_preserves_usable_model(tmp_path):
     damaged = jump()
     del damaged['DepartureTime']
@@ -277,11 +290,203 @@ def test_full_incremental_and_cache_resume_have_equivalent_supported_outputs(tmp
         assert_tables_render(item)
 
 
-@pytest.mark.known_defect('MD-006')
 def test_initial_and_incremental_docking_permissions_agree(tmp_path):
     update = event('CarrierDockingPermission', 1, CarrierID=1, DockingAccess='friends', AllowNotorious=True)
     full = make_model(tmp_path / 'full', sample_events() + [update])
     assert full.generate_info_docking_perm(1) == ('Friends', 'Yes')
+
+
+@pytest.mark.parametrize('stage', ['initial', 'incremental'])
+@pytest.mark.parametrize('with_stats', [True, False])
+def test_latest_permission_wins_with_multiple_events(tmp_path, stage, with_stats):
+    records = sample_events()
+    if not with_stats:
+        records = [record for record in records if record['event'] != 'CarrierStats']
+    updates = [
+        event('CarrierDockingPermission', 2, CarrierID=1, DockingAccess='friends', AllowNotorious=True),
+        event('CarrierDockingPermission', 1, CarrierID=1, DockingAccess='none', AllowNotorious=False),
+        event('CarrierDockingPermission', -51, CarrierID=1, DockingAccess='squadron', AllowNotorious=False),
+    ]
+    carrier = make_model(tmp_path, records + updates if stage == 'initial' else records)
+    if stage == 'incremental':
+        refresh(carrier, next(tmp_path.glob('Journal.*.log')), *updates)
+    assert carrier.generate_info_docking_perm(1) == ('Friends', 'Yes')
+    assert_tables_render(carrier)
+
+
+@pytest.mark.parametrize('stage', ['initial', 'incremental'])
+@pytest.mark.parametrize('field,value', [
+    ('Finance', {'CarrierBalance': 'invalid'}),
+    ('SpaceUsage', {'Crew': 1000, 'Cargo': float('inf'), 'CargoSpaceReserved': 3000,
+                    'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 99}),
+    ('Crew', 42),
+    ('Crew', [{'CrewRole': 'Refuel', 'Enabled': True}]),
+])
+def test_damaged_stats_preserve_only_unusable_fields(tmp_path, stage, field, value):
+    records = sample_events()
+    damaged = deepcopy(records[3])
+    damaged.update(timestamp=stamp(1), Name='Damaged', Callsign='BAD-000', FuelLevel=123,
+                   JumpRangeCurr=12, PendingDecommission=True, DockingAccess='none', AllowNotorious=True)
+    damaged['Finance']['CarrierBalance'] = 25
+    damaged['SpaceUsage']['Cargo'] = 2500
+    damaged['SpaceUsage']['FreeSpace'] = 99
+    damaged['Crew'] = []
+    damaged[field] = value
+    carrier = make_model(tmp_path, records + [damaged] if stage == 'initial' else records)
+    path = next(tmp_path.glob('Journal.*.log'))
+    if stage == 'incremental':
+        refresh(carrier, path, damaged)
+    assert carrier.get_name(1) == 'Damaged'
+    assert carrier.get_callsign(1) == 'BAD-000'
+    assert carrier.get_finance(1) == {
+        'CarrierBalance': 1_000_000_000 if field == 'Finance' else 25,
+        'CmdrBalance': 2_000_000_000,
+    }
+    assert carrier.get_carriers()[1]['Fuel'] == {'FuelLevel': 123, 'JumpRange': 12}
+    assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:01+00:00'
+    assert carrier.get_space_usage(1) == {
+        'Services': 1000, 'Cargo': 2000 if field == 'SpaceUsage' else 2500, 'BuyOrder': 3000,
+        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 99,
+    }
+    expected_services = {'Refuel': 'Active', 'Repair': 'Paused', 'Rearm': 'Off'} if field == 'Crew' else {}
+    assert carrier.generate_info_services(1).to_dict() == expected_services
+    assert carrier.get_pending_decom(1) is True
+    assert carrier.generate_info_docking_perm(1) == ('None', 'Yes')
+    assert_tables_render(carrier)
+    refresh(carrier, path, dict(records[3], timestamp=stamp(2), FuelLevel=650))
+    assert carrier.get_name(1) == 'Test Carrier'
+    assert carrier.get_finance(1)['CarrierBalance'] == 1_000_000_000
+    assert carrier.get_space_usage(1)['Cargo'] == 2000
+    assert carrier.get_space_usage(1)['FreeSpace'] == 18000
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 650
+    assert carrier.generate_info_services(1).to_dict() == {'Refuel': 'Active', 'Repair': 'Paused', 'Rearm': 'Off'}
+    assert carrier.get_pending_decom(1) is False
+    assert carrier.generate_info_docking_perm(1) == ('All', 'No')
+    assert_tables_render(carrier)
+
+
+@pytest.mark.parametrize('stage', ['initial', 'incremental'])
+def test_invalid_stats_scalar_fields_preserve_previous_values(tmp_path, stage):
+    records = sample_events()
+    damaged = deepcopy(records[3])
+    damaged.update(timestamp=stamp(1), Name=None, Callsign=None, FuelLevel=None,
+                   JumpRangeCurr=None, PendingDecommission=None, DockingAccess=None, AllowNotorious=None)
+    damaged['Finance']['CarrierBalance'] = 25
+    carrier = make_model(tmp_path, records + [damaged] if stage == 'initial' else records)
+    if stage == 'incremental':
+        refresh(carrier, next(tmp_path.glob('Journal.*.log')), damaged)
+    assert carrier.get_name(1) == 'Test Carrier'
+    assert carrier.get_callsign(1) == 'ABC-123'
+    assert carrier.get_finance(1) == {'CarrierBalance': 25, 'CmdrBalance': 2_000_000_000}
+    assert carrier.get_carriers()[1]['Fuel'] == {'FuelLevel': 500, 'JumpRange': 250}
+    assert carrier.get_pending_decom(1) is False
+    assert carrier.generate_info_docking_perm(1) == ('All', 'No')
+    assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:01+00:00'
+    assert_tables_render(carrier)
+
+
+@pytest.mark.parametrize('stage', ['initial', 'incremental'])
+@pytest.mark.parametrize('section,key,stored_key,previous', [
+    ('Finance', 'CarrierBalance', 'CarrierBalance', 1_000_000_000),
+    ('SpaceUsage', 'Crew', 'Services', 1000),
+    ('SpaceUsage', 'Cargo', 'Cargo', 2000),
+    ('SpaceUsage', 'CargoSpaceReserved', 'BuyOrder', 3000),
+    ('SpaceUsage', 'ShipPacks', 'ShipPacks', 400),
+    ('SpaceUsage', 'ModulePacks', 'ModulePacks', 600),
+    ('SpaceUsage', 'FreeSpace', 'FreeSpace', 18000),
+])
+def test_missing_stats_numeric_key_preserves_previous_value(tmp_path, stage, section, key, stored_key, previous):
+    records = sample_events()
+    damaged = deepcopy(records[3])
+    damaged.update(timestamp=stamp(1), FuelLevel=625)
+    del damaged[section][key]
+    carrier = make_model(tmp_path, records + [damaged] if stage == 'initial' else records)
+    path = next(tmp_path.glob('Journal.*.log'))
+    if stage == 'incremental':
+        refresh(carrier, path, damaged)
+    values = carrier.get_finance(1) if section == 'Finance' else carrier.get_space_usage(1)
+    assert values[stored_key] == previous
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 625
+    assert_tables_render(carrier)
+    healthy = deepcopy(records[3])
+    healthy.update(timestamp=stamp(2))
+    healthy[section][key] = previous + 1
+    refresh(carrier, path, healthy)
+    values = carrier.get_finance(1) if section == 'Finance' else carrier.get_space_usage(1)
+    assert values[stored_key] == previous + 1
+    assert_tables_render(carrier)
+
+
+@pytest.mark.parametrize('stage', ['initial', 'incremental'])
+@pytest.mark.parametrize('section', ['Finance', 'SpaceUsage'])
+@pytest.mark.parametrize('damage', ['missing', 'null', 'wrong_type', 'empty'])
+def test_unavailable_stats_mapping_preserves_previous_values(tmp_path, stage, section, damage):
+    records = sample_events()
+    damaged = deepcopy(records[3])
+    damaged.update(timestamp=stamp(1), FuelLevel=625, Name='Updated Carrier')
+    if damage == 'missing':
+        del damaged[section]
+    else:
+        damaged[section] = {'null': None, 'wrong_type': 42, 'empty': {}}[damage]
+    carrier = make_model(tmp_path, records + [damaged] if stage == 'initial' else records)
+    if stage == 'incremental':
+        refresh(carrier, next(tmp_path.glob('Journal.*.log')), damaged)
+    assert carrier.get_name(1) == 'Updated Carrier'
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 625
+    assert carrier.get_finance(1)['CarrierBalance'] == 1_000_000_000
+    assert carrier.get_space_usage(1) == {
+        'Services': 1000, 'Cargo': 2000, 'BuyOrder': 3000,
+        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 18000,
+    }
+    assert_tables_render(carrier)
+
+
+@pytest.mark.parametrize('damage', ['missing_key', 'invalid_value', 'missing_mapping', 'invalid_mapping'])
+def test_first_stats_without_usable_balance_show_unknown_and_recover(tmp_path, damage):
+    records = sample_events()
+    if damage == 'missing_key':
+        del records[3]['Finance']['CarrierBalance']
+    elif damage == 'invalid_value':
+        records[3]['Finance']['CarrierBalance'] = 'invalid'
+    elif damage == 'missing_mapping':
+        del records[3]['Finance']
+    else:
+        records[3]['Finance'] = None
+    carrier = make_model(tmp_path, records)
+    assert carrier.get_finance(1) == {'CarrierBalance': None, 'CmdrBalance': 2_000_000_000}
+    rows = carrier.get_data_finance()
+    assert rows[0][2:5] == ['Unknown', '2,000,000,000', 'Unknown']
+    assert rows[0][7] == 'Unknown'
+    assert rows[-1][2:5] == ['Unknown', '2,000,000,000', 'Unknown']
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 500
+    assert_tables_render(carrier)
+    healthy = dict(sample_events()[3], timestamp=stamp(2))
+    refresh(carrier, next(tmp_path.glob('Journal.*.log')), healthy)
+    assert carrier.get_finance(1)['CarrierBalance'] == 1_000_000_000
+    assert carrier.get_data_finance()[0][2:5] == ['1,000,000,000', '2,000,000,000', '3,000,000,000']
+    assert carrier.get_data_finance()[0][7] != 'Unknown'
+    assert_tables_render(carrier)
+
+
+@pytest.mark.parametrize('damage', ['missing', 'invalid'])
+def test_first_stats_without_usable_cargo_show_only_cargo_unknown_and_recover(tmp_path, damage):
+    records = sample_events()
+    if damage == 'missing':
+        del records[3]['SpaceUsage']['Cargo']
+    else:
+        records[3]['SpaceUsage']['Cargo'] = 'invalid'
+    carrier = make_model(tmp_path, records)
+    assert carrier.get_space_usage(1) == {
+        'Services': 1000, 'Cargo': None, 'BuyOrder': 3000,
+        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 18000,
+    }
+    assert carrier.get_data_misc()[0][3:9] == ['1000t', 'Unknown', '3000t', '400t', '600t', '18000t']
+    assert_tables_render(carrier)
+    healthy = dict(sample_events()[3], timestamp=stamp(2))
+    refresh(carrier, next(tmp_path.glob('Journal.*.log')), healthy)
+    assert carrier.get_space_usage(1)['Cargo'] == 2000
+    assert carrier.get_data_misc()[0][3:9] == ['1000t', '2000t', '3000t', '400t', '600t', '18000t']
+    assert_tables_render(carrier)
 
 
 def test_decommission_state_and_expiry(tmp_path, monkeypatch):

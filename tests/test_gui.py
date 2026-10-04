@@ -94,7 +94,6 @@ def test_initial_mixed_accounts_render_separate_carriers(tk_root, tmp_path, monk
     assert all(row[1] not in ('Commander F1', 'Commander F2') for row in ctl.view.sheet_cmdr.get_sheet_data())
 
 
-@pytest.mark.known_defect('JR-008')
 def test_append_from_second_instance_does_not_duplicate_records_in_gui(tk_root, tmp_path, monkeypatch):
     ctl, journal = build_app(tk_root, tmp_path, monkeypatch)
     append_events(journal, *sample_events(fid='F2', carrier_id=2, name='Second Carrier', callsign='DEF-456'))
@@ -106,7 +105,6 @@ def test_append_from_second_instance_does_not_duplicate_records_in_gui(tk_root, 
     assert len(ctl.model.journal_reader.get_items()[4]) == 2
 
 
-@pytest.mark.known_defect('UI-002')
 def test_damaged_utf8_is_ignored_without_closing_gui(tk_root, tmp_path, monkeypatch):
     ctl, journal = build_app(tk_root, tmp_path, monkeypatch)
     # A deleted byte in a multibyte name must not prevent later valid records.
@@ -125,7 +123,6 @@ def test_damaged_utf8_is_ignored_without_closing_gui(tk_root, tmp_path, monkeypa
     assert 'Achenar' in ctl.view.sheet_jumps.get_sheet_data()[0]
 
 
-@pytest.mark.known_defect('UI-003')
 def test_missing_journal_keeps_gui_open_and_recovers_when_file_returns(tk_root, tmp_path, monkeypatch):
     ctl, journal = build_app(tk_root, tmp_path, monkeypatch)
     render_tables(ctl)

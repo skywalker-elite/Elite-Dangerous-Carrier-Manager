@@ -56,7 +56,7 @@ jobs:
           fi
           mkdir -p test-results
           set +e
-          "${display_runner[@]}" python -m pytest -m known_defect --junitxml=test-results/diagnostics.xml 2>&1 | tee test-results/diagnostics.log
+          "${display_runner[@]}" python -m scripts.summarize_tests --run-diagnostics test-results/diagnostics.xml 2>&1 | tee test-results/diagnostics.log
           status=${PIPESTATUS[0]}
           echo "exit_code=$status" >> "$GITHUB_OUTPUT"
           exit "$status"

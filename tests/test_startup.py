@@ -107,7 +107,6 @@ def test_no_default_path_explains_how_to_select_journals(startup, monkeypatch):
     startup.model.assert_not_called()
 
 
-@pytest.mark.known_defect('UI-001')
 def test_startup_continues_with_healthy_path_when_another_is_unavailable(startup, tmp_path, monkeypatch):
     healthy = startup.paths['cli-a']
     absent = str(tmp_path / 'unavailable-journals')

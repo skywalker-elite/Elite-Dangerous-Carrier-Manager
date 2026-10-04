@@ -117,6 +117,9 @@ class Settings:
 
         _compare(defaults, self._settings)
 
+        if self.validation_errors:
+            raise SettingsValidationError("Settings validation failed:\n" + "\n".join(self.validation_errors))
+
         # Additional checks
         # 1) If user set a custom sound_file, verify it exists
         for sec in ('notifications',):
@@ -136,7 +139,7 @@ class Settings:
         # 3) Check format for squadron_abbv
         abbv_list = self.get('name_customization', 'squadron_abbv')
         if abbv_list:
-            if not all(len(item) == 1 and isinstance(item, dict) and
+            if not all(isinstance(item, dict) and len(item) == 1 and
                 isinstance(list(item.keys())[0], str) and isinstance(list(item.values())[0], str) and list(item.values())[0].isalnum()
                 for item in abbv_list):
                 self.validation_errors.append(f"Invalid format for squadron_abbv:\n {abbv_list}")

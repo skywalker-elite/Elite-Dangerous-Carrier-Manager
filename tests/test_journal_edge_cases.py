@@ -212,6 +212,55 @@ class JournalEdgeTests(unittest.TestCase):
         self.assertEqual(self.reader.journal_latest['F1'], before)
         self.assertFalse(before['is_active'])
 
+    def test_shared_file_cursor_survives_account_change_and_pickle(self):
+        self.seed()
+        self.reader.read_journals()
+        deposit = self.event('CarrierDepositFuel', CarrierID=2, Total=800)
+        self.append(self.event('Commander', FID='F2') + b'\n'
+                    + self.event('CarrierStats', CarrierID=2) + b'\n' + deposit[:20])
+        self.reader.read_journals()
+        self.reader = pickle.loads(pickle.dumps(self.reader))
+        self.append(deposit[20:] + b'\n')
+        self.reader.read_journals()
+        self.reader.read_journals()
+        self.assertEqual(len(self.reader._stats), 2)
+        self.assertEqual([event['Total'] for event in self.reader._trit_deposits], [800])
+        self.assertEqual(self.reader._carrier_owners, {1: 'F1', 2: 'F2'})
+
+    def test_mixed_appended_commanders_do_not_inherit_previous_owner(self):
+        self.seed()
+        self.reader.read_journals()
+        self.append(self.event('Commander', FID='F1') + b'\n'
+                    + self.event('Commander', FID='F2') + b'\n'
+                    + self.event('CarrierStats', CarrierID=2) + b'\n')
+        self.reader.read_journals()
+        self.append(self.event('CarrierStats', CarrierID=3) + b'\n')
+        self.reader.read_journals()
+        self.assertEqual(len(self.reader._stats), 3)
+        self.assertEqual(self.reader._carrier_owners, {1: 'F1'})
+
+    def test_closed_older_file_append_preserves_newer_active_session(self):
+        self.seed()
+        self.append(self.event('Shutdown') + b'\n')
+        self.reader.read_journals()
+        newer = self.file.with_name('Journal.2020-01-02T000000.01.log')
+        self.append(self.event('Commander', FID='F1') + b'\n', newer)
+        self.reader.read_journals()
+        self.append(self.event('CarrierDepositFuel', CarrierID=1, Total=800) + b'\n')
+        self.reader.read_journals()
+        self.reader.read_journals()
+        self.assertEqual([event['Total'] for event in self.reader._trit_deposits], [800])
+        self.assertEqual(self.reader.get_latest_active_journals(), {'F1': str(newer)})
+
+    def test_idle_poll_does_not_reopen_completed_files(self):
+        self.seed()
+        self.append(self.event('Shutdown') + b'\n')
+        newer = self.file.with_name('Journal.2020-01-02T000000.01.log')
+        self.append(self.event('Commander', FID='F1') + b'\n', newer)
+        self.reader.read_journals()
+        with patch('builtins.open', side_effect=AssertionError('Unchanged file reopened')):
+            self.reader.read_journals()
+
 
 class TimestampTests(unittest.TestCase):
     def test_sort_matches_chronology_and_stable_ties(self):

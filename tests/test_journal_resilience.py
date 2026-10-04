@@ -1,4 +1,4 @@
-"""Recovery contracts. Known defects remain ordinary failing assertions in diagnostics."""
+"""Regression coverage for damaged journals, unavailable paths, and shared sessions."""
 import json
 import pickle
 from copy import deepcopy
@@ -40,7 +40,6 @@ def test_missing_punctuation_is_skipped_and_later_events_survive(tmp_path, posit
 
 @pytest.mark.parametrize('record', [None, [], 42, 'text', {}, {'evnt': 'CarrierStats'},
                                   {'event': 'Commander'}, {'event': 'CarrierStats', 'timestamp': '2026-01-02T12:00:00Z'}])
-@pytest.mark.known_defect('JR-001')
 def test_structurally_damaged_record_does_not_block_next_valid_record(tmp_path, record):
     path = write_journal(tmp_path, sample_events())
     result = read_model(tmp_path)
@@ -52,7 +51,6 @@ def test_structurally_damaged_record_does_not_block_next_valid_record(tmp_path, 
 
 
 @pytest.mark.parametrize('position', [0, 4, 9])
-@pytest.mark.known_defect('JR-002')
 def test_deleted_utf8_byte_does_not_abort_whole_file(tmp_path, position):
     events = sample_events()
     path = write_journal(tmp_path, events[:position])
@@ -67,7 +65,6 @@ def test_deleted_utf8_byte_does_not_abort_whole_file(tmp_path, position):
 
 
 @pytest.mark.parametrize('timestamp', [None, 123, '2026-02-30T12:00:00Z', '2026-01-02T12:0:00Z', 'invalid'])
-@pytest.mark.known_defect('JR-003')
 def test_invalid_timestamp_does_not_discard_valid_carrier_state(tmp_path, timestamp):
     events = sample_events()
     damaged = deepcopy(events[3])
@@ -82,7 +79,6 @@ def test_invalid_timestamp_does_not_discard_valid_carrier_state(tmp_path, timest
                                         ('SpaceUsage', {'Crew': 1000, 'Cargo': 'invalid',
                                                         'CargoSpaceReserved': 3000, 'ShipPacks': 400,
                                                         'ModulePacks': 600, 'FreeSpace': 18000})])
-@pytest.mark.known_defect('JR-004')
 def test_broken_nested_stats_preserve_previous_snapshot(tmp_path, field, value):
     events = sample_events()
     path = write_journal(tmp_path, events)
@@ -123,7 +119,6 @@ def test_deleted_event_name_character_is_ignored_and_future_records_continue(tmp
     assert len(result.journal_reader.get_items()[4]) == 1
 
 
-@pytest.mark.known_defect('JR-005')
 def test_partial_first_record_waits_for_completion_without_crashing(tmp_path):
     encoded = json.dumps(sample_events()[3]).encode('utf-8')
     path = write_journal(tmp_path, [])
@@ -195,7 +190,6 @@ def test_one_of_repeated_stats_lines_can_be_missing(tmp_path, omitted):
 
 
 @pytest.mark.parametrize('stage', ['initial', 'incremental'])
-@pytest.mark.known_defect('JR-005')
 def test_missing_stats_recovers_when_stats_event_arrives(tmp_path, stage):
     records = sample_events()
     path = write_journal(tmp_path, [r for r in records if r['event'] != 'CarrierStats'])
@@ -213,7 +207,6 @@ def test_missing_stats_recovers_when_stats_event_arrives(tmp_path, stage):
 
 
 @pytest.mark.parametrize('kind', ['empty', 'missing', 'healthy_and_missing', 'healthy_and_empty'])
-@pytest.mark.known_defect('JR-006')
 def test_unavailable_journal_directory_recovers_when_file_arrives(tmp_path, kind):
     absent = tmp_path / 'absent'
     healthy = tmp_path / 'healthy'
@@ -234,7 +227,6 @@ def test_unavailable_journal_directory_recovers_when_file_arrives(tmp_path, kind
     assert_tables_render(result)
 
 
-@pytest.mark.known_defect('JR-006')
 def test_disappearing_file_does_not_block_healthy_journal(tmp_path, monkeypatch):
     import model
     healthy = write_journal(tmp_path, sample_events())
@@ -269,7 +261,6 @@ def test_mixed_initial_accounts_keep_ids_but_do_not_guess_ownership(tmp_path):
     assert len(result.journal_reader.get_items()[4]) == 2
 
 
-@pytest.mark.known_defect('JR-007')
 def test_interleaved_append_batches_preserve_established_owners(tmp_path):
     # Establish owners from independent files before a shared file appears.
     write_journal(tmp_path, sample_events() + [event('Shutdown')], 'Journal.2026-01-01T110000.01.log')
@@ -284,7 +275,6 @@ def test_interleaved_append_batches_preserve_established_owners(tmp_path):
     assert result.carrier_owners == {1: 'F1', 2: 'F2'}
 
 
-@pytest.mark.known_defect('JR-008')
 def test_switching_accounts_in_shared_file_does_not_duplicate_consumption(tmp_path):
     shared = write_journal(tmp_path, sample_events())
     result = read_model(tmp_path)
@@ -299,7 +289,6 @@ def test_switching_accounts_in_shared_file_does_not_duplicate_consumption(tmp_pa
     assert_tables_render(result)
 
 
-@pytest.mark.known_defect('JR-009')
 def test_one_instance_shutdown_does_not_hide_other_instance_appends(tmp_path):
     records = sample_events() + [event('Commander', FID='F1'), event('Shutdown')]
     shared = write_journal(tmp_path, records)
@@ -324,7 +313,6 @@ def test_same_account_multiple_instances_without_shutdown_are_consumed_once(tmp_
     assert len(result.journal_reader.get_items()[7]) == 2
 
 
-@pytest.mark.known_defect('JR-010')
 def test_missing_commander_in_older_running_journal_still_accepts_carrier_updates(tmp_path):
     records = [record for record in sample_events() if record['event'] != 'Commander']
     path = write_journal(tmp_path, records, 'Journal.2026-01-01T100000.01.log')

@@ -74,7 +74,6 @@ def test_jump_embed_has_identity_time_location_and_status_color(webhook_factory,
     assert isinstance(embed["color"], int) and embed["color"] > 0
 
 
-@pytest.mark.known_defect("NOTIFY-001")
 @pytest.mark.parametrize("status", ["jump_plotted", "jump_completed"])
 def test_missing_location_has_meaningful_placeholder_in_description(webhook_factory, status):
     handler = discord_handler.DiscordWebhookHandler("https://example.invalid/test")

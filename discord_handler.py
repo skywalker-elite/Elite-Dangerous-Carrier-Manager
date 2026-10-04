@@ -64,14 +64,14 @@ class DiscordWebhookHandler:
             'jump_cancelled': 16730955,
             'cooldown_finished': 5239664,
         }
+        current_system, current_body, other_system, other_body = current_system or 'Unknown', current_body or 'Unknown', other_system or 'Unknown', other_body or 'Unknown'
+
         description_map = {
             'jump_plotted': f"Jump plotted to **{other_system}** body **{other_body}**" + (f", arriving {timestamp}" if timestamp else ""),
             'jump_completed': f"Jump completed at **{current_system}** body **{current_body}**" + (f", cooldown finishes {timestamp}" if timestamp else ""),
             'jump_cancelled': f"Jump cancelled" + (f", cooldown finishes {timestamp}" if timestamp else ""),
             'cooldown_finished': f"Cooldown complete" + (f", {timestamp}" if timestamp else "") + ", ready to jump",
         }
-
-        current_system, current_body, other_system, other_body = current_system or 'Unknown', current_body or 'Unknown', other_system or 'Unknown', other_body or 'Unknown'
 
         embed = discord.Embed(
             color=color_map[status],

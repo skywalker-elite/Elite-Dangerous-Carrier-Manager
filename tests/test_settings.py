@@ -145,7 +145,6 @@ def test_warning_must_precede_reminder(settings_files):
     assert "warn_seconds" in str(error.value)
 
 
-@pytest.mark.known_defect("SET-001")
 @pytest.mark.parametrize("section,key,value", [
     ("plot_reminders", "remind_seconds", "soon"),
     ("discord", "webhook", 123),

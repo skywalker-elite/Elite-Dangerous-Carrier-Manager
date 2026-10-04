@@ -1,9 +1,29 @@
-"""Write a CI summary without changing pytest's failure status."""
+"""Run diagnostics and write CI summaries without masking pytest failures."""
 
 import os
 from pathlib import Path
 import sys
 import xml.etree.ElementTree as ET
+
+
+def run_diagnostics(report, pytest_args=()):
+    import pytest
+
+    class Collection:
+        deselected = 0
+
+        def pytest_deselected(self, items):
+            self.deselected += len(items)
+
+    collection = Collection()
+    status = pytest.main(
+        [*pytest_args, "-m", "known_defect", f"--junitxml={report}"],
+        plugins=[collection],
+    )
+    if status == pytest.ExitCode.NO_TESTS_COLLECTED and collection.deselected:
+        print("No known-defect diagnostics remain; collected regression tests were deselected.")
+        return 0
+    return int(status)
 
 
 def summarize(suite, report, exit_code):
@@ -25,6 +45,8 @@ def summarize(suite, report, exit_code):
         failures = [case for case in cases if case.find("failure") is not None]
         errors = [case for case in cases if case.find("error") is not None]
         skipped = [case for case in cases if case.find("skipped") is not None]
+        if suite == "diagnostics" and exit_code == "0" and not cases:
+            lines[2] = "No known-defect diagnostics remain; collected regression tests were deselected."
         lines += [f"Reported cases: {len(cases)}. Test failures: {len(failures)}. Setup/teardown errors: {len(errors)}. Skipped: {len(skipped)}.", ""]
         if errors:
             lines += ["**Setup/teardown errors are not confirmed defect reproductions.** Fix the environment or test harness before interpreting those cases.", ""]
@@ -44,6 +66,8 @@ def summarize(suite, report, exit_code):
 
 
 if __name__ == "__main__":
+    if sys.argv[1] == "--run-diagnostics":
+        raise SystemExit(run_diagnostics(Path(sys.argv[2]), sys.argv[3:]))
     message = summarize(sys.argv[1], Path(sys.argv[2]), os.environ.get("TEST_EXIT_CODE", ""))
     print(message)
     if destination := os.environ.get("GITHUB_STEP_SUMMARY"):

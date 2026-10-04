@@ -83,7 +83,6 @@ def test_refresh_at_expiry_boundary_and_logout_event(auth_environment):
     signed_out.assert_called_once_with()
 
 
-@pytest.mark.known_defect("AUTH-001")
 @pytest.mark.parametrize("stored_refresh", [True, False])
 def test_failed_refresh_cannot_keep_expired_session_logged_in(auth_environment, stored_refresh):
     env = auth_environment
@@ -198,7 +197,6 @@ def test_callback_server_handles_success_and_closes(monkeypatch):
     server.server_close.assert_called_once_with()
 
 
-@pytest.mark.known_defect("AUTH-002")
 def test_oauth_error_callback_closes_server_without_worker_exception(monkeypatch):
     server = Mock()
     handler = object.__new__(auth._CallbackHandler)
@@ -314,7 +312,6 @@ def test_post_json_http_error_reaches_caller(monkeypatch):
     response.json.assert_not_called()
 
 
-@pytest.mark.known_defect("AUTH-003")
 def test_unauthenticated_edge_call_raises_typed_unauthorized_error(auth_environment):
     handler = auth.AuthHandler()
     with pytest.raises(auth.FunctionsHttpError) as error:
