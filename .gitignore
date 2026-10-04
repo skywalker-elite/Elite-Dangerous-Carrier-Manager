@@ -8,6 +8,8 @@ build_local.spec
 .vscode/*
 fake_journal_test.py
 fake_journals
+legacy_tests
+legacy_tests/*
 installer/setup_local.iss
 .env
 .venv/
