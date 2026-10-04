@@ -9,10 +9,9 @@ import threading
 import time
 import webbrowser
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 from dotenv import load_dotenv
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from typing import Callable, Literal, Optional
 
 import jwt
 from jwt import PyJWKClient, InvalidTokenError
