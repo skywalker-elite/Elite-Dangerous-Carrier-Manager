@@ -88,10 +88,17 @@ class JournalReader:
             r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
             journal_files = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
             journals += [path.join(journal_path, i) for i in journal_files]
-        journal_order = {journal: index for index, journal in enumerate(journals)}
+        directory_order = {path.normcase(path.abspath(directory)): index
+                           for index, directory in enumerate(self.journal_paths)}
+
+        def journal_order(filename):
+            # Directory enumeration can temporarily omit a known newer journal.
+            directory = path.normcase(path.abspath(path.dirname(filename)))
+            return directory_order.get(directory, -1), path.basename(filename)
+
         for journal in journals:
             newer_latest = {fid: info for fid, info in self.journal_latest.items()
-                            if journal_order.get(info['filename'], -1) > journal_order[journal]}
+                            if journal_order(info['filename']) > journal_order(journal)}
             if journal in self._journal_pending:
                 pending = self._journal_pending[journal]
                 # A delayed tail may reveal its FID only after a newer journal is active.
@@ -112,7 +119,7 @@ class JournalReader:
             # Once a newer journal identifies the same commander, the old tail is final.
             for pending_path, pending in list(self._journal_pending.items()):
                 latest = self.journal_latest.get(pending['fid'])
-                if latest is not None and journal_order.get(latest['filename'], -1) > journal_order.get(pending_path, -1):
+                if latest is not None and journal_order(latest['filename']) > journal_order(pending_path):
                     self._retire_pending_journal(pending_path)
 
     def _retire_pending_journal(self, journal_path:str):
@@ -306,6 +313,7 @@ class CarrierModel:
         self.dropout = dropout
         self.droplist = droplist
         self.carriers = {}
+        self._field_update_times = {}
         self.carriers_updated = {}
         self.cmdr_balances = {}
         self.cmdr_names = {}
@@ -421,6 +429,16 @@ class CarrierModel:
                 df_itinerary = df_itinerary.astype({'MarketID': 'Int64'})
                 self.cmdr_locations[fid] = df_itinerary.copy()
 
+    def _accept_field_update(self, carrierID, field, timestamp, from_stats=True):
+        times = self._field_update_times.setdefault(carrierID, {})
+        previous = times.get(field)
+        # Stats retain precedence over other events recorded in the same second.
+        update = (timestamp, from_stats)
+        if previous is not None and update < previous:
+            return False
+        times[field] = update
+        return True
+
     def process_stats(self, stats, first_read:bool=True):
         def usable_number(value):
             try:
@@ -434,7 +452,9 @@ class CarrierModel:
             # Preserve the reader's carrier order when replaying their records.
             for stat in stats:
                 self.carriers.setdefault(stat['CarrierID'], {})
-        for stat in reversed(stats) if first_read else stats:
+        for stat in sorted(stats, key=lambda item: item['timestamp']) if first_read else stats:
+            carrierID = stat['CarrierID']
+            timestamp = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
             carrier = self.carriers.setdefault(stat['CarrierID'], {
                 'isSquadronCarrier': stat.get('CarrierType') == 'SquadronCarrier',
             })
@@ -444,19 +464,23 @@ class CarrierModel:
             for key, default in (('Callsign', 'Unknown'), ('Name', 'Unknown'), ('PendingDecom', False)):
                 source_key = 'PendingDecommission' if key == 'PendingDecom' else key
                 carrier.setdefault(key, default)
-                if isinstance(stat.get(source_key), type(default)):
+                if (isinstance(stat.get(source_key), type(default))
+                        and self._accept_field_update(carrierID, key, timestamp)):
                     carrier[key] = stat[source_key]
             carrier['CMDRName'] = self.cmdr_names.get(owner)
-            carrier['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+            if carrier.get('StatTime') is None or timestamp >= carrier['StatTime']:
+                carrier['StatTime'] = timestamp
             fuel = carrier.setdefault('Fuel', {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'})
             for source_key, key in (('FuelLevel', 'FuelLevel'), ('JumpRangeCurr', 'JumpRange')):
-                if usable_number(stat.get(source_key)):
+                if (usable_number(stat.get(source_key))
+                        and self._accept_field_update(carrierID, key, timestamp)):
                     fuel[key] = stat[source_key]
                     if key == 'FuelLevel':
                         fuel.pop('DepotTime', None)
             permissions = carrier.setdefault('DockingPerm', {'DockingAccess': None, 'AllowNotorious': None})
             for key, value_type in (('DockingAccess', str), ('AllowNotorious', bool)):
-                if isinstance(stat.get(key), value_type):
+                if (isinstance(stat.get(key), value_type)
+                        and self._accept_field_update(carrierID, key, timestamp)):
                     permissions[key] = stat[key]
             finance = carrier.setdefault('Finance', {'CarrierBalance': None, 'CmdrBalance': None})
             finance['CmdrBalance'] = self.cmdr_balances.get(owner)
@@ -473,7 +497,8 @@ class CarrierModel:
                 for source_key, key in mapping.items():
                     value = values.get(source_key)
                     if usable_number(value):
-                        target[key] = value
+                        if self._accept_field_update(carrierID, (section, key), timestamp):
+                            target[key] = value
                     else:
                         print(f"Ignoring invalid CarrierStats {section}.{source_key} for {stat['CarrierID']}")
             try:
@@ -487,7 +512,8 @@ class CarrierModel:
                     raise ValueError('invalid crew collection')
                 df_services = pd.DataFrame(crew, columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
-                carrier['Services'] = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
+                if self._accept_field_update(carrierID, 'Services', timestamp):
+                    carrier['Services'] = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
             except (KeyError, TypeError, ValueError) as exc:
                 print(f"Ignoring invalid CarrierStats Crew for {stat['CarrierID']}: {exc}")
                 if 'Services' not in carrier:
@@ -503,20 +529,25 @@ class CarrierModel:
                 self.carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)    
     
     def process_trit_deposits(self, trit_deposits, first_read:bool=True):
-        for trit_deposit in trit_deposits:
-            if trit_deposit['CarrierID'] in self.carriers.keys():
-                last_update = self.carriers[trit_deposit['CarrierID']]['StatTime'] if 'StatTime' in self.carriers[trit_deposit['CarrierID']].keys() else self.carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] if 'Fuel' in self.carriers[trit_deposit['CarrierID']].keys() and 'DepotTime' in self.carriers[trit_deposit['CarrierID']]['Fuel'].keys() else None
-                # if ('StatTime' not in self.carriers[trit_deposit['CarrierID']].keys() or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > self.carriers[trit_deposit['CarrierID']]['StatTime']) and ('Fuel' not in self.carriers[trit_deposit['CarrierID']].keys() or 'DepotTime' not in self.carriers[trit_deposit['CarrierID']]['Fuel'].keys()):
-                if not first_read or last_update is None or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > last_update:
-                    self.carriers[trit_deposit['CarrierID']]['Fuel'] = {'FuelLevel': trit_deposit['Total'], 'JumpRange': None, 'DepotTime': datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
+        for trit_deposit in sorted(trit_deposits, key=lambda item: item['timestamp']):
+            carrierID = trit_deposit['CarrierID']
+            if carrierID in self.carriers:
+                timestamp = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                fuel = self.carriers[carrierID].setdefault('Fuel', {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'})
+                if self._accept_field_update(carrierID, 'FuelLevel', timestamp, from_stats=False):
+                    fuel.update(FuelLevel=trit_deposit['Total'], DepotTime=timestamp)
+                if self._accept_field_update(carrierID, 'JumpRange', timestamp, from_stats=False):
+                    fuel['JumpRange'] = None
     
     def process_docking_perms(self, docking_perms, first_read:bool=True):
         for docking_perm in sorted(docking_perms, key=lambda item: item['timestamp']):
-            if docking_perm['CarrierID'] in self.carriers.keys():
-                stat_time = self.carriers[docking_perm['CarrierID']].get('StatTime')
+            carrierID = docking_perm['CarrierID']
+            if carrierID in self.carriers:
                 permission_time = datetime.strptime(docking_perm['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
-                if stat_time is None or permission_time > stat_time:
-                    self.carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
+                permissions = self.carriers[carrierID].setdefault('DockingPerm', {'DockingAccess': None, 'AllowNotorious': None})
+                for key in ('DockingAccess', 'AllowNotorious'):
+                    if self._accept_field_update(carrierID, key, permission_time, from_stats=False):
+                        permissions[key] = docking_perm[key]
 
     def process_carrier_locations(self, carrier_locations, first_read:bool=True):
         for carrier_location in carrier_locations:

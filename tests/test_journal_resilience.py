@@ -246,6 +246,33 @@ def test_account_without_a_new_session_keeps_historical_data(tmp_path):
     assert result.journal_reader.get_latest_active_journals().keys() == {'F2'}
 
 
+@pytest.mark.parametrize('separate_directories', [False, True])
+def test_missing_newest_journal_keeps_session_metadata_during_older_appends(tmp_path, separate_directories):
+    old_directory = tmp_path / 'old'
+    new_directory = tmp_path / 'new' if separate_directories else old_directory
+    older = write_journal(old_directory, sample_events() + [event('Shutdown')],
+                          'Journal.2026-01-01T120000.01.log')
+    newer = write_journal(new_directory, [event('Commander', FID='F1')])
+    directories = [str(old_directory)] + ([str(new_directory)] if separate_directories else [])
+    reader = JournalReader(directories)
+    reader.read_journals()
+    expected_latest = reader.journal_latest['F1'].copy()
+    temporarily_hidden = newer.with_suffix('.held')
+    newer.rename(temporarily_hidden)
+    append_events(older, event('CarrierDepositFuel', 1, CarrierID=1, Total=800))
+    reader.read_journals()
+    assert reader.journal_latest['F1'] == expected_latest
+    assert reader.get_latest_active_journals() == {'F1': str(newer)}
+    temporarily_hidden.rename(newer)
+    reader.read_journals()
+    append_events(older, event('CarrierDepositFuel', 2, CarrierID=1, Total=850))
+    reader.read_journals()
+    reader.read_journals()
+    assert reader.journal_latest['F1'] == expected_latest
+    assert [record['Total'] for record in reader.get_items()[7]] == [850, 800]
+    assert reader._carrier_owners == {1: 'F1'}
+
+
 def test_mixed_initial_accounts_keep_ids_but_do_not_guess_ownership(tmp_path):
     first = sample_events()
     second = sample_events(fid='F2', carrier_id=2, name='Second', callsign='DEF-456')

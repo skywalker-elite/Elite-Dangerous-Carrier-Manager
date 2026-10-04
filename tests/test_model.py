@@ -314,6 +314,107 @@ def test_latest_permission_wins_with_multiple_events(tmp_path, stage, with_stats
     assert_tables_render(carrier)
 
 
+@pytest.mark.parametrize('invalid_fields', [
+    ('FuelLevel',), ('DockingAccess',), ('AllowNotorious',),
+    ('FuelLevel', 'DockingAccess', 'AllowNotorious'),
+])
+def test_partial_stats_preserve_intervening_updates_across_reload(tmp_path, invalid_fields):
+    records = sample_events()
+    updates = [
+        event('CarrierDepositFuel', 0, CarrierID=1, Total=600),
+        event('CarrierDockingPermission', 0, CarrierID=1, DockingAccess='friends', AllowNotorious=True),
+    ]
+    damaged = deepcopy(records[3])
+    damaged.update(timestamp=stamp(1), Name='Updated', FuelLevel=700, JumpRangeCurr=333)
+    for field in invalid_fields:
+        damaged[field] = None
+    full = make_model(tmp_path / 'full', records + updates + [damaged])
+    incremental = make_model(tmp_path / 'incremental', records)
+    incremental_path = next((tmp_path / 'incremental').glob('Journal.*.log'))
+    refresh(incremental, incremental_path, *updates)
+    cached = CarrierModel([], journal_reader=pickle.loads(pickle.dumps(incremental.journal_reader)))
+    refresh(incremental, incremental_path, damaged)
+    cached.read_journals()
+    for carrier in (full, incremental, cached):
+        carrier.update_carriers(NOW)
+        assert carrier.get_name(1) == 'Updated'
+        assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == (600 if 'FuelLevel' in invalid_fields else 700)
+        assert carrier.get_carriers()[1]['Fuel']['JumpRange'] == 333
+        assert carrier.get_docking_perm(1) == {
+            'DockingAccess': 'friends' if 'DockingAccess' in invalid_fields else 'all',
+            'AllowNotorious': 'AllowNotorious' in invalid_fields,
+        }
+        assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:01+00:00'
+
+
+def test_delayed_archive_stats_preserve_newer_snapshot_but_accept_fresh_updates(tmp_path):
+    records = sample_events()
+    archive = write_journal(tmp_path, records + [event('Shutdown', -40)],
+                            'Journal.2026-01-01T120000.01.log')
+    newest = deepcopy(records[3])
+    newest.update(timestamp=stamp(20), Name='Newest', Callsign='NEW-123', FuelLevel=800,
+                  JumpRangeCurr=400, PendingDecommission=True, DockingAccess='friends', AllowNotorious=True)
+    newest['Finance']['CarrierBalance'] = 2000
+    newest['SpaceUsage']['Cargo'] = 9000
+    newest['Crew'][2]['Enabled'] = True
+    write_journal(tmp_path, [event('Commander', FID='F1'), newest])
+    carrier = CarrierModel([str(tmp_path)])
+    stale = deepcopy(records[3])
+    stale.update(timestamp=stamp(10), Name='Stale', FuelLevel=600, Crew=None)
+    refresh(carrier, archive, stale)
+    assert carrier.get_name(1) == 'Newest'
+    assert carrier.get_callsign(1) == 'NEW-123'
+    assert carrier.get_carriers()[1]['Fuel'] == {'FuelLevel': 800, 'JumpRange': 400}
+    assert carrier.get_finance(1)['CarrierBalance'] == 2000
+    assert carrier.get_space_usage(1)['Cargo'] == 9000
+    assert carrier.generate_info_services(1).to_dict() == {'Refuel': 'Active', 'Repair': 'Active', 'Rearm': 'Off'}
+    assert carrier.get_pending_decom(1) is True
+    assert carrier.get_docking_perm(1) == {'DockingAccess': 'friends', 'AllowNotorious': True}
+    assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:20+00:00'
+    assert len(carrier.journal_reader.get_items()[4]) == 3
+    refresh(carrier, archive, dict(newest, timestamp=stamp(30), Name='Fresh', FuelLevel=900))
+    assert carrier.get_name(1) == 'Fresh'
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 900
+    assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:30+00:00'
+
+
+def test_delayed_stats_can_fill_a_field_missing_from_newer_stats(tmp_path):
+    records = sample_events()
+    newest = deepcopy(records[3])
+    newest.update(timestamp=stamp(20), Name='Newest', FuelLevel=800)
+    newest['Finance']['CarrierBalance'] = None
+    carrier = make_model(tmp_path, records + [newest])
+    delayed = deepcopy(records[3])
+    delayed.update(timestamp=stamp(10), Name='Stale', FuelLevel=600)
+    delayed['Finance']['CarrierBalance'] = 123456
+    refresh(carrier, next(tmp_path.glob('Journal.*.log')), delayed)
+    assert carrier.get_name(1) == 'Newest'
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == 800
+    assert carrier.get_finance(1)['CarrierBalance'] == 123456
+    assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:20+00:00'
+
+
+@pytest.mark.parametrize('stage', ['initial', 'incremental'])
+@pytest.mark.parametrize('same_second_stats', [False, True])
+def test_same_second_updates_keep_order_and_stats_precedence(tmp_path, stage, same_second_stats):
+    records = sample_events()
+    if same_second_stats:
+        records.append(dict(records[3], timestamp=stamp(0), FuelLevel=800))
+    updates = [
+        event('CarrierDepositFuel', 0, CarrierID=1, Total=600),
+        event('CarrierDepositFuel', 0, CarrierID=1, Total=700),
+        event('CarrierDockingPermission', 0, CarrierID=1, DockingAccess='friends', AllowNotorious=True),
+        event('CarrierDockingPermission', 0, CarrierID=1, DockingAccess='none', AllowNotorious=False),
+    ]
+    carrier = make_model(tmp_path, records + updates if stage == 'initial' else records)
+    if stage == 'incremental':
+        refresh(carrier, next(tmp_path.glob('Journal.*.log')), *updates)
+    assert carrier.get_carriers()[1]['Fuel']['FuelLevel'] == (800 if same_second_stats else 700)
+    assert carrier.get_docking_perm(1) == {
+        'DockingAccess': 'all' if same_second_stats else 'none', 'AllowNotorious': False,
+    }
+
+
 @pytest.mark.parametrize('stage', ['initial', 'incremental'])
 @pytest.mark.parametrize('field,value', [
     ('Finance', {'CarrierBalance': 'invalid'}),
