@@ -4,9 +4,14 @@ on:
   push:
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
+
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref_type == 'tag' && github.run_id || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || github.ref_type == 'branch' }}
 
 jobs:
   regression:
