@@ -730,8 +730,12 @@ class CarrierModel:
                 else:
                     self.carriers[carrierID]['DockingPerm'] = {'DockingAccess': None, 'AllowNotorious': None}
                 
+            if 'isSquadronCarrier' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['isSquadronCarrier'] = False
+
             if 'SpaceUsage' not in self.carriers[carrierID].keys():
-                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None, 'TotalCapacity': 25000 if not self.is_squadron_carrier(carrierID) else 60000}
+                self.carriers[carrierID]['SpaceUsage'] = {'Services': None, 'Cargo': None, 'BuyOrder': None, 'ShipPacks': None, 'ModulePacks': None, 'FreeSpace': None}
+            self.carriers[carrierID]['SpaceUsage']['TotalCapacity'] = 60000 if self.carriers[carrierID]['isSquadronCarrier'] else 25000
 
             if 'PendingDecom' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['PendingDecom'] = False
@@ -741,9 +745,6 @@ class CarrierModel:
 
             if 'trade_history' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['trade_history'] = pd.DataFrame(columns=self.carriers[carrierID]['active_trades'].columns)
-
-            if 'isSquadronCarrier' not in self.carriers[carrierID].keys():
-                self.carriers[carrierID]['isSquadronCarrier'] = False
 
             if 'SquadronName' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['SquadronName'] = None
@@ -1163,7 +1164,7 @@ class CarrierModel:
 
     def get_capacity_used(self, carrierID: int) -> int|None:
         space_usage = self.get_space_usage(carrierID=carrierID)
-        if space_usage['FreeSpace'] is None or space_usage['TotalCapacity'] is None:
+        if space_usage['FreeSpace'] is None or space_usage['TotalCapacity'] is None or space_usage['Cargo'] is None:
             return None
         return space_usage['TotalCapacity'] - space_usage['FreeSpace'] - space_usage['Cargo']
 
