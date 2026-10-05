@@ -52,7 +52,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           IS_PRERELEASE: ${{ steps.version.outputs.is_stable == 'false' }}
         run: |
-          flags=(--draft --verify-tag --title "Release $GITHUB_REF" --notes "")
+          flags=(--draft --verify-tag --title "Release $GITHUB_REF_NAME" --notes "")
           if [ "$IS_PRERELEASE" = true ]; then
             flags+=(--prerelease)
           fi
