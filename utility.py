@@ -75,7 +75,8 @@ def getLatestVersion() -> str|None:
     except requests.exceptions.RequestException as e:
         print(f'Error while checking update: {e}')
         return None
-    latest_version = response.json()['name'].split()[1]
+    print(response.json())
+    latest_version = response.json()['tag_name']
     return latest_version
 
 def isOnPrerelease() -> bool:
@@ -107,7 +108,7 @@ def getLatestPrereleaseVersion() -> str|None:
     pre_versions = []
     for rel in resp.json():
         if rel.get('prerelease'):
-            name = rel.get('name', '')
+            name = rel.get('tag_name', '')
             tag = name.split()[1] if ' ' in name else name
             clean = tag
             try:
