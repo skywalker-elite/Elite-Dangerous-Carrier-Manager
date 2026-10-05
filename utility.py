@@ -75,7 +75,13 @@ def getLatestVersion() -> str|None:
     except requests.exceptions.RequestException as e:
         print(f'Error while checking update: {e}')
         return None
-    latest_version = response.json()['name'].split()[1]
+    latest_version = response.json().get('tag_name')
+    if not isinstance(latest_version, str):
+        return None
+    try:
+        version.parse(latest_version)
+    except version.InvalidVersion:
+        return None
     return latest_version
 
 def isOnPrerelease() -> bool:
@@ -107,12 +113,12 @@ def getLatestPrereleaseVersion() -> str|None:
     pre_versions = []
     for rel in resp.json():
         if rel.get('prerelease'):
-            name = rel.get('name', '')
-            tag = name.split()[1] if ' ' in name else name
-            clean = tag
+            tag = rel.get('tag_name')
+            if not isinstance(tag, str):
+                continue
             try:
-                parsed = version.parse(clean)
-            except Exception:
+                parsed = version.parse(tag)
+            except version.InvalidVersion:
                 continue
             if parsed.is_prerelease and parsed.major == target_major and parsed.minor == target_minor:
                 pre_versions.append(tag)

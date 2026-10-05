@@ -94,18 +94,26 @@ def test_update_selection_obeys_stable_and_prerelease_channels(monkeypatch, curr
     assert utility.isUpdateAvailable() is expected
 
 
-def test_prerelease_selection_filters_minor_and_invalid_names(monkeypatch):
+def test_prerelease_selection_uses_tags_and_filters_minor_and_invalid_tags(monkeypatch):
     response = Mock()
     response.json.return_value = [
-        {"prerelease": True, "name": "EDCM 1.2.0rc1"},
-        {"prerelease": True, "name": "1.2.0rc3"},
-        {"prerelease": True, "name": "EDCM 1.3.0rc9"},
-        {"prerelease": True, "name": "not-a-version"},
-        {"prerelease": False, "name": "EDCM 1.2.0"},
+        {"prerelease": True, "name": "Release refs/tags/v1.2.0rc1", "tag_name": "v1.2.0rc1"},
+        {"prerelease": True, "name": "Preview with an arbitrary title", "tag_name": "v1.2.0rc2"},
+        {"prerelease": True, "name": None, "tag_name": "v1.2.0rc3"},
+        {"prerelease": True, "tag_name": "v1.2.0rc4"},
+        {"prerelease": True, "tag_name": "v1.3.0rc9"},
+        {"prerelease": True, "tag_name": "v2.2.0rc9"},
+        {"prerelease": True, "name": "Release v1.2.0rc9", "tag_name": "not-a-version"},
+        {"prerelease": True, "name": "Release v1.2.0rc9"},
+        {"prerelease": True, "tag_name": None},
+        {"prerelease": True, "tag_name": 123},
+        {"prerelease": True, "tag_name": ""},
+        {"prerelease": True, "tag_name": "v1.2.0"},
+        {"prerelease": False, "tag_name": "v1.2.0rc9"},
     ]
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
     monkeypatch.setattr(utility, "getCurrentVersion", lambda: "1.2.0rc1")
-    assert utility.getLatestPrereleaseVersion.__wrapped__() == "1.2.0rc3"
+    assert utility.getLatestPrereleaseVersion.__wrapped__() == "v1.2.0rc4"
 
 
 @pytest.mark.parametrize("stable,prerelease,expected", [
@@ -118,12 +126,38 @@ def test_prerelease_update_candidate_uses_highest_version(monkeypatch, stable, p
     assert utility.getPrereleaseUpdateVersion() == expected
 
 
-def test_latest_release_name_is_parsed(monkeypatch):
+@pytest.mark.parametrize("title", [
+    "Release v1.6.4", "Release refs/tags/v1.6.4", "An arbitrary title",
+    "Release v9.9.9", "", None,
+])
+@pytest.mark.parametrize("tag", ["v1.6.4", "1.6.4"])
+def test_latest_release_uses_tag_independently_of_title(monkeypatch, title, tag):
     response = Mock()
-    response.json.return_value = {"name": "EDCM 1.2.3"}
+    response.json.return_value = {"name": title, "tag_name": tag}
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
-    assert utility.getLatestVersion() == "1.2.3"
+    assert utility.getLatestVersion() == tag
     response.raise_for_status.assert_called_once_with()
+
+
+def test_update_check_works_without_release_title(monkeypatch):
+    response = Mock()
+    response.json.return_value = {"tag_name": "v1.6.4"}
+    monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
+    monkeypatch.setattr(utility, "getCurrentVersion", lambda: "v1.6.3")
+    assert utility.isUpdateAvailable() is True
+
+
+@pytest.mark.parametrize("release", [
+    {"name": "Release v1.6.4"}, {"tag_name": None}, {"tag_name": ""},
+    {"tag_name": "not-a-version"}, {"tag_name": 123},
+])
+def test_invalid_latest_release_tag_returns_no_update(monkeypatch, release):
+    response = Mock()
+    response.json.return_value = release
+    monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
+    monkeypatch.setattr(utility, "getCurrentVersion", lambda: "v1.6.3")
+    assert utility.getLatestVersion() is None
+    assert utility.isUpdateAvailable() is False
 
 
 @pytest.mark.parametrize("function", [utility.getLatestVersion, utility.getLatestPrereleaseVersion.__wrapped__])
