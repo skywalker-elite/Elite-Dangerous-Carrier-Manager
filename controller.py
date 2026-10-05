@@ -98,6 +98,7 @@ class CarrierController:
         self.view.button_open_notes_file.configure(command=lambda: open_file(getNotesPath()))
         self.view.button_open_journal.configure(command=self.button_click_open_journal)
         self.view.button_open_journal_folder.configure(command=self.button_click_open_journal_folder)
+        self.view.button_show_journal_paths.configure(command=self.button_click_show_journal_paths)
         self.view.button_check_updates.configure(command=lambda: self.check_app_update(notify_is_latest=True))
         self.view.button_reload_settings.configure(command=self.button_click_reload_settings)
         self.view.button_open_settings.configure(command=lambda: open_file(getSettingsPath()))
@@ -141,6 +142,7 @@ class CarrierController:
         self.last_time_skew_warned = datetime.min
         self.time_skew_warning_suppressed = False
         self.time_checker = TimeChecker()
+        self._executioner = ThreadPoolExecutor(max_workers=1)
         self.check_time_skew()
 
         self.set_current_version()
@@ -472,7 +474,6 @@ class CarrierController:
             return
         if not silent:
             progress_win, progress_bar = self.view.show_indeterminate_progress_bar('Checking time skew', 'Checking system time against game server...')
-        self._executioner = ThreadPoolExecutor(max_workers=1)
         future_skew = self._executioner.submit(self.time_checker.check_and_warn)
         def handle_skew_result(future):
             if not silent:
@@ -981,6 +982,9 @@ class CarrierController:
                 open_file(path.dirname(journal_file))
         else:
             self.view.show_message_box_warning('Warning', 'Please select one row.')
+
+    def button_click_show_journal_paths(self):
+        self.view.show_message_box_info('Journal Paths', 'Currently monitoring journals in:\n' + '\n'.join(self.model.get_journal_paths()))
 
     def check_manual_timer(self):
         now = datetime.now(timezone.utc)

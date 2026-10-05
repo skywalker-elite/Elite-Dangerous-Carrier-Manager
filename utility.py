@@ -18,6 +18,8 @@ from pathlib import Path
 from config import timer_slope_thresholds, SUPABASE_URL, SUPABASE_KEY
 from decos import rate_limited
 
+HTTP_SESSION = requests.Session()
+
 def getJournalPath() -> str:
     if sys.platform == 'win32':
         user_path = os.environ.get('USERPROFILE')
@@ -68,7 +70,7 @@ def isUpdateAvailable() -> bool:
 
 def getLatestVersion() -> str|None:
     try:
-        response = requests.get('https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
+        response = HTTP_SESSION.get('https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases/latest')
         response.raise_for_status()
     except requests.exceptions.RequestException as e:
         print(f'Error while checking update: {e}')
@@ -88,7 +90,7 @@ def getLatestPrereleaseVersion() -> str|None:
     and return the highest prerelease.
     """
     try:
-        resp = requests.get(
+        resp = HTTP_SESSION.get(
             'https://api.github.com/repos/skywalker-elite/Elite-Dangerous-Carrier-Manager/releases'
         )
         resp.raise_for_status()
@@ -230,7 +232,7 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
 
 @rate_limited(max_calls=10, period=60)
 def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None]:
-    response = requests.post(f'{SUPABASE_URL}/rest/v1/rpc/jump_timer_stats_cached', headers={
+    response = HTTP_SESSION.post(f'{SUPABASE_URL}/rest/v1/rpc/jump_timer_stats_cached', headers={
         'content-type': 'application/json',
         'apikey': SUPABASE_KEY,
         'Authorization': f'Bearer {SUPABASE_KEY}'
@@ -282,7 +284,7 @@ def generateTimerSlopeDescription(slope:float|None) -> str:
 
 @rate_limited(max_calls=1, period=60)
 def getCruiseStatus() -> str:
-    response = requests.get('https://bc.pilotstradenetwork.org/api/cruises/state')
+    response = HTTP_SESSION.get('https://bc.pilotstradenetwork.org/api/cruises/state')
     if response.status_code == 200:
         data = response.json()
         return data.get('state', None)

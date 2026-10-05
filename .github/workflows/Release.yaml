@@ -5,17 +5,19 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: read
+
 jobs:
+  regression:
+    uses: ./.github/workflows/tests.yaml
+
   create-release:
     runs-on: ubuntu-latest
+    needs: regression
     permissions:
       contents: write
-      pull-requests: write
-      repository-projects: write
-      id-token: write
-      attestations: write
     outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
       version_full: ${{ steps.version.outputs.full }}
     steps:
       - name: Check tag version
@@ -33,7 +35,7 @@ jobs:
         if: steps.version.outputs.is_valid == 'true'
       
       - name: Checkout
-        uses: actions/checkout@v3
+        uses: actions/checkout@v7
       
       - name: Check VERSION file sameness
         id: check_version_file
@@ -46,23 +48,21 @@ jobs:
           echo "VERSION file matches tag version!"
       
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ github.ref }}
-          draft: true
-          prerelease: ${{ steps.version.outputs.is_stable == 'false' }}
+          GH_TOKEN: ${{ github.token }}
+          IS_PRERELEASE: ${{ steps.version.outputs.is_stable == 'false' }}
+        run: |
+          flags=(--draft --verify-tag --title "Release $GITHUB_REF" --notes "")
+          if [ "$IS_PRERELEASE" = true ]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" "${flags[@]}"
 
   pyinstaller-build-linux:
     runs-on: ubuntu-latest
     needs: create-release
     permissions:
       contents: write
-      pull-requests: write
-      repository-projects: write
       id-token: write
       attestations: write
     steps:
@@ -81,14 +81,13 @@ jobs:
           ls -lh "${{ steps.create_executable.outputs.executable_path }}".tar.gz
 
       - name: Upload Compressed Folder
-        uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ steps.create_executable.outputs.executable_path }}.tar.gz
-          asset_name: EDCM-Linux-${{ needs.create-release.outputs.version_full }}.tar.gz
-          asset_content_type: application/gzip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARCHIVE_PATH: ${{ steps.create_executable.outputs.executable_path }}.tar.gz
+          ASSET_NAME: EDCM-Linux-${{ needs.create-release.outputs.version_full }}.tar.gz
+        run: |
+          cp -- "$ARCHIVE_PATH" "$ASSET_NAME"
+          gh release upload "$GITHUB_REF_NAME" "$ASSET_NAME" --repo "$GITHUB_REPOSITORY"
       
       - name: Compute semver (no leading v)
         id: semver
@@ -156,15 +155,11 @@ jobs:
             EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
             ${{ steps.create_executable.outputs.executable_path }}.tar.gz
 
-      - name: Upload AppImage
-        uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
-          asset_name: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
-          asset_content_type: application/vnd.debian.binary-package
+      - name: Upload Debian Package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_PATH: EDCM-${{ needs.create-release.outputs.version_full }}_amd64.deb
+        run: gh release upload "$GITHUB_REF_NAME" "$ASSET_PATH" --repo "$GITHUB_REPOSITORY"
 
       - name: Upload Linux Attestation as Artifact
         uses: actions/upload-artifact@v4
@@ -177,8 +172,6 @@ jobs:
     needs: create-release
     permissions:
       contents: write
-      pull-requests: write
-      repository-projects: write
       id-token: write
       attestations: write
     steps:
@@ -208,14 +201,10 @@ jobs:
           subject-path: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
 
       - name: Upload Windows Installer
-        uses: actions/upload-release-asset@v1
-        env: 
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
-          asset_name: EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
-          asset_content_type: application/vnd.microsoft.portable-executable
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ASSET_PATH: ${{ github.workspace }}\installer\dist\EDCM-Setup-${{ needs.create-release.outputs.version_full }}.exe
+        run: gh release upload "$env:GITHUB_REF_NAME" "$env:ASSET_PATH" --repo "$env:GITHUB_REPOSITORY"
 
       - name: Upload Windows Attestation as Artifact
         uses: actions/upload-artifact@v4
@@ -223,15 +212,11 @@ jobs:
           name: attestation-windows
           path: ${{ steps.attestation.outputs.bundle-path }}
 
-  combine-attestations:
+  upload-attestations:
     runs-on: ubuntu-latest
     needs: [create-release, pyinstaller-build-linux, pyinstaller-build]
     permissions:
       contents: write
-      pull-requests: write
-      repository-projects: write
-      id-token: write
-      attestations: write
     steps:
       - name: Download Linux Executable Attestation
         uses: actions/download-artifact@v4
@@ -245,16 +230,10 @@ jobs:
           name: attestation-windows
           path: ./attestations/windows
 
-      - name: Combine Attestations
-        run: |
-          jq -s '.[0] * .[1]' ./attestations/linux/attestation.json ./attestations/windows/attestation.json > combined-attestation.json
-
-      - name: Upload Combined Attestation
-        uses: actions/upload-release-asset@v1
+      - name: Upload Attestations
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.upload_url }}
-          asset_path: ./combined-attestation.json
-          asset_name: attestation.json
-          asset_content_type: application/json
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp ./attestations/linux/attestation.json attestation-linux.json
+          cp ./attestations/windows/attestation.json attestation-windows.json
+          gh release upload "$GITHUB_REF_NAME" attestation-linux.json attestation-windows.json --repo "$GITHUB_REPOSITORY"

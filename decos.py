@@ -9,7 +9,7 @@ def rate_limited(max_calls: int, period: float):
     caching and returning the last successful result in between bursts,
     separately for each distinct (args, kwargs) combination.
     """
-    state: dict = {}  # maps (args, sorted(kwargs)) -> {'times': deque, 'cache': result}
+    state: dict = {}  # maps (args, sorted(kwargs)) -> {'times': deque, 'cache': result, 'last_seen': float}
 
     def decorator(func):
         @functools.wraps(func)
@@ -17,10 +17,18 @@ def rate_limited(max_calls: int, period: float):
             now = time.time()
             # build a hashable key for this call
             key = (args, tuple(sorted(kwargs.items())))
+
+            # drop entries for other argument combos not seen in over `period` seconds, so this
+            # cache doesn't grow forever as more distinct arguments are used over a long session
+            stale_keys = [k for k, r in state.items() if k != key and now - r['last_seen'] > period]
+            for k in stale_keys:
+                del state[k]
+
             if key not in state:
-                state[key] = {'times': deque(), 'cache': None, 'error': None}
+                state[key] = {'times': deque(), 'cache': None, 'error': None, 'last_seen': now}
 
             record = state[key]
+            record['last_seen'] = now
             times: deque[float] = record['times']
 
             # drop timestamps older than our window
