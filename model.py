@@ -7,6 +7,7 @@ import locale
 import inspect
 import hashlib
 from copy import deepcopy
+from math import isfinite
 from datetime import datetime, timezone, timedelta
 from humanize import naturaltime
 from random import random
@@ -43,6 +44,8 @@ class JournalReader:
         self.journal_latest = {}
         self.journal_latest_unknown_fid = {}
         self._journal_pending = {}
+        # File progress is independent of account identity and displayed session status.
+        self._journal_cursors = {}
         self._load_games = []
         self._carrier_locations = []
         self._jump_requests = []
@@ -75,70 +78,100 @@ class JournalReader:
                     print(f'{(self.tracked_items + ["carrier_owners"])[i]} was dropped')
 
     def read_journals(self):
-        latest_journal_info = {}
-        for key, value in zip(self.journal_latest.keys(), self.journal_latest.values()):
-            latest_journal_info[value['filename']] = {'fid': key, 'byte_pos': value['byte_pos'], 'is_active': value['is_active']}
         journals = []
         for journal_path in self.journal_paths:
-            files = listdir(journal_path)
+            try:
+                files = listdir(journal_path)
+            except OSError as e:
+                print(f'{journal_path} {e}')
+                continue
             r = r'^Journal\.\d{4}-\d{2}-\d{2}T\d{6}\.\d{2}\.log$'
             journal_files = sorted([i for i in files if re.fullmatch(r, i)], reverse=False)
-            assert len(journal_files) > 0, f'No journal files found in {journal_path}'
             journals += [path.join(journal_path, i) for i in journal_files]
-        journal_order = {journal: index for index, journal in enumerate(journals)}
+        directory_order = {path.normcase(path.abspath(directory)): index
+                           for index, directory in enumerate(self.journal_paths)}
+
+        def journal_order(filename):
+            # Directory enumeration can temporarily omit a known newer journal.
+            directory = path.normcase(path.abspath(path.dirname(filename)))
+            return directory_order.get(directory, -1), path.basename(filename)
+
         for journal in journals:
+            newer_latest = {fid: info for fid, info in self.journal_latest.items()
+                            if journal_order(info['filename']) > journal_order(journal)}
             if journal in self._journal_pending:
                 pending = self._journal_pending[journal]
                 # A delayed tail may reveal its FID only after a newer journal is active.
-                newer_latest = {fid: info for fid, info in self.journal_latest.items()
-                                if journal_order.get(info['filename'], -1) > journal_order[journal]}
                 self._read_journal(journal, pending['byte_pos'], pending['fid'], set(newer_latest))
-                self.journal_latest.update(newer_latest)
             elif journal not in self.journal_processed:
                 self._read_journal(journal)
-            elif journal in latest_journal_info.keys():
-                if latest_journal_info[journal]['is_active']:
-                    self._read_journal(journal, latest_journal_info[journal]['byte_pos'], latest_journal_info[journal]['fid'])
-            elif journal in self.journal_latest_unknown_fid.keys():
-                self._read_journal(journal, self.journal_latest_unknown_fid[journal]['byte_pos'])
+            elif journal in self._journal_cursors:
+                cursor = self._journal_cursors[journal]
+                try:
+                    has_updates = path.getsize(journal) > cursor['byte_pos']
+                except OSError as e:
+                    print(f'{journal} {e}')
+                    continue
+                if has_updates:
+                    self._read_journal(journal, cursor['byte_pos'], cursor['fid'])
+            # Older shared files may still grow without replacing a newer session's display.
+            self.journal_latest.update(newer_latest)
             # Once a newer journal identifies the same commander, the old tail is final.
             for pending_path, pending in list(self._journal_pending.items()):
                 latest = self.journal_latest.get(pending['fid'])
-                if latest is not None and journal_order.get(latest['filename'], -1) > journal_order.get(pending_path, -1):
+                if latest is not None and journal_order(latest['filename']) > journal_order(pending_path):
                     self._retire_pending_journal(pending_path)
-        assert len(self._stats) > 0, 'No carrier found, if you do have a carrier, try logging in and opening the carrier management screen'
 
     def _retire_pending_journal(self, journal_path:str):
         self._journal_pending.pop(journal_path, None)
+        self._journal_cursors.pop(journal_path, None)
         self.journal_latest_unknown_fid.pop(journal_path, None)
+        self.journal_processed.add(journal_path)
+
+    def _remember_journal_cursor(self, journal_path:str, byte_pos:int, fid:str|None):
+        self._journal_cursors[journal_path] = {'byte_pos': byte_pos, 'fid': fid}
+        for info in self.journal_latest.values():
+            if info['filename'] == journal_path:
+                info['byte_pos'] = byte_pos
+        if journal_path in self.journal_latest_unknown_fid:
+            self.journal_latest_unknown_fid[journal_path]['byte_pos'] = byte_pos
         self.journal_processed.add(journal_path)
 
     def _read_journal(self, journal_path:str, byte_pos:int=0, fid_last:str|None=None,
                       superseded_fids:set[str]|None=None):
         items = []
         incomplete = False
-        with open(journal_path, 'rb') as f:
-            f.seek(byte_pos)
-            while True:
-                byte_pos_new = f.tell()
-                line = f.readline()
-                if not line:
-                    break
-                if not line.endswith(b'\n'):
-                    incomplete = True
-                    break
-                try:
-                    items.append(json.loads(line.decode('utf-8')))
-                except json.decoder.JSONDecodeError as e: # skip malformed complete records
-                    print(f'{journal_path} {e}')
+        try:
+            with open(journal_path, 'rb') as f:
+                f.seek(byte_pos)
+                while True:
+                    byte_pos_new = f.tell()
+                    line = f.readline()
+                    if not line:
+                        break
+                    if not line.endswith(b'\n'):
+                        incomplete = True
+                        break
+                    try:
+                        item = json.loads(line.decode('utf-8'))
+                        if not isinstance(item, dict) or not isinstance(item.get('event'), str) or not item['event']:
+                            raise ValueError('Journal record must have an event name')
+                        if item['event'] == 'Commander' and (not isinstance(item.get('FID'), str) or not item['FID']):
+                            raise ValueError('Commander record must have an FID')
+                        if item['event'] == 'CarrierStats' and type(item.get('CarrierID')) is not int:
+                            raise ValueError('CarrierStats record must have a CarrierID')
+                        self._timestamp_key(item)
+                        items.append(item)
+                    except (UnicodeDecodeError, ValueError, KeyError) as e:
+                        # Skip damaged complete records; partial records wait for a newline.
+                        print(f'{journal_path} {e}')
+        except OSError as e:
+            print(f'{journal_path} {e}')
+            return
 
         if len(items) == 0:
             # Advance over malformed complete lines without changing known identity/status.
-            for info in self.journal_latest.values():
-                if info['filename'] == journal_path:
-                    info['byte_pos'] = byte_pos_new
-            if journal_path in self.journal_latest_unknown_fid:
-                self.journal_latest_unknown_fid[journal_path]['byte_pos'] = byte_pos_new
+            self._remember_journal_cursor(journal_path, byte_pos_new, fid_last)
             if incomplete:
                 self._journal_pending[journal_path] = {'byte_pos': byte_pos_new, 'fid': fid_last}
             else:
@@ -146,19 +179,22 @@ class JournalReader:
             return
         # An unknown-FID tail may reveal its identity only after its successor was read.
         # Retire it before parsing, so historical events cannot reach incremental consumers.
+        fids = [item['FID'] for item in items if item['event'] == 'Commander']
         if superseded_fids:
-            fids = [item['FID'] for item in items if item['event'] == 'Commander']
             pending_fid = fids[0] if fids and all(fid == fids[0] for fid in fids) else fid_last
             if pending_fid in superseded_fids:
                 self._retire_pending_journal(journal_path)
                 return
         parsed_fid, is_active = self._parse_items(items, fid_last)
-        if fid_last is None:
+        if fids and parsed_fid is None:
+            fid = None
+        elif fid_last is None:
             fid = parsed_fid
         elif parsed_fid is not None and parsed_fid != fid_last:
             fid = None
         else:
             fid = fid_last
+        self._remember_journal_cursor(journal_path, byte_pos_new, fid)
         if incomplete:
             self._journal_pending[journal_path] = {'byte_pos': byte_pos_new, 'fid': fid}
         else:
@@ -186,7 +222,7 @@ class JournalReader:
         if len(fid_temp) > 0:
             if all(i == fid_temp[0] for i in fid_temp):
                 fid_parsed = fid_temp[0]
-        fid = fid_parsed if fid_parsed is not None else fid_last
+        fid = fid_parsed if fid_temp else fid_last
         for item in items:
             if item['event'] == 'LoadGame':
                 self._load_games.append(item)
@@ -199,7 +235,7 @@ class JournalReader:
             if item['event'] == 'CarrierStats':
                 self._stats.append(item)
                 if fid is not None and item.get('CarrierType', None) != 'SquadronCarrier':
-                    self._carrier_owners[item['CarrierID']] = fid
+                    self._carrier_owners.setdefault(item['CarrierID'], fid)
             if item['event'] == 'CarrierDepositFuel':
                 self._trit_deposits.append(item)
             if item['event'] == 'CarrierTradeOrder':
@@ -277,9 +313,11 @@ class CarrierModel:
         self.dropout = dropout
         self.droplist = droplist
         self.carriers = {}
+        self._field_update_times = {}
         self.carriers_updated = {}
         self.cmdr_balances = {}
         self.cmdr_names = {}
+        self._load_game_times = {}
         self.cmdr_squadrons = {}
         self.cmdr_locations = {}
         self.carrier_owners = {}
@@ -345,11 +383,13 @@ class CarrierModel:
         self.journal_reader.update_items_count()
 
     def process_load_games(self, load_games, first_read:bool=True):
-        for load_game in load_games:
-            if not first_read or load_game['FID'] not in self.cmdr_balances.keys():
-                self.cmdr_balances[load_game['FID']] = load_game['Credits']
-            if not first_read or load_game['FID'] not in self.cmdr_names.keys():
-                self.cmdr_names[load_game['FID']] = load_game['Commander']
+        for load_game in sorted(load_games, key=lambda item: item['timestamp']):
+            fid = load_game['FID']
+            timestamp = datetime.strptime(load_game['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+            if fid not in self._load_game_times or timestamp >= self._load_game_times[fid]:
+                self._load_game_times[fid] = timestamp
+                self.cmdr_balances[fid] = load_game['Credits']
+                self.cmdr_names[fid] = load_game['Commander']
     
     def process_itinerary(self, docked, undocked, fsd_jumps, first_read:bool=True):
         df_events = pd.DataFrame(docked + undocked + fsd_jumps, columns=['timestamp', 'event', 'StationName', 'StarSystem', 'MarketID', 'FID'], )
@@ -392,29 +432,95 @@ class CarrierModel:
                 df_itinerary = df_itinerary.astype({'MarketID': 'Int64'})
                 self.cmdr_locations[fid] = df_itinerary.copy()
 
+    def _accept_field_update(self, carrierID, field, timestamp, from_stats=True):
+        times = self._field_update_times.setdefault(carrierID, {})
+        previous = times.get(field)
+        # Stats retain precedence over other events recorded in the same second.
+        update = (timestamp, from_stats)
+        if previous is not None and update < previous:
+            return False
+        times[field] = update
+        return True
+
     def process_stats(self, stats, first_read:bool=True):
-        for stat in stats:
-            if not first_read or stat['CarrierID'] not in self.carriers.keys():
-                if stat['CarrierID'] not in self.carriers.keys():
-                    self.carriers[stat['CarrierID']] = {'Callsign': stat['Callsign'], 'Name': stat['Name'], 'CMDRName': self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None), 
-                                                        'isSquadronCarrier': stat.get('CarrierType', None) == 'SquadronCarrier'}
-                else:
-                    self.carriers[stat['CarrierID']]['Callsign'] = stat['Callsign']
-                    self.carriers[stat['CarrierID']]['Name'] = stat['Name']
-                    self.carriers[stat['CarrierID']]['CMDRName'] = self.cmdr_names.get(self.carrier_owners.get(stat['CarrierID'], None), None)
-                self.carriers[stat['CarrierID']]['Finance'] = {'CarrierBalance': stat['Finance']['CarrierBalance'], 
-                                                          'CmdrBalance': self.cmdr_balances[self.carrier_owners[stat['CarrierID']]] if stat['CarrierID'] in self.carrier_owners.keys() and self.carrier_owners[stat['CarrierID']] in self.cmdr_balances.keys() else None,
-                                                          }
-                self.carriers[stat['CarrierID']]['Fuel'] = {'FuelLevel': stat['FuelLevel'], 'JumpRange': stat['JumpRangeCurr']}
-                self.carriers[stat['CarrierID']]['StatTime'] = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
-                self.carriers[stat['CarrierID']]['SpaceUsage'] = {'Services': stat['SpaceUsage']['Crew'], 'Cargo': stat['SpaceUsage']['Cargo'], 'BuyOrder': stat['SpaceUsage']['CargoSpaceReserved'],
-                                                             'ShipPacks': stat['SpaceUsage']['ShipPacks'], 'ModulePacks': stat['SpaceUsage']['ModulePacks'], 'FreeSpace': stat['SpaceUsage']['FreeSpace']}
-                df_services = pd.DataFrame(stat['Crew'], columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
+        def usable_number(value):
+            try:
+                return not isinstance(value, bool) and isinstance(value, (int, float)) and isfinite(value)
+            except OverflowError:
+                return False
+
+        # Initial results are newest-first. Replay them oldest-first so damaged
+        # fields can retain older usable values while healthy fields advance.
+        if first_read:
+            # Preserve the reader's carrier order when replaying their records.
+            for stat in stats:
+                self.carriers.setdefault(stat['CarrierID'], {})
+        for stat in sorted(stats, key=lambda item: item['timestamp']) if first_read else stats:
+            carrierID = stat['CarrierID']
+            timestamp = datetime.strptime(stat['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+            carrier = self.carriers.setdefault(stat['CarrierID'], {
+                'isSquadronCarrier': stat.get('CarrierType') == 'SquadronCarrier',
+            })
+            if first_read:
+                carrier['isSquadronCarrier'] = stat.get('CarrierType') == 'SquadronCarrier'
+            owner = self.carrier_owners.get(stat['CarrierID'])
+            for key, default in (('Callsign', 'Unknown'), ('Name', 'Unknown'), ('PendingDecom', False)):
+                source_key = 'PendingDecommission' if key == 'PendingDecom' else key
+                carrier.setdefault(key, default)
+                if (isinstance(stat.get(source_key), type(default))
+                        and self._accept_field_update(carrierID, key, timestamp)):
+                    carrier[key] = stat[source_key]
+            carrier['CMDRName'] = self.cmdr_names.get(owner)
+            if carrier.get('StatTime') is None or timestamp >= carrier['StatTime']:
+                carrier['StatTime'] = timestamp
+            fuel = carrier.setdefault('Fuel', {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'})
+            for source_key, key in (('FuelLevel', 'FuelLevel'), ('JumpRangeCurr', 'JumpRange')):
+                if (usable_number(stat.get(source_key))
+                        and self._accept_field_update(carrierID, key, timestamp)):
+                    fuel[key] = stat[source_key]
+                    if key == 'FuelLevel':
+                        fuel.pop('DepotTime', None)
+            permissions = carrier.setdefault('DockingPerm', {'DockingAccess': None, 'AllowNotorious': None})
+            for key, value_type in (('DockingAccess', str), ('AllowNotorious', bool)):
+                if (isinstance(stat.get(key), value_type)
+                        and self._accept_field_update(carrierID, key, timestamp)):
+                    permissions[key] = stat[key]
+            finance = carrier.setdefault('Finance', {'CarrierBalance': None, 'CmdrBalance': None})
+            finance['CmdrBalance'] = self.cmdr_balances.get(owner)
+            for section, mapping in (
+                ('Finance', {'CarrierBalance': 'CarrierBalance'}),
+                ('SpaceUsage', {'Crew': 'Services', 'Cargo': 'Cargo', 'CargoSpaceReserved': 'BuyOrder',
+                                'ShipPacks': 'ShipPacks', 'ModulePacks': 'ModulePacks', 'FreeSpace': 'FreeSpace'}),
+            ):
+                target = carrier.setdefault(section, {key: None for key in mapping.values()})
+                values = stat.get(section)
+                if not isinstance(values, dict):
+                    print(f"Ignoring invalid CarrierStats {section} for {stat['CarrierID']}")
+                    continue
+                for source_key, key in mapping.items():
+                    value = values.get(source_key)
+                    if usable_number(value):
+                        if self._accept_field_update(carrierID, (section, key), timestamp):
+                            target[key] = value
+                    else:
+                        print(f"Ignoring invalid CarrierStats {section}.{source_key} for {stat['CarrierID']}")
+            try:
+                crew = stat['Crew']
+                if crew is not None and (not isinstance(crew, list) or any(
+                    not isinstance(row, dict) or not isinstance(row.get('CrewRole'), str)
+                    or not isinstance(row.get('Activated'), bool)
+                    or (row.get('Enabled') is not None and not isinstance(row['Enabled'], bool))
+                    for row in crew
+                )):
+                    raise ValueError('invalid crew collection')
+                df_services = pd.DataFrame(crew, columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
                 df_services.loc[:, 'Enabled'] = df_services['Enabled'].convert_dtypes().fillna(False)
-                df_services = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
-                self.carriers[stat['CarrierID']]['Services'] = df_services.copy()
-                self.carriers[stat['CarrierID']]['PendingDecom'] = stat['PendingDecommission']
-                self.carriers[stat['CarrierID']]['DockingPerm'] = {'DockingAccess': stat['DockingAccess'], 'AllowNotorious': stat['AllowNotorious']}
+                if self._accept_field_update(carrierID, 'Services', timestamp):
+                    carrier['Services'] = df_services.drop(['Captain', 'CarrierFuel', 'Commodities'], axis=0, errors='ignore')
+            except (KeyError, TypeError, ValueError) as exc:
+                print(f"Ignoring invalid CarrierStats Crew for {stat['CarrierID']}: {exc}")
+                if 'Services' not in carrier:
+                    carrier['Services'] = pd.DataFrame(columns=['CrewRole', 'Activated', 'Enabled']).set_index('CrewRole')
 
     def process_carrier_buys(self, carrier_buys, first_read:bool=True):
         for carrier_buy in carrier_buys:
@@ -426,19 +532,25 @@ class CarrierModel:
                 self.carriers[carrier_buy['CarrierID']]['TimeBought'] = datetime.strptime(carrier_buy['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)    
     
     def process_trit_deposits(self, trit_deposits, first_read:bool=True):
-        for trit_deposit in trit_deposits:
-            if trit_deposit['CarrierID'] in self.carriers.keys():
-                last_update = self.carriers[trit_deposit['CarrierID']]['StatTime'] if 'StatTime' in self.carriers[trit_deposit['CarrierID']].keys() else self.carriers[trit_deposit['CarrierID']]['Fuel']['DepotTime'] if 'Fuel' in self.carriers[trit_deposit['CarrierID']].keys() and 'DepotTime' in self.carriers[trit_deposit['CarrierID']]['Fuel'].keys() else None
-                # if ('StatTime' not in self.carriers[trit_deposit['CarrierID']].keys() or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > self.carriers[trit_deposit['CarrierID']]['StatTime']) and ('Fuel' not in self.carriers[trit_deposit['CarrierID']].keys() or 'DepotTime' not in self.carriers[trit_deposit['CarrierID']]['Fuel'].keys()):
-                if not first_read or last_update is None or datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > last_update:
-                    self.carriers[trit_deposit['CarrierID']]['Fuel'] = {'FuelLevel': trit_deposit['Total'], 'JumpRange': None, 'DepotTime': datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)}
+        for trit_deposit in sorted(trit_deposits, key=lambda item: item['timestamp']):
+            carrierID = trit_deposit['CarrierID']
+            if carrierID in self.carriers:
+                timestamp = datetime.strptime(trit_deposit['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                fuel = self.carriers[carrierID].setdefault('Fuel', {'FuelLevel': 'Unknown', 'JumpRange': 'Unknown'})
+                if self._accept_field_update(carrierID, 'FuelLevel', timestamp, from_stats=False):
+                    fuel.update(FuelLevel=trit_deposit['Total'], DepotTime=timestamp)
+                if self._accept_field_update(carrierID, 'JumpRange', timestamp, from_stats=False):
+                    fuel['JumpRange'] = None
     
     def process_docking_perms(self, docking_perms, first_read:bool=True):
-        for docking_perm in docking_perms:
-            if docking_perm['CarrierID'] in self.carriers.keys():
-                if not first_read or 'DockingPerm' not in self.carriers[docking_perm['CarrierID']].keys():
-                    if datetime.strptime(docking_perm['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc) > self.carriers[docking_perm['CarrierID']]['StatTime'] if 'StatTime' in self.carriers[docking_perm['CarrierID']].keys() else datetime.min.replace(tzinfo=timezone.utc):
-                        self.carriers[docking_perm['CarrierID']]['DockingPerm'] = {'DockingAccess': docking_perm['DockingAccess'], 'AllowNotorious': docking_perm['AllowNotorious']}
+        for docking_perm in sorted(docking_perms, key=lambda item: item['timestamp']):
+            carrierID = docking_perm['CarrierID']
+            if carrierID in self.carriers:
+                permission_time = datetime.strptime(docking_perm['timestamp'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc)
+                permissions = self.carriers[carrierID].setdefault('DockingPerm', {'DockingAccess': None, 'AllowNotorious': None})
+                for key in ('DockingAccess', 'AllowNotorious'):
+                    if self._accept_field_update(carrierID, key, permission_time, from_stats=False):
+                        permissions[key] = docking_perm[key]
 
     def process_carrier_locations(self, carrier_locations, first_read:bool=True):
         for carrier_location in carrier_locations:
@@ -472,10 +584,11 @@ class CarrierModel:
                     cancelled.append(False)
             fc_jumps['cancelled'] = cancelled
             fc_jumps = fc_jumps[fc_jumps['cancelled'] == False].drop(['event', 'cancelled'], axis=1)
-            fc_jumps_no_departure_time = fc_jumps[fc_jumps['DepartureTime'].isna()]
-            assert len(fc_jumps_no_departure_time) == 0 or (fc_jumps_no_departure_time['timestamp'] < datetime(year=2022, month=12, day=1, tzinfo=timezone.utc)).all(), 'Unexpected missing jump time'
+            # Only historical records support inferring a missing departure time.
+            fc_jumps_no_departure_time = fc_jumps[fc_jumps['DepartureTime'].isna() &
+                (fc_jumps['timestamp'] < datetime(year=2022, month=12, day=1, tzinfo=timezone.utc))].copy()
             fc_jumps_no_departure_time['DepartureTime'] = fc_jumps_no_departure_time['timestamp'] + timedelta(minutes=15)
-            fc_jumps_with_departure_time = fc_jumps[fc_jumps['DepartureTime'].notna()]
+            fc_jumps_with_departure_time = fc_jumps[fc_jumps['DepartureTime'].notna()].copy()
             fc_jumps_with_departure_time['DepartureTime'] = fc_jumps_with_departure_time['DepartureTime'].apply(lambda x: datetime.strptime(x, '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=timezone.utc))
             fc_jumps = pd.concat([fc_jumps_with_departure_time, fc_jumps_no_departure_time])
             fc_jumps = fc_jumps.sort_values('timestamp', ascending=False)
@@ -511,7 +624,12 @@ class CarrierModel:
                     df_active_trades = self.carriers[carrierID]['active_trades']
                     fc_active_trades = {df_active_trades.iloc[i]['Commodity']: df_active_trades.iloc[i].to_dict() for i in range(len(df_active_trades))}
                 fc_trade_orders = df_trade_orders[df_trade_orders['CarrierID'] == carrierID]
-                self.carriers[carrierID]['trade_history'] = fc_trade_orders[fc_trade_orders['CancelTrade'] != True].copy()
+                new_history = fc_trade_orders[fc_trade_orders['CancelTrade'] != True].copy()
+                old_history = self.carriers[carrierID].get('trade_history')
+                if old_history is None or old_history.empty:
+                    self.carriers[carrierID]['trade_history'] = new_history
+                elif not new_history.empty:
+                    self.carriers[carrierID]['trade_history'] = pd.concat([old_history, new_history], ignore_index=True)
                 if len(fc_trade_orders) > 0:
                     for i in range(len(fc_trade_orders)):
                         order = fc_trade_orders.iloc[i].to_dict()
@@ -574,6 +692,9 @@ class CarrierModel:
 
             if 'active_trades' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['active_trades'] = pd.DataFrame({}, columns=['CarrierID', 'timestamp', 'event', 'Commodity', 'Commodity_Localised', 'CancelTrade', 'PurchaseOrder', 'SaleOrder', 'Price'])
+
+            if 'trade_history' not in self.carriers[carrierID].keys():
+                self.carriers[carrierID]['trade_history'] = pd.DataFrame(columns=self.carriers[carrierID]['active_trades'].columns)
 
             if 'isSquadronCarrier' not in self.carriers[carrierID].keys():
                 self.carriers[carrierID]['isSquadronCarrier'] = False
@@ -816,13 +937,20 @@ class CarrierModel:
         df = pd.DataFrame([self.generate_info_finance(carrierID) for carrierID in self.sorted_ids_display()], columns=['Carrier Name', 'Squadron', 'Carrier Balance', 'CMDR Balance', 'Services Upkeep', 'Est. Jump Cost', 'Funded Till'])
         # handles unknown cmdr balance
         idx_no_cmdr = df[df['CMDR Balance'].isna()].index
+        idx_no_carrier = df[df['Carrier Balance'].isna()].index
         idx_squadron_carriers = [i for i in range(len(self.sorted_ids_display())) if self.is_squadron_carrier(self.sorted_ids_display()[i])]
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 0
+        # Use zero only while calculating known contributions, then mark every
+        # balance/total that depends on an unavailable carrier balance unknown.
+        df.loc[idx_no_carrier, 'Carrier Balance'] = 0
         df.insert(4, 'Total', df['Carrier Balance'].astype(int) + df['CMDR Balance'].astype(int))
         df = pd.concat([df, pd.DataFrame([['Total'] + [''] +[df.iloc[:,i].astype(int).sum() for i in range(2, 7)] + ['']], columns=df.columns)], axis=0, ignore_index=True)
         df = df.astype('object') # to comply with https://pandas.pydata.org/docs/dev/whatsnew/v2.1.0.html#deprecated-silent-upcasting-in-setitem-like-series-operations
         df.iloc[:, 2:] = df.iloc[:, 2:].apply(lambda x: [f'{int(xi):,}' if isinstance(xi, (int, float)) else xi for xi in x])
         df.loc[idx_no_cmdr, 'CMDR Balance'] = 'Unknown'
+        if len(idx_no_carrier):
+            df.loc[idx_no_carrier, ['Carrier Balance', 'Total']] = 'Unknown'
+            df.loc[df.index[-1], ['Carrier Balance', 'Total']] = 'Unknown'
         df.loc[idx_squadron_carriers, 'CMDR Balance'] = 'N/A'
         return df.values.tolist()
 
@@ -843,7 +971,9 @@ class CarrierModel:
     def get_cmdr_name(self, carrierID: int) -> str|None:
         return self.get_carriers()[carrierID]['CMDRName']
 
-    def calculate_afloat_time(self, carrierID: int, carrier_balance: int, upkeep: int, jump_cost: int) -> str:
+    def calculate_afloat_time(self, carrierID: int, carrier_balance: int|None, upkeep: int, jump_cost: int) -> str:
+        if carrier_balance is None:
+            return 'Unknown'
         stat_time = self.get_stat_time(carrierID=carrierID)
         stat_time = stat_time if stat_time is not None else datetime.now().astimezone()
         return naturaltime(stat_time + timedelta(weeks=carrier_balance / (upkeep + jump_cost)))
@@ -965,8 +1095,8 @@ class CarrierModel:
 
     def generate_info_space_usage(self, carrierID: int):
         space_usage = self.get_space_usage(carrierID=carrierID)
-        return (f"{int(space_usage['Services'])}t", f"{int(space_usage['Cargo'])}t", f"{int(space_usage['BuyOrder'])}t", f"{int(space_usage['ShipPacks'])}t", f"{int(space_usage['ModulePacks'])}t", 
-                f"{int(space_usage['FreeSpace'])}t") if space_usage['Services'] is not None else ('Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown', 'Unknown')
+        return tuple(f'{int(space_usage[key])}t' if space_usage[key] is not None else 'Unknown'
+                     for key in ('Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace'))
 
     def get_space_usage(self, carrierID: int):
         return self.get_carriers()[carrierID]['SpaceUsage']
@@ -1130,6 +1260,8 @@ class CarrierModel:
             return None
         else:
             df_active_trades = self.filter_likely_active_trades(df_active_trades, is_squadron_carrier=self.is_squadron_carrier(carrierID))
+            if df_active_trades.empty:
+                return None
             df_active_trades.sort_values('timestamp', ascending=False, inplace=True)
             df_active_trades.sort_values('Amount', ascending=False, inplace=True)
             largest_order = df_active_trades.iloc[0]
@@ -1324,4 +1456,3 @@ if __name__ == '__main__':
             'Carrier Name', 'Docking', 'Notorious', 'Services', 'Cargo', 'BuyOrder', 'ShipPacks', 'ModulePacks', 'FreeSpace', 'Time Bought (Local)', 'Last Updated'
         ]))
     # print(model.df_upkeeps)
-    
