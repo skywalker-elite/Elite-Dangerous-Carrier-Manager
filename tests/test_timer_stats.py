@@ -22,7 +22,7 @@ def response(payload, status=200):
 
 def stats_payload(count):
     return [{'avg': 900, 'cnt': count, 'earliest': '2026-01-01T01:00:00+00:00',
-             'latest': '2026-01-01T02:00:00+00:00', 'slope': None}]
+             'latest': '2026-01-01T02:00:00+00:00', 'slope': None, 'trend': 'Climb'}]
 
 
 class StopPolling(BaseException):
@@ -53,7 +53,7 @@ def test_polling_recovers_after_invalid_json(monkeypatch, capsys):
 
 def assert_polling_recovers(monkeypatch, capsys, failure, empty):
     ctl = CarrierController.__new__(CarrierController)
-    ctl.timer_stats = dict(avg_timer=None, count=0, earliest=None, latest=None, slope=None)
+    ctl.timer_stats = dict(avg_timer=None, count=0, earliest=None, latest=None, slope=None, trend=None)
     post = Mock(side_effect=[response(stats_payload(4)), failure, response(stats_payload(5))])
     monkeypatch.setattr(utility, 'HTTP_SESSION', SimpleNamespace(post=post))
     # Fresh decorator state uses the real rate limiter without depending on other tests.
@@ -73,13 +73,18 @@ def assert_polling_recovers(monkeypatch, capsys, failure, empty):
 
     assert post.call_count == 3
     assert snapshots[0]['count'] == 4
+    assert snapshots[0]['trend'] == 'Climb'
     if empty:
         assert all(value is None for value in snapshots[1].values())
     else:
         assert snapshots[1] == snapshots[0]
     assert snapshots[2]['count'] == 5
+    assert snapshots[2]['trend'] == 'Climb'
     assert snapshots[2]['avg_timer'] == '00 h 15 m 00 s'
     assert snapshots[2]['latest'] == datetime(2026, 1, 1, 2, tzinfo=timezone.utc)
+    ctl.view = SimpleNamespace(update_timer_stat=Mock())
+    ctl.redraw_timer_stat()
+    assert ctl.view.update_timer_stat.call_args.args[0].endswith('\nTimers are expected to go up')
     assert ('Error updating timer stats' in capsys.readouterr().out) is (not empty)
     # Timeouts must be supplied on every attempt, including the retry.
     assert all(call.kwargs['timeout'] == (5, 10) for call in post.call_args_list)

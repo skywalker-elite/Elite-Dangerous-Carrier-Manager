@@ -167,18 +167,20 @@ def test_update_request_failure_returns_no_version(monkeypatch, function, failur
     assert function() is None
 
 
-def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch):
+@pytest.mark.parametrize("prediction", [{}, {"trend": "Climb"}])
+def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch, prediction):
     response = Mock(status_code=200)
-    response.json.return_value = [{"avg": 1200, "cnt": 8, "earliest": "2026-01-01T01:00:00+00:00", "latest": "2026-01-01T02:00:00+00:00", "slope": -0.25}]
+    response.json.return_value = [{"avg": 1200, "cnt": 8, "earliest": "2026-01-01T01:00:00+00:00", "latest": "2026-01-01T02:00:00+00:00", "slope": -0.25, **prediction}]
     post = Mock(return_value=response)
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=post))
-    average, count, earliest, latest, slope = utility.getExpectedJumpTimer.__wrapped__()
+    average, count, earliest, latest, slope, trend = utility.getExpectedJumpTimer.__wrapped__()
     assert average == "00 h 20 m 00 s"
     assert count == 8 and slope == -0.25
+    assert trend == prediction.get("trend")
     assert earliest == datetime(2026, 1, 1, 1, tzinfo=timezone.utc)
     assert latest == datetime(2026, 1, 1, 2, tzinfo=timezone.utc)
     assert latest > earliest
-    assert post.call_args.args[0].endswith("/rpc/jump_timer_stats_cached")
+    assert post.call_args.args[0].endswith("/rpc/jump_timer_stats_cached_v2")
 
 
 @pytest.mark.parametrize("status,payload", [(200, []), (200, [None])])
@@ -186,7 +188,27 @@ def test_no_timer_data_has_consistent_empty_fields(monkeypatch, status, payload)
     response = Mock(status_code=status)
     response.json.return_value = payload
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=Mock(return_value=response)))
-    assert utility.getExpectedJumpTimer.__wrapped__() == (None, None, None, None, None)
+    assert utility.getExpectedJumpTimer.__wrapped__() == (None, None, None, None, None, None)
+
+
+@pytest.mark.parametrize("trend,prediction", [
+    (None, ""),
+    ("Neutral", "\nTimers are expected to remain stable"),
+    ("Surge", "\nTimers are expected to rise quickly"),
+    ("Climb", "\nTimers are expected to go up"),
+    ("Down", "\nTimers are expected to go down"),
+])
+def test_humanized_jump_timer_includes_available_prediction(monkeypatch, trend, prediction):
+    monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (
+        "00 h 20 m 00 s", 8, None, None, -0.25, trend))
+    assert utility.getHumanizedExpectedJumpTimer() == (
+        "Average jump timer: 00 h 20 m 00 s based on 8 report(s) from N/A to N/A"
+        + prediction)
+
+
+def test_humanized_jump_timer_without_data_has_no_prediction(monkeypatch):
+    monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (None,) * 6)
+    assert utility.getHumanizedExpectedJumpTimer() == "No recent timer reported"
 
 
 def test_cruise_status_extracts_state(monkeypatch):

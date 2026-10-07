@@ -237,8 +237,8 @@ def getInfoHash(journal_timestamp:datetime, timer:int, carrierID:int) -> str:
     return h.hexdigest()[:40]
 
 @rate_limited(max_calls=10, period=60)
-def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None]:
-    response = HTTP_SESSION.post(f'{SUPABASE_URL}/rest/v1/rpc/jump_timer_stats_cached', headers={
+def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|None, float|None, str|None]:
+    response = HTTP_SESSION.post(f'{SUPABASE_URL}/rest/v1/rpc/jump_timer_stats_cached_v2', headers={
         'content-type': 'application/json',
         'apikey': SUPABASE_KEY,
         'Authorization': f'Bearer {SUPABASE_KEY}'
@@ -249,10 +249,10 @@ def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|
         if not isinstance(rows, list):
             raise ValueError('Timer stats response must be a list')
         if not rows:
-            return None, None, None, None, None
+            return None, None, None, None, None, None
         data = rows[0]
         if data is None:
-            return None, None, None, None, None
+            return None, None, None, None, None, None
         if not isinstance(data, dict):
             raise ValueError('Timer stats row must be an object')
         avg_timer = data.get('avg', None)
@@ -260,20 +260,21 @@ def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|
         earliest = data.get('earliest', None)
         latest = data.get('latest', None)
         slope = data.get('slope', None)
+        trend = data.get('trend', None)
         if avg_timer is not None:
             h, m, s = getHMS(int(avg_timer))
             avg_timer = f'{h:02} h {m:02} m {s:02} s'
-        return avg_timer, count, datetime.fromisoformat(earliest) if earliest else None, datetime.fromisoformat(latest) if latest else None, slope
-    return None, None, None, None, None
+        return avg_timer, count, datetime.fromisoformat(earliest) if earliest else None, datetime.fromisoformat(latest) if latest else None, slope, trend
+    return None, None, None, None, None, None
 
 def getHumanizedExpectedJumpTimer() -> str:
-    avg_timer, count, earliest, latest, slope = getExpectedJumpTimer()
-    return getTimerStatDescription(avg_timer, count, earliest, latest, slope)
+    avg_timer, count, earliest, latest, slope, trend = getExpectedJumpTimer()
+    return getTimerStatDescription(avg_timer, count, earliest, latest, slope, trend)
 
-def getTimerStatDescription(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None, slope:float|None) -> str:
+def getTimerStatDescription(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None, slope:float|None, trend:str|None) -> str:
     # Disable slope description for now, not enough data to be useful
     # return '\n'.join([generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest), generateTimerSlopeDescription(slope)])
-    return generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest)
+    return generateHumanizedExpectedJumpTimer(avg_timer, count, earliest, latest) + ('\n' + generateTimerPredictionDescription(trend) if trend else '')
 
 def generateHumanizedExpectedJumpTimer(avg_timer:str|None, count:int|None, earliest:datetime|None, latest:datetime|None) -> str:
     if avg_timer is None:
@@ -295,6 +296,19 @@ def generateTimerSlopeDescription(slope:float|None) -> str:
         return 'Timer is declining'
     else:
         return 'Timer is stable'
+
+def generateTimerPredictionDescription(trend:str|None) -> str:
+    match trend:
+        case None:
+            return 'No prediction available'
+        case 'Neutral':
+            return 'Timers are expected to remain stable'
+        case 'Surge':
+            return 'Timers are expected to rise quickly'
+        case 'Climb':
+            return 'Timers are expected to go up'
+        case 'Down':
+            return 'Timers are expected to go down'
 
 @rate_limited(max_calls=1, period=60)
 def getCruiseStatus() -> str:
