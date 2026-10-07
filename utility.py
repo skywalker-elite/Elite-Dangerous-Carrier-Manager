@@ -249,7 +249,7 @@ def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|
         if not isinstance(rows, list):
             raise ValueError('Timer stats response must be a list')
         if not rows:
-            return None, None, None, None, None
+            return None, None, None, None, None, None
         data = rows[0]
         if data is None:
             return None, None, None, None, None, None
