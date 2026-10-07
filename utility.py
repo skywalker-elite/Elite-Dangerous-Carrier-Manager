@@ -242,11 +242,19 @@ def getExpectedJumpTimer() -> tuple[str|None, int|None, datetime|None, datetime|
         'content-type': 'application/json',
         'apikey': SUPABASE_KEY,
         'Authorization': f'Bearer {SUPABASE_KEY}'
-    })
+    }, timeout=(5, 10))  # Bound connection and read waits so polling can recover.
+    response.raise_for_status()
     if response.status_code == 200:
-        data = response.json()[0]
+        rows = response.json()
+        if not isinstance(rows, list):
+            raise ValueError('Timer stats response must be a list')
+        if not rows:
+            return None, None, None, None, None
+        data = rows[0]
         if data is None:
             return None, None, None, None, None
+        if not isinstance(data, dict):
+            raise ValueError('Timer stats row must be an object')
         avg_timer = data.get('avg', None)
         count = data.get('cnt', None)
         earliest = data.get('earliest', None)
