@@ -450,7 +450,11 @@ class CarrierController:
 
     def update_timer_stat_loop(self):
         while True:
-            self.update_timer_stat()
+            try:
+                self.update_timer_stat()
+            except Exception:
+                # Keep the last good stats and retry after the normal interval.
+                print(f'Error updating timer stats:\n{traceback.format_exc()}')
             time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
 
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):

@@ -181,7 +181,7 @@ def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch):
     assert post.call_args.args[0].endswith("/rpc/jump_timer_stats_cached")
 
 
-@pytest.mark.parametrize("status,payload", [(503, None), (200, [None])])
+@pytest.mark.parametrize("status,payload", [(200, []), (200, [None])])
 def test_no_timer_data_has_consistent_empty_fields(monkeypatch, status, payload):
     response = Mock(status_code=status)
     response.json.return_value = payload
