@@ -50,6 +50,30 @@ def test_complete_journal_has_expected_finance_services_and_tables(carrier):
     assert_tables_render(carrier)
 
 
+@pytest.mark.parametrize('squadron,capacity', [(False, 25000), (True, 60000)])
+@pytest.mark.parametrize('with_space_usage', [True, False])
+def test_route_capacity_with_or_without_space_usage(tmp_path, squadron, capacity, with_space_usage):
+    records = sample_events(squadron=squadron)
+    if not with_space_usage:
+        del records[3]['SpaceUsage']
+    carrier = make_model(tmp_path, records)
+    assert carrier.get_total_capacity(1) == capacity
+    assert carrier.get_capacity_used(1) == (capacity - 18000 - 2000 if with_space_usage else None)
+    assert carrier.get_cargo_tonnage(1) == (2000 if with_space_usage else None)
+
+
+def test_route_capacity_recovers_when_stats_arrive(tmp_path):
+    records = sample_events()
+    carrier = make_model(tmp_path, [record for record in records if record['event'] != 'CarrierStats'])
+    assert carrier.get_total_capacity(1) == 25000
+    assert carrier.get_capacity_used(1) is None
+    assert carrier.get_cargo_tonnage(1) is None
+    refresh(carrier, next(tmp_path.glob('Journal.*.log')), records[3])
+    assert carrier.get_total_capacity(1) == 25000
+    assert carrier.get_capacity_used(1) == 5000
+    assert carrier.get_cargo_tonnage(1) == 2000
+
+
 def test_incremental_fuel_and_docking_permissions(tmp_path):
     carrier = make_model(tmp_path)
     path = next(tmp_path.glob('Journal.*.log'))
@@ -130,15 +154,20 @@ def test_departure_and_cooldown_boundaries(tmp_path, offset, status):
     assert len(carrier.get_data(NOW + timedelta(seconds=900 + offset))) == 1
 
 
-@pytest.mark.parametrize('remaining', [JUMPLOCK.total_seconds(), PADLOCK.total_seconds(), 1])
-def test_jump_table_renders_configured_lock_boundaries(tmp_path, remaining):
+@pytest.mark.parametrize('remaining,expected_status', [
+    (JUMPLOCK.total_seconds(), 'Jumping'),
+    (PADLOCK.total_seconds(), 'Jump Locked'),
+    (1, 'Pad Locked'),
+])
+def test_jump_table_renders_configured_lock_boundaries(tmp_path, remaining, expected_status):
     carrier = make_model(tmp_path, sample_events() + [jump()])
     at = NOW + timedelta(seconds=900 - remaining)
     carrier.update_carriers(at)
     row = carrier.get_data(at)[0]
     assert row[0:2] == ('Test Carrier', 'ABC-123')
     assert carrier.get_status(1) == 'jumping'
-    assert row[6] == 'Achenar'
+    assert row[7] == 'Achenar'
+    assert row[6] == expected_status
 
 
 @pytest.mark.parametrize('offset,status', [(0, 'cool_down_cancel'), (CD_cancel.total_seconds()-1, 'cool_down_cancel'),
@@ -453,7 +482,7 @@ def test_damaged_stats_preserve_only_unusable_fields(tmp_path, stage, field, val
     assert carrier.get_stat_time(1).isoformat() == '2026-01-02T12:00:01+00:00'
     assert carrier.get_space_usage(1) == {
         'Services': 1000, 'Cargo': 2000 if field == 'SpaceUsage' else 2500, 'BuyOrder': 3000,
-        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 99,
+        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 99, 'TotalCapacity': 25000,
     }
     expected_services = {'Refuel': 'Active', 'Repair': 'Paused', 'Rearm': 'Off'} if field == 'Crew' else {}
     assert carrier.generate_info_services(1).to_dict() == expected_services
@@ -543,7 +572,7 @@ def test_unavailable_stats_mapping_preserves_previous_values(tmp_path, stage, se
     assert carrier.get_finance(1)['CarrierBalance'] == 1_000_000_000
     assert carrier.get_space_usage(1) == {
         'Services': 1000, 'Cargo': 2000, 'BuyOrder': 3000,
-        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 18000,
+        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 18000, 'TotalCapacity': 25000,
     }
     assert_tables_render(carrier)
 
@@ -585,14 +614,16 @@ def test_first_stats_without_usable_cargo_show_only_cargo_unknown_and_recover(tm
     carrier = make_model(tmp_path, records)
     assert carrier.get_space_usage(1) == {
         'Services': 1000, 'Cargo': None, 'BuyOrder': 3000,
-        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 18000,
+        'ShipPacks': 400, 'ModulePacks': 600, 'FreeSpace': 18000, 'TotalCapacity': 25000,
     }
+    assert carrier.get_capacity_used(1) is None
     assert carrier.get_data_misc()[0][3:9] == ['1000t', 'Unknown', '3000t', '400t', '600t', '18000t']
     assert_tables_render(carrier)
     healthy = dict(sample_events()[3], timestamp=stamp(2))
     refresh(carrier, next(tmp_path.glob('Journal.*.log')), healthy)
     assert carrier.get_space_usage(1)['Cargo'] == 2000
     assert carrier.get_data_misc()[0][3:9] == ['1000t', '2000t', '3000t', '400t', '600t', '18000t']
+    assert carrier.get_capacity_used(1) == 5000
     assert_tables_render(carrier)
 
 

@@ -11,7 +11,7 @@ class JournalReaderTests(unittest.TestCase):
         'LoadGame', 'CarrierLocation', 'CarrierJumpRequest',
         'CarrierJumpCancelled', 'CarrierStats', 'CarrierTradeOrder',
         'CarrierBuy', 'CarrierDepositFuel', 'CarrierDockingPermission',
-        'SquadronStartup', 'Docked', 'Undocked', 'FSDJump',
+        'SquadronStartup', 'Docked', 'Undocked', 'FSDJump', 'Music',
     )
 
     def setUp(self):
@@ -35,7 +35,8 @@ class JournalReaderTests(unittest.TestCase):
     def test_full_results_preserve_order_and_references(self):
         for timestamp in ('2025-04-11T02:24:44Z', '2025-04-11T02:24:45Z'):
             self.append_events(*(
-                {'event': event_type, 'timestamp': timestamp, 'CarrierID': 123}
+                {'event': event_type, 'timestamp': timestamp, 'CarrierID': 123,
+                 **({'MusicTrack': 'GalaxyMap'} if event_type == 'Music' else {})}
                 for event_type in self.EVENT_TYPES
             ))
         self.reader.read_journals()
