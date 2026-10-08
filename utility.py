@@ -309,6 +309,8 @@ def generateTimerPredictionDescription(trend:str|None) -> str:
             return 'Timers are expected to go up'
         case 'Down':
             return 'Timers are expected to go down'
+        case _:
+            return 'No prediction available'
 
 @rate_limited(max_calls=1, period=60)
 def getCruiseStatus() -> str:
