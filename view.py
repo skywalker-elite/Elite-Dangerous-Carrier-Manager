@@ -66,8 +66,12 @@ class CarrierView:
         self.label_version = ttk.Label(self.top_bar)
         self.label_version.pack(side='left', anchor='nw', padx=10)
 
-        self.label_timer_stat = ttk.Label(self.top_bar, justify='center')
-        self.label_timer_stat.pack(anchor='n', padx=10)
+        self.timer_stat_frame = ttk.Frame(self.top_bar)
+        self.timer_stat_frame.pack(anchor='n', padx=10)
+        self.label_timer_stat = ttk.Label(self.timer_stat_frame, justify='center')
+        self.label_timer_stat.pack(anchor='n')
+        style.configure('ReportLink.TLabel', foreground='#58a6ff', font=('Calibri', font_sizes['normal'], 'underline'))
+        self.label_report_to_fdev = ttk.Label(self.timer_stat_frame, style='ReportLink.TLabel', cursor='hand2', takefocus=True)
 
         self.tab_controller = ttk.Notebook(root)
         self.tab_jumps = ttk.Frame(self.tab_controller)
@@ -380,6 +384,7 @@ class CarrierView:
             "TNotebook.Tab", "TLabelframe.Label", "TLabelframe"
         ):
             style.configure(cls, font=("Calibri", size, "normal"))
+        style.configure('ReportLink.TLabel', font=('Calibri', size, 'underline'))
 
         # 4) global default for any new tk/ttk widget
         self.root.option_add("*Font", ("Calibri", size, "normal"))
@@ -476,8 +481,15 @@ class CarrierView:
     def update_time(self, time:str):
         self.clock_utc.configure(text=time)
 
-    def update_timer_stat(self, text:str):
+    def update_timer_stat(self, text:str, report_text:str|None=None):
+        if report_text is None:
+            report_text = ''
         self.label_timer_stat.configure(text=text)
+        self.label_report_to_fdev.configure(text=report_text)
+        if report_text:
+            self.label_report_to_fdev.pack(anchor='n')
+        else:
+            self.label_report_to_fdev.pack_forget()
 
     def show_message_box_info(self, title:str, message:str, grab_focus: bool=True, topmost: bool=True):
         show_message_box_info(self.root, title, message, grab_focus=grab_focus, topmost=topmost)
