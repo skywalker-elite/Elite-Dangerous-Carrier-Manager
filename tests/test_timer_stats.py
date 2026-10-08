@@ -1,6 +1,5 @@
 """Stats polling survives transient failures without losing the last good result."""
 import json
-from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -20,8 +19,8 @@ def response(payload, status=200):
     return result
 
 
-def stats_payload(count):
-    return [{'avg': 900, 'cnt': count, 'earliest': '2026-01-01T01:00:00+00:00',
+def stats_payload(count, average=900):
+    return [{'avg': average, 'cnt': count, 'earliest': '2026-01-01T01:00:00+00:00',
              'latest': '2026-01-01T02:00:00+00:00', 'slope': None, 'trend': 'Climb'}]
 
 
@@ -36,6 +35,8 @@ class StopPolling(BaseException):
     pytest.param(lambda: response({'error': 'unavailable'}, 503), False, id='http-error'),
     pytest.param(lambda: response([]), True, id='empty-response'),
     pytest.param(lambda: response([None]), True, id='null-row'),
+    pytest.param(lambda: response([{}]), True, id='empty-row'),
+    pytest.param(lambda: response([{'avg': None}]), True, id='null-average'),
     pytest.param(lambda: response([{'latest': 'invalid date'}]), False, id='invalid-timestamp'),
     pytest.param(lambda: response([{'avg': 'invalid number'}]), False, id='invalid-average'),
     pytest.param(lambda: response({'avg': 900}), False, id='invalid-response-shape'),
@@ -53,17 +54,18 @@ def test_polling_recovers_after_invalid_json(monkeypatch, capsys):
 
 def assert_polling_recovers(monkeypatch, capsys, failure, empty):
     ctl = CarrierController.__new__(CarrierController)
-    ctl.timer_stats = dict(avg_timer=None, count=0, earliest=None, latest=None, slope=None, trend=None)
-    post = Mock(side_effect=[response(stats_payload(4)), failure, response(stats_payload(5))])
+    ctl.timer_desp, ctl.report_text = 'No recent timer reported', None
+    post = Mock(side_effect=[response(stats_payload(4, average=3600)), failure, response(stats_payload(5))])
     monkeypatch.setattr(utility, 'HTTP_SESSION', SimpleNamespace(post=post))
+    monkeypatch.setattr(utility, 'naturaltime', lambda when: when.isoformat())
     # Fresh decorator state uses the real rate limiter without depending on other tests.
     fetch = rate_limited(max_calls=10, period=60)(utility.getExpectedJumpTimer.__wrapped__)
-    monkeypatch.setattr(module, 'getExpectedJumpTimer', fetch)
+    monkeypatch.setattr(utility, 'getExpectedJumpTimer', fetch)
     snapshots = []
 
     def sleep(seconds):
         assert seconds == module.UPDATE_INTERVAL_TIMER_STATS / 1000
-        snapshots.append(ctl.timer_stats.copy())
+        snapshots.append((ctl.timer_desp, ctl.report_text))
         if len(snapshots) == 3:
             raise StopPolling()
 
@@ -72,19 +74,21 @@ def assert_polling_recovers(monkeypatch, capsys, failure, empty):
         ctl.update_timer_stat_loop()
 
     assert post.call_count == 3
-    assert snapshots[0]['count'] == 4
-    assert snapshots[0]['trend'] == 'Climb'
+    assert snapshots[0] == (
+        'Average jump timer: 01 h 00 m 00 s based on 4 report(s) '
+        'from 2026-01-01T01:00:00+00:00 to 2026-01-01T02:00:00+00:00\nTimers are expected to go up',
+        'Report 1hr+ timers to FDev')
     if empty:
-        assert all(value is None for value in snapshots[1].values())
+        assert snapshots[1] == ('No recent timer reported', None)
     else:
         assert snapshots[1] == snapshots[0]
-    assert snapshots[2]['count'] == 5
-    assert snapshots[2]['trend'] == 'Climb'
-    assert snapshots[2]['avg_timer'] == '00 h 15 m 00 s'
-    assert snapshots[2]['latest'] == datetime(2026, 1, 1, 2, tzinfo=timezone.utc)
+    assert snapshots[2] == (
+        'Average jump timer: 00 h 15 m 00 s based on 5 report(s) '
+        'from 2026-01-01T01:00:00+00:00 to 2026-01-01T02:00:00+00:00\nTimers are expected to go up',
+        None)
     ctl.view = SimpleNamespace(update_timer_stat=Mock())
     ctl.redraw_timer_stat()
-    assert ctl.view.update_timer_stat.call_args.args[0].endswith('\nTimers are expected to go up')
+    ctl.view.update_timer_stat.assert_called_once_with(*snapshots[2])
     assert ('Error updating timer stats' in capsys.readouterr().out) is (not empty)
     # Timeouts must be supplied on every attempt, including the retry.
     assert all(call.kwargs['timeout'] == (5, 10) for call in post.call_args_list)

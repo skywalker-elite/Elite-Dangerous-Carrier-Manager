@@ -2,9 +2,14 @@
 from queue import Queue
 from types import SimpleNamespace
 from unittest.mock import Mock
+from tkinter import ttk
+import tkinter.font as tkfont
 
 import pytest
 
+import controller as module
+import utility
+from config import font_sizes
 from controller import CarrierController
 from model import CarrierModel
 from view import CarrierView
@@ -81,6 +86,80 @@ def test_active_journal_tab_can_be_shown_and_hidden(tk_root):
         view.checkbox_show_active_journals_var.set(shown)
         view.toggle_active_journals_tab()
         assert view.tab_controller.tab(view.tab_active_journals, 'state') == ('normal' if shown else 'hidden')
+
+
+@pytest.fixture
+def timer_app(tk_root, monkeypatch):
+    """Real timer UI and bindings with background work and external I/O isolated."""
+    model = Mock(journal_paths=[], dropout=True)
+    model.get_data_active_journals.return_value = []
+    response = Mock(status_code=200)
+    response.json.return_value = []
+    monkeypatch.setattr(utility, 'HTTP_SESSION', SimpleNamespace(post=Mock(return_value=response)))
+    # These finite UI refreshes do not need the polling rate limiter.
+    monkeypatch.setattr(utility, 'getExpectedJumpTimer', utility.getExpectedJumpTimer.__wrapped__)
+    for name in ('AuthHandler', 'Observer', 'TimeChecker', 'ThreadPoolExecutor'):
+        monkeypatch.setattr(module, name, Mock())
+    monkeypatch.setattr(module, 'threading', SimpleNamespace(Thread=Mock()))
+    for name in ('load_settings', 'update_journals', 'check_time_skew', 'set_current_version',
+                 'redraw_fast', 'redraw_slow', 'load_notes', 'check_app_update',
+                 'on_sign_in', 'on_sign_out', 'save_window_size_on_resize'):
+        monkeypatch.setattr(CarrierController, name, Mock())
+    browser = Mock()
+    monkeypatch.setattr(module, 'open_new_tab', browser)
+    ctl = CarrierController(tk_root, model)
+    ctl.redraw_timer_stat()
+    return SimpleNamespace(controller=ctl, response=response, browser=browser)
+
+
+def test_timer_report_link_tracks_average_and_empty_data(timer_app):
+    ctl = timer_app.controller
+    view = ctl.view
+    link = view.label_report_to_fdev
+    assert view.label_timer_stat.cget('text') == 'No recent timer reported'
+    assert not link.winfo_manager()
+    for payload, expected_text, report_text in (
+        ([{'avg': 3600, 'cnt': 4, 'trend': 'Climb'}],
+         'Average jump timer: 01 h 00 m 00 s based on 4 report(s) from N/A to N/A\nTimers are expected to go up',
+         'Report 1hr+ timers to FDev'),
+        ([{'avg': 900, 'cnt': 5}],
+         'Average jump timer: 00 h 15 m 00 s based on 5 report(s) from N/A to N/A', None),
+        ([{'avg': None}], 'No recent timer reported', None),
+        ([], 'No recent timer reported', None),
+        ([{'avg': 7200, 'cnt': 6}],
+         'Average jump timer: 02 h 00 m 00 s based on 6 report(s) from N/A to N/A',
+         'Report 1hr+ timers to FDev'),
+    ):
+        timer_app.response.json.return_value = payload
+        ctl.update_timer_stat()
+        ctl.redraw_timer_stat()
+        assert view.label_timer_stat.cget('text') == expected_text
+        assert link.cget('text') == (report_text or '')
+        assert link.winfo_manager() == ('pack' if report_text else '')
+    timer_app.browser.assert_not_called()
+    view.set_font_size('large', 'normal')
+    font = tkfont.Font(root=ctl.root, font=ttk.Style(ctl.root).lookup(link.cget('style'), 'font'))
+    assert font.actual('underline') == 1
+    assert font.actual('size') == font_sizes['large']
+    assert str(link.cget('cursor')) == 'hand2'
+
+
+@pytest.mark.parametrize('activation', ['<Button-1>', '<Return>'])
+def test_timer_report_link_opens_fdev_issue(timer_app, activation):
+    ctl = timer_app.controller
+    timer_app.response.json.return_value = [{'avg': 3600, 'cnt': 4}]
+    ctl.update_timer_stat()
+    ctl.redraw_timer_stat()
+    ctl.root.deiconify()
+    ctl.root.update()
+    link = ctl.view.label_report_to_fdev
+    assert link.winfo_ismapped()
+    if activation == '<Return>':
+        link.focus_force()
+        ctl.root.update()
+    link.event_generate(activation)
+    ctl.root.update()
+    timer_app.browser.assert_called_once_with(url='https://issues.frontierstore.net/issue-detail/72422')
 
 
 def test_initial_mixed_accounts_render_separate_carriers(tk_root, tmp_path, monkeypatch):

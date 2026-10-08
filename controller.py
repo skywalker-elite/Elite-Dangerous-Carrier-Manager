@@ -35,7 +35,7 @@ from settings import Settings, SettingsValidationError
 from model import CarrierModel
 from view import CarrierView, TradePostView, ManualTimerView, MenuOption, TradeHistoryView
 from station_parser import EDSMError, getStations
-from utility import getHammerCountdown, checkTimerFormat, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
+from utility import getHammerCountdown, checkTimerFormat, getHumanizedExpectedJumpTimer, getTimerStatDescription, getCurrentVersion, getLatestVersion, getPrereleaseUpdateVersion, getResourcePath, isOnPrerelease, isUpdateAvailable, getSettingsPath, getSettingsDefaultPath, getSettingsDir, getAppDir, getCachePath, open_file, getInfoHash, getExpectedJumpTimer, getCruiseStatus, getNotesPath
 from decos import debounce
 from discord_handler import DiscordWebhookHandler
 from time_checker import TimeChecker
@@ -83,7 +83,7 @@ class CarrierController:
         self.view = CarrierView(root, menu_options=menu_options)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
-        self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None, 'trend': None}
+        self.timer_desp, self.report_text = getHumanizedExpectedJumpTimer()
 
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
@@ -115,6 +115,8 @@ class CarrierController:
         self.view.button_test_sound_stop.configure(command=self.button_click_test_sound_stop)
         self.view.button_clear_cache.configure(command=self.button_click_clear_cache)
         self.view.button_go_to_github.configure(command=lambda: open_new_tab(url='https://github.com/skywalker-elite/Elite-Dangerous-Carrier-Manager'))
+        for event in ('<Button-1>', '<Return>'):
+            self.view.label_report_to_fdev.bind(event, lambda _: open_new_tab(url='https://issues.frontierstore.net/issue-detail/72422'))
         self.view.button_check_time_skew.configure(command=lambda: self.check_time_skew(silent=False))
         self.view.checkbox_show_active_journals_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'show_active_journals_tab', value=self.view.checkbox_show_active_journals_var.get()))
         self.view.checkbox_minimize_to_tray_var.trace_add('write', lambda *args: self.settings.set_config('UI', 'minimize_to_tray', value=self.view.checkbox_minimize_to_tray_var.get()))
@@ -457,8 +459,8 @@ class CarrierController:
                 print(f'Error updating timer stats:\n{traceback.format_exc()}')
             time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
 
-    def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
-        self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"], self.timer_stats["trend"] = getExpectedJumpTimer()
+    def update_timer_stat(self):
+        self.timer_desp, self.report_text = getHumanizedExpectedJumpTimer()
     
     def update_journals(self):
         try:
@@ -1040,7 +1042,7 @@ class CarrierController:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def redraw_timer_stat(self):
-        self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"], self.timer_stats["trend"]))
+        self.view.update_timer_stat(self.timer_desp, self.report_text)
 
     # def _start_realtime_listener(self):
     #     self._realtime_loop = asyncio.new_event_loop()

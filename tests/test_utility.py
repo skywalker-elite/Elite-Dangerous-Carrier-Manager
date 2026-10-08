@@ -173,8 +173,9 @@ def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch, pr
     response.json.return_value = [{"avg": 1200, "cnt": 8, "earliest": "2026-01-01T01:00:00+00:00", "latest": "2026-01-01T02:00:00+00:00", "slope": -0.25, **prediction}]
     post = Mock(return_value=response)
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=post))
-    average, count, earliest, latest, slope, trend = utility.getExpectedJumpTimer.__wrapped__()
+    average, report_to_fdev, count, earliest, latest, slope, trend = utility.getExpectedJumpTimer.__wrapped__()
     assert average == "00 h 20 m 00 s"
+    assert report_to_fdev is False
     assert count == 8 and slope == -0.25
     assert trend == prediction.get("trend")
     assert earliest == datetime(2026, 1, 1, 1, tzinfo=timezone.utc)
@@ -183,14 +184,35 @@ def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch, pr
     assert post.call_args.args[0].endswith("/rpc/jump_timer_stats_cached_v2")
 
 
-@pytest.mark.parametrize("status,payload", [(200, []), (200, [None])])
+@pytest.mark.parametrize("status,payload", [(200, []), (200, [None]), (200, [{}]), (200, [{"avg": None}])])
 def test_no_timer_data_has_consistent_empty_fields(monkeypatch, status, payload):
     response = Mock(status_code=status)
     response.json.return_value = payload
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=Mock(return_value=response)))
-    assert utility.getExpectedJumpTimer.__wrapped__() == (None, None, None, None, None, None)
+    assert utility.getExpectedJumpTimer.__wrapped__() == (None,) * 7
 
 
+@pytest.mark.parametrize("seconds,average,report_to_fdev", [
+    (0, "00 h 00 m 00 s", False),
+    (3599, "00 h 59 m 59 s", False),
+    (3600, "01 h 00 m 00 s", True),
+    (3661, "01 h 01 m 01 s", True),
+    (7200, "02 h 00 m 00 s", True),
+])
+def test_jump_timer_reports_averages_of_at_least_one_hour(monkeypatch, seconds, average, report_to_fdev):
+    response = Mock(status_code=200)
+    response.json.return_value = [{"avg": seconds, "cnt": 8}]
+    monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=Mock(return_value=response)))
+    result = utility.getExpectedJumpTimer.__wrapped__()
+    assert result[0] == average
+    assert result[1] is report_to_fdev
+    assert result[2] == 8
+
+
+@pytest.mark.parametrize("average,report_to_fdev,report_text", [
+    ("00 h 20 m 00 s", False, None),
+    ("01 h 00 m 00 s", True, "Report 1hr+ timers to FDev"),
+])
 @pytest.mark.parametrize("trend,prediction", [
     (None, ""),
     ("Neutral", "\nTimers are expected to remain stable"),
@@ -198,17 +220,17 @@ def test_no_timer_data_has_consistent_empty_fields(monkeypatch, status, payload)
     ("Climb", "\nTimers are expected to go up"),
     ("Down", "\nTimers are expected to go down"),
 ])
-def test_humanized_jump_timer_includes_available_prediction(monkeypatch, trend, prediction):
+def test_humanized_jump_timer_includes_available_prediction(monkeypatch, trend, prediction, average, report_to_fdev, report_text):
     monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (
-        "00 h 20 m 00 s", 8, None, None, -0.25, trend))
+        average, report_to_fdev, 8, None, None, -0.25, trend))
     assert utility.getHumanizedExpectedJumpTimer() == (
-        "Average jump timer: 00 h 20 m 00 s based on 8 report(s) from N/A to N/A"
-        + prediction)
+        f"Average jump timer: {average} based on 8 report(s) from N/A to N/A" + prediction,
+        report_text)
 
 
 def test_humanized_jump_timer_without_data_has_no_prediction(monkeypatch):
-    monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (None,) * 6)
-    assert utility.getHumanizedExpectedJumpTimer() == "No recent timer reported"
+    monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (None,) * 7)
+    assert utility.getHumanizedExpectedJumpTimer() == ("No recent timer reported", None)
 
 
 def test_cruise_status_extracts_state(monkeypatch):
