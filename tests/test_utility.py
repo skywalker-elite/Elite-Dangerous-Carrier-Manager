@@ -94,18 +94,26 @@ def test_update_selection_obeys_stable_and_prerelease_channels(monkeypatch, curr
     assert utility.isUpdateAvailable() is expected
 
 
-def test_prerelease_selection_filters_minor_and_invalid_names(monkeypatch):
+def test_prerelease_selection_uses_tags_and_filters_minor_and_invalid_tags(monkeypatch):
     response = Mock()
     response.json.return_value = [
-        {"prerelease": True, "name": "EDCM 1.2.0rc1"},
-        {"prerelease": True, "name": "1.2.0rc3"},
-        {"prerelease": True, "name": "EDCM 1.3.0rc9"},
-        {"prerelease": True, "name": "not-a-version"},
-        {"prerelease": False, "name": "EDCM 1.2.0"},
+        {"prerelease": True, "name": "Release refs/tags/v1.2.0rc1", "tag_name": "v1.2.0rc1"},
+        {"prerelease": True, "name": "Preview with an arbitrary title", "tag_name": "v1.2.0rc2"},
+        {"prerelease": True, "name": None, "tag_name": "v1.2.0rc3"},
+        {"prerelease": True, "tag_name": "v1.2.0rc4"},
+        {"prerelease": True, "tag_name": "v1.3.0rc9"},
+        {"prerelease": True, "tag_name": "v2.2.0rc9"},
+        {"prerelease": True, "name": "Release v1.2.0rc9", "tag_name": "not-a-version"},
+        {"prerelease": True, "name": "Release v1.2.0rc9"},
+        {"prerelease": True, "tag_name": None},
+        {"prerelease": True, "tag_name": 123},
+        {"prerelease": True, "tag_name": ""},
+        {"prerelease": True, "tag_name": "v1.2.0"},
+        {"prerelease": False, "tag_name": "v1.2.0rc9"},
     ]
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
     monkeypatch.setattr(utility, "getCurrentVersion", lambda: "1.2.0rc1")
-    assert utility.getLatestPrereleaseVersion.__wrapped__() == "1.2.0rc3"
+    assert utility.getLatestPrereleaseVersion.__wrapped__() == "v1.2.0rc4"
 
 
 @pytest.mark.parametrize("stable,prerelease,expected", [
@@ -118,12 +126,38 @@ def test_prerelease_update_candidate_uses_highest_version(monkeypatch, stable, p
     assert utility.getPrereleaseUpdateVersion() == expected
 
 
-def test_latest_release_name_is_parsed(monkeypatch):
+@pytest.mark.parametrize("title", [
+    "Release v1.6.4", "Release refs/tags/v1.6.4", "An arbitrary title",
+    "Release v9.9.9", "", None,
+])
+@pytest.mark.parametrize("tag", ["v1.6.4", "1.6.4"])
+def test_latest_release_uses_tag_independently_of_title(monkeypatch, title, tag):
     response = Mock()
-    response.json.return_value = {"name": "EDCM 1.2.3"}
+    response.json.return_value = {"name": title, "tag_name": tag}
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
-    assert utility.getLatestVersion() == "1.2.3"
+    assert utility.getLatestVersion() == tag
     response.raise_for_status.assert_called_once_with()
+
+
+def test_update_check_works_without_release_title(monkeypatch):
+    response = Mock()
+    response.json.return_value = {"tag_name": "v1.6.4"}
+    monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
+    monkeypatch.setattr(utility, "getCurrentVersion", lambda: "v1.6.3")
+    assert utility.isUpdateAvailable() is True
+
+
+@pytest.mark.parametrize("release", [
+    {"name": "Release v1.6.4"}, {"tag_name": None}, {"tag_name": ""},
+    {"tag_name": "not-a-version"}, {"tag_name": 123},
+])
+def test_invalid_latest_release_tag_returns_no_update(monkeypatch, release):
+    response = Mock()
+    response.json.return_value = release
+    monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(get=Mock(return_value=response)))
+    monkeypatch.setattr(utility, "getCurrentVersion", lambda: "v1.6.3")
+    assert utility.getLatestVersion() is None
+    assert utility.isUpdateAvailable() is False
 
 
 @pytest.mark.parametrize("function", [utility.getLatestVersion, utility.getLatestPrereleaseVersion.__wrapped__])
@@ -133,26 +167,48 @@ def test_update_request_failure_returns_no_version(monkeypatch, function, failur
     assert function() is None
 
 
-def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch):
+@pytest.mark.parametrize("prediction", [{}, {"trend": "Climb"}])
+def test_jump_timer_response_converts_seconds_and_iso_timestamps(monkeypatch, prediction):
     response = Mock(status_code=200)
-    response.json.return_value = [{"avg": 1200, "cnt": 8, "earliest": "2026-01-01T01:00:00+00:00", "latest": "2026-01-01T02:00:00+00:00", "slope": -0.25}]
+    response.json.return_value = [{"avg": 1200, "cnt": 8, "earliest": "2026-01-01T01:00:00+00:00", "latest": "2026-01-01T02:00:00+00:00", "slope": -0.25, **prediction}]
     post = Mock(return_value=response)
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=post))
-    average, count, earliest, latest, slope = utility.getExpectedJumpTimer.__wrapped__()
+    average, count, earliest, latest, slope, trend = utility.getExpectedJumpTimer.__wrapped__()
     assert average == "00 h 20 m 00 s"
     assert count == 8 and slope == -0.25
+    assert trend == prediction.get("trend")
     assert earliest == datetime(2026, 1, 1, 1, tzinfo=timezone.utc)
     assert latest == datetime(2026, 1, 1, 2, tzinfo=timezone.utc)
     assert latest > earliest
-    assert post.call_args.args[0].endswith("/rpc/jump_timer_stats_cached")
+    assert post.call_args.args[0].endswith("/rpc/jump_timer_stats_cached_v2")
 
 
-@pytest.mark.parametrize("status,payload", [(503, None), (200, [None])])
+@pytest.mark.parametrize("status,payload", [(200, []), (200, [None])])
 def test_no_timer_data_has_consistent_empty_fields(monkeypatch, status, payload):
     response = Mock(status_code=status)
     response.json.return_value = payload
     monkeypatch.setattr(utility, "HTTP_SESSION", SimpleNamespace(post=Mock(return_value=response)))
-    assert utility.getExpectedJumpTimer.__wrapped__() == (None, None, None, None, None)
+    assert utility.getExpectedJumpTimer.__wrapped__() == (None, None, None, None, None, None)
+
+
+@pytest.mark.parametrize("trend,prediction", [
+    (None, ""),
+    ("Neutral", "\nTimers are expected to remain stable"),
+    ("Surge", "\nTimers are expected to rise quickly"),
+    ("Climb", "\nTimers are expected to go up"),
+    ("Down", "\nTimers are expected to go down"),
+])
+def test_humanized_jump_timer_includes_available_prediction(monkeypatch, trend, prediction):
+    monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (
+        "00 h 20 m 00 s", 8, None, None, -0.25, trend))
+    assert utility.getHumanizedExpectedJumpTimer() == (
+        "Average jump timer: 00 h 20 m 00 s based on 8 report(s) from N/A to N/A"
+        + prediction)
+
+
+def test_humanized_jump_timer_without_data_has_no_prediction(monkeypatch):
+    monkeypatch.setattr(utility, "getExpectedJumpTimer", lambda: (None,) * 6)
+    assert utility.getHumanizedExpectedJumpTimer() == "No recent timer reported"
 
 
 def test_cruise_status_extracts_state(monkeypatch):

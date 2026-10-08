@@ -83,7 +83,7 @@ class CarrierController:
         self.view = CarrierView(root, menu_options=menu_options)
         self.model.register_status_change_callback(self.status_change)
         self.load_settings(getSettingsPath())
-        self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None}
+        self.timer_stats = {"avg_timer": None, "count": 0, "earliest": None, "latest": None, 'slope': None, 'trend': None}
 
         self.view.button_get_hammer.configure(command=self.button_click_hammer)
         self.view.button_post_trade.configure(command=self.button_click_post_trade)
@@ -450,11 +450,15 @@ class CarrierController:
 
     def update_timer_stat_loop(self):
         while True:
-            self.update_timer_stat()
+            try:
+                self.update_timer_stat()
+            except Exception:
+                # Keep the last good stats and retry after the normal interval.
+                print(f'Error updating timer stats:\n{traceback.format_exc()}')
             time.sleep(UPDATE_INTERVAL_TIMER_STATS / 1000)
 
     def update_timer_stat(self, payload:PostgresChangesPayload|None=None):
-        self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"] = getExpectedJumpTimer()
+        self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"], self.timer_stats["trend"] = getExpectedJumpTimer()
     
     def update_journals(self):
         try:
@@ -1036,7 +1040,7 @@ class CarrierController:
             self.view.root.after(REDRAW_INTERVAL_SLOW, self.redraw_slow)
 
     def redraw_timer_stat(self):
-        self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"]))
+        self.view.update_timer_stat(getTimerStatDescription(self.timer_stats["avg_timer"], self.timer_stats["count"], self.timer_stats["earliest"], self.timer_stats["latest"], self.timer_stats["slope"], self.timer_stats["trend"]))
 
     # def _start_realtime_listener(self):
     #     self._realtime_loop = asyncio.new_event_loop()
